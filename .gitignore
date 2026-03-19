@@ -1,0 +1,3 @@
+.env
+java-backend/target/
+.idea/
