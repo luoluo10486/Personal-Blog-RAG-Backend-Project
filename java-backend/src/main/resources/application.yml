@@ -4,11 +4,6 @@ server:
 spring:
   application:
     name: personal-blog-rag-backend
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:blogdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
-    username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
 
 app:
   api-prefix: ${API_PREFIX:/api/v1}
@@ -19,9 +14,3 @@ app:
     retrieval-url: ${RAG_RETRIEVAL_URL:}
     llm-url: ${RAG_LLM_URL:}
     api-key: ${RAG_API_KEY:}
-  member:
-    auth:
-      session-ttl-seconds: ${MEMBER_AUTH_SESSION_TTL_SECONDS:86400}
-      allow-mock-verify-code: ${MEMBER_AUTH_ALLOW_MOCK_VERIFY_CODE:true}
-      mock-verify-code: ${MEMBER_AUTH_MOCK_VERIFY_CODE:123456}
-      allow-plain-password: ${MEMBER_AUTH_ALLOW_PLAIN_PASSWORD:true}
