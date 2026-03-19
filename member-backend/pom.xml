@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.personalblog</groupId>
-    <artifactId>rag-backend</artifactId>
+    <artifactId>member-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>personal-blog-rag-backend</name>
-    <description>Personal Blog backend with API-based RAG orchestration</description>
+    <name>personal-blog-member-backend</name>
+    <description>Personal blog member backend (auth/profile)</description>
 
     <properties>
         <java.version>21</java.version>
