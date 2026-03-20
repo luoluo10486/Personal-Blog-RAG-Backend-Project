@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: ${SERVER_PORT:8081}
 
 spring:
@@ -9,6 +9,26 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:sa}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:3s}
+
+sa-token:
+  token-name: ${SA_TOKEN_NAME:Authorization}
+  token-prefix: ${SA_TOKEN_PREFIX:Bearer}
+  is-read-header: true
+  is-read-body: true
+  is-read-cookie: false
+
+mybatis-plus:
+  enable-logic-delete: ${MYBATIS_PLUS_ENABLE_LOGIC_DELETE:true}
+  global-config:
+    db-config:
+      logic-delete-value: 1
+      logic-not-delete-value: 0
 
 app:
   api-prefix: ${API_PREFIX:/api/v1}

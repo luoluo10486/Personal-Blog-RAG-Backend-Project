@@ -39,6 +39,7 @@ public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepositor
                     where target_type = ?
                       and target_value = ?
                       and used = 0
+                      and deleted = 0
                       and expires_at > ?
                     order by created_at desc
                     limit 1
@@ -60,7 +61,7 @@ public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepositor
                 """
                 update member_verify_code
                 set used = 1
-                where id = ?
+                where id = ? and deleted = 0
                 """,
                 id
         );

@@ -34,14 +34,15 @@ public class JdbcMemberSessionRepository implements MemberSessionRepository {
         jdbcTemplate.update(
                 """
                 insert into member_login_session
-                (user_id, token, grant_type, expires_at, revoked, created_at)
-                values (?, ?, ?, ?, ?, ?)
+                (user_id, token, grant_type, expires_at, revoked, deleted, created_at)
+                values (?, ?, ?, ?, ?, ?, ?)
                 """,
                 session.userId(),
                 session.token(),
                 session.grantType(),
                 Timestamp.valueOf(session.expiresAt()),
                 session.revoked() ? 1 : 0,
+                0,
                 Timestamp.valueOf(session.createdAt())
         );
     }
@@ -55,6 +56,7 @@ public class JdbcMemberSessionRepository implements MemberSessionRepository {
                     from member_login_session
                     where token = ?
                       and revoked = 0
+                      and deleted = 0
                       and expires_at > current_timestamp
                     order by id desc
                     limit 1

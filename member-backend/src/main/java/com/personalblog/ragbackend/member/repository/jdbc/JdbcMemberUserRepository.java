@@ -36,7 +36,7 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
                 """
                 select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
                 from member_user
-                where username = ? and status = 'ACTIVE'
+                where username = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
                 username
@@ -49,7 +49,7 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
                 """
                 select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
                 from member_user
-                where phone = ? and status = 'ACTIVE'
+                where phone = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
                 phone
@@ -62,7 +62,7 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
                 """
                 select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
                 from member_user
-                where email = ? and status = 'ACTIVE'
+                where email = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
                 email
@@ -75,7 +75,7 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
                 """
                 select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
                 from member_user
-                where id = ?
+                where id = ? and deleted = 0
                 limit 1
                 """,
                 id

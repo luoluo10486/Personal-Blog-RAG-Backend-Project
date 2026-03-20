@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.member.controller;
 
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.member.dto.profile.MemberProfileResponse;
 import com.personalblog.ragbackend.member.service.MemberProfileService;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ public class MemberProfileController {
     }
 
     @GetMapping("/me")
+    @MemberLoginRequired
     @ResponseStatus(HttpStatus.OK)
     public MemberProfileResponse me(
             @RequestHeader(value = "Authorization", required = false) String authorization

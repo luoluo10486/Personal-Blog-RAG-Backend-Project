@@ -1,5 +1,7 @@
 package com.personalblog.ragbackend.member.service;
 
+import cn.dev33.satoken.stp.StpUtil;
+import cn.dev33.satoken.stp.parameter.SaLoginParameter;
 import com.personalblog.ragbackend.config.AppProperties;
 import com.personalblog.ragbackend.member.model.MemberSession;
 import com.personalblog.ragbackend.member.repository.MemberSessionRepository;
@@ -8,7 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -25,10 +26,14 @@ public class MemberSessionService {
     public MemberSession createSession(Long userId, String grantType) {
         long ttlSeconds = appProperties.getMember().getAuth().getSessionTtlSeconds();
         LocalDateTime now = LocalDateTime.now();
+        StpUtil.login(userId, new SaLoginParameter()
+                .setDevice(grantType.toLowerCase(Locale.ROOT))
+                .setTimeout(ttlSeconds));
+        String token = StpUtil.getTokenValue();
         MemberSession session = new MemberSession(
                 null,
                 userId,
-                UUID.randomUUID().toString().replace("-", ""),
+                token,
                 grantType.toLowerCase(Locale.ROOT),
                 now.plusSeconds(ttlSeconds),
                 false,

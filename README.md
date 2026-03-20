@@ -1,62 +1,52 @@
 ﻿# Personal-Blog-RAG-Backend-Project
 
-当前仓库拆分为两个同级后端项目：
+当前仓库拆分为三个同级后端模块：
 
 - `java-backend`：RAG 服务（博客内容检索与问答编排）
+- `common`：公共组件库（Redis、Sa-Token、MyBatis-Plus 通用配置）
 - `member-backend`：个人中心服务（登录认证与 profile）
 
 ## 目录结构
 
 ```text
-Personal-Blog-RAG-Backend-Project
+Personal-Blog-RAG-Backend-Project-main
 ├─ java-backend
-└─ member-backend
+├─ common
+├─ member-backend
+└─ script
 ```
 
-## java-backend（RAG）
+## 构建
 
-启动：
+推荐在仓库根目录聚合构建（会自动先构建 `common`）：
+
+```bash
+cd Personal-Blog-RAG-Backend-Project-main
+mvn -pl member-backend -am clean package
+```
+
+## 启动
+
+### java-backend
 
 ```bash
 cd java-backend
 mvn spring-boot:run
 ```
 
-主要接口：
-
-- `GET /api/v1/health`
-- `GET /api/v1/posts`
-- `GET /api/v1/posts/{slug}`
-- `POST /api/v1/rag/query`
-
-## member-backend（登录/个人中心）
-
-启动：
+### member-backend
 
 ```bash
 cd member-backend
 mvn spring-boot:run
 ```
 
-主要接口：
+## SQL 目录（手动执行）
 
-- `POST /api/v1/member/auth/login`
-- `GET /api/v1/member/profile/me`
+- `script/sql/member/baseline`
+- `script/sql/member/migration`
+- `script/sql/member/rollback`
+- `script/sql/member/data`
+- `script/sql/member/local`
 
-登录策略（grantType）：
-
-- `password`
-- `sms`
-- `email`
-
-SQL（按 cde-base 风格）：
-
-- `member-backend/script/sql/member/baseline`
-- `member-backend/script/sql/member/migration`
-- `member-backend/script/sql/member/rollback`
-- `member-backend/script/sql/member/data`
-
-## 说明
-
-- 两个项目是独立服务，端口建议分别为 `8080`（rag）和 `8081`（member）。
-- `member-backend` 默认内置 H2 初始化数据，可直接联调登录。
+> 说明：当前 SQL 作为备份/迁移脚本，默认不自动初始化数据库。
