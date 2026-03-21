@@ -4,6 +4,9 @@
 spring:
   application:
     name: personal-blog-member-backend
+  sql:
+    init:
+      mode: never
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:memberdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
     username: ${SPRING_DATASOURCE_USERNAME:sa}
