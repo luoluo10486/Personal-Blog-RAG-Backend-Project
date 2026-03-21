@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.controller;
+﻿package com.personalblog.ragbackend.controller;
 
 import com.personalblog.ragbackend.dto.post.PostDetailResponse;
 import com.personalblog.ragbackend.dto.post.PostSummaryResponse;
@@ -13,6 +13,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+/**
+ * PostController 控制器，负责处理对外 HTTP 请求。
+ */
 @RestController
 @RequestMapping("${app.api-prefix}/posts")
 public class PostController {
@@ -32,6 +35,7 @@ public class PostController {
     @ResponseStatus(HttpStatus.OK)
     public PostDetailResponse getPost(@PathVariable String slug) {
         return postService.getPost(slug)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "文章不存在"));
     }
 }
+

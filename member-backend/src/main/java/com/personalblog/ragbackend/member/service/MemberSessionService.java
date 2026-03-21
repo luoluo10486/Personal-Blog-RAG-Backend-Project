@@ -1,10 +1,10 @@
-package com.personalblog.ragbackend.member.service;
+﻿package com.personalblog.ragbackend.member.service;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.stp.parameter.SaLoginParameter;
 import com.personalblog.ragbackend.config.AppProperties;
-import com.personalblog.ragbackend.member.model.MemberSession;
-import com.personalblog.ragbackend.member.repository.MemberSessionRepository;
+import com.personalblog.ragbackend.member.domain.MemberSession;
+import com.personalblog.ragbackend.member.mapper.MemberSessionMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,13 +13,16 @@ import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
+/**
+ * MemberSessionService 服务类，封装业务处理逻辑。
+ */
 @Service
 public class MemberSessionService {
-    private final MemberSessionRepository sessionRepository;
+    private final MemberSessionMapper memberSessionMapper;
     private final AppProperties appProperties;
 
-    public MemberSessionService(MemberSessionRepository sessionRepository, AppProperties appProperties) {
-        this.sessionRepository = sessionRepository;
+    public MemberSessionService(MemberSessionMapper memberSessionMapper, AppProperties appProperties) {
+        this.memberSessionMapper = memberSessionMapper;
         this.appProperties = appProperties;
     }
 
@@ -39,17 +42,27 @@ public class MemberSessionService {
                 false,
                 now
         );
-        sessionRepository.save(session);
+        memberSessionMapper.insertSession(
+                session.userId(),
+                session.token(),
+                session.grantType(),
+                session.expiresAt(),
+                session.revoked(),
+                session.createdAt()
+        );
         return session;
     }
 
     public MemberSession requireValidSession(String bearerToken) {
         String token = extractToken(bearerToken);
         if (token.isBlank()) {
-            throw new ResponseStatusException(UNAUTHORIZED, "Missing access token");
+            throw new ResponseStatusException(UNAUTHORIZED, "缺少访问令牌");
         }
-        return sessionRepository.findValidByToken(token)
-                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Invalid or expired access token"));
+        MemberSession session = memberSessionMapper.selectValidByToken(token);
+        if (session == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "访问令牌无效或已过期");
+        }
+        return session;
     }
 
     private String extractToken(String authorizationHeader) {
@@ -63,3 +76,4 @@ public class MemberSessionService {
         return value;
     }
 }
+

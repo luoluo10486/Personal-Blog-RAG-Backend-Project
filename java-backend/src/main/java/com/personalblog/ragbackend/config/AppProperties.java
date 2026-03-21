@@ -1,12 +1,15 @@
-package com.personalblog.ragbackend.config;
+﻿package com.personalblog.ragbackend.config;
 
 import jakarta.validation.constraints.Min;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * AppProperties 配置类，用于注册项目相关组件。
+ */
 @ConfigurationProperties(prefix = "app")
 public class AppProperties {
     private String apiPrefix = "/api/v1";
-    private String blogTitle = "My Personal Blog";
+    private String blogTitle = "我的个人博客";
     private final Rag rag = new Rag();
 
     public String getApiPrefix() {
@@ -79,3 +82,4 @@ public class AppProperties {
     }
 
 }
+

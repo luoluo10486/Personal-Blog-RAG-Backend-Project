@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.member.model;
+package com.personalblog.ragbackend.member.domain;
 
 import java.time.LocalDateTime;
 

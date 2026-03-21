@@ -1,22 +1,24 @@
-package com.personalblog.ragbackend.member.service;
+﻿package com.personalblog.ragbackend.member.service;
 
 import com.personalblog.ragbackend.config.AppProperties;
-import com.personalblog.ragbackend.member.model.MemberVerifyCode;
-import com.personalblog.ragbackend.member.repository.MemberVerifyCodeRepository;
+import com.personalblog.ragbackend.member.domain.MemberVerifyCode;
+import com.personalblog.ragbackend.member.mapper.MemberVerifyCodeMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.Optional;
 
+/**
+ * MemberVerifyCodeService 服务类，封装业务处理逻辑。
+ */
 @Service
 public class MemberVerifyCodeService {
-    private final MemberVerifyCodeRepository codeRepository;
+    private final MemberVerifyCodeMapper memberVerifyCodeMapper;
     private final AppProperties appProperties;
 
-    public MemberVerifyCodeService(MemberVerifyCodeRepository codeRepository, AppProperties appProperties) {
-        this.codeRepository = codeRepository;
+    public MemberVerifyCodeService(MemberVerifyCodeMapper memberVerifyCodeMapper, AppProperties appProperties) {
+        this.memberVerifyCodeMapper = memberVerifyCodeMapper;
         this.appProperties = appProperties;
     }
 
@@ -32,20 +34,20 @@ public class MemberVerifyCodeService {
         }
 
         String normalizedType = targetType.toLowerCase(Locale.ROOT);
-        Optional<MemberVerifyCode> latest = codeRepository.findLatestAvailable(
+        MemberVerifyCode code = memberVerifyCodeMapper.selectLatestAvailable(
                 normalizedType,
                 targetValue,
                 LocalDateTime.now()
         );
-        if (latest.isEmpty()) {
+        if (code == null) {
             return false;
         }
 
-        MemberVerifyCode code = latest.get();
         if (!inputCode.equals(code.verifyCode())) {
             return false;
         }
-        codeRepository.markUsed(code.id());
+        memberVerifyCodeMapper.markUsed(code.id());
         return true;
     }
 }
+

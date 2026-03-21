@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.common.satoken.handler;
+﻿package com.personalblog.ragbackend.common.satoken.handler;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
+/**
+ * SaTokenExceptionHandler 处理器类，用于统一处理框架扩展逻辑。
+ */
 @RestControllerAdvice
 public class SaTokenExceptionHandler {
 
@@ -18,7 +21,7 @@ public class SaTokenExceptionHandler {
     public Map<String, Object> handleNotLogin(NotLoginException exception) {
         return Map.of(
                 "code", HttpStatus.UNAUTHORIZED.value(),
-                "message", "Unauthorized: " + exception.getMessage()
+                "message", "未授权：" + exception.getMessage()
         );
     }
 
@@ -27,7 +30,7 @@ public class SaTokenExceptionHandler {
     public Map<String, Object> handleNotPermission(NotPermissionException exception) {
         return Map.of(
                 "code", HttpStatus.FORBIDDEN.value(),
-                "message", "Forbidden: " + exception.getMessage()
+                "message", "禁止访问：" + exception.getMessage()
         );
     }
 
@@ -36,7 +39,8 @@ public class SaTokenExceptionHandler {
     public Map<String, Object> handleNotRole(NotRoleException exception) {
         return Map.of(
                 "code", HttpStatus.FORBIDDEN.value(),
-                "message", "Forbidden: " + exception.getMessage()
+                "message", "禁止访问：" + exception.getMessage()
         );
     }
 }
+

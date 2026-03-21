@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend;
+﻿package com.personalblog.ragbackend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +10,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * HealthControllerTest 测试类，用于验证相关功能行为。
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class HealthControllerTest {
@@ -23,3 +26,4 @@ class HealthControllerTest {
                 .andExpect(jsonPath("$.status").value("ok"));
     }
 }
+

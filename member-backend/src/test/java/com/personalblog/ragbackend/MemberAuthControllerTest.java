@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend;
+﻿package com.personalblog.ragbackend;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +15,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * MemberAuthControllerTest 测试类，用于验证相关功能行为。
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class MemberAuthControllerTest {
@@ -71,3 +74,4 @@ class MemberAuthControllerTest {
                 .andExpect(jsonPath("$.username").value("demo_user"));
     }
 }
+

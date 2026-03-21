@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.service;
+﻿package com.personalblog.ragbackend.service;
 
 import com.personalblog.ragbackend.client.RagApiClient;
 import com.personalblog.ragbackend.config.AppProperties;
@@ -13,6 +13,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * RagService 服务类，封装业务处理逻辑。
+ */
 @Service
 public class RagService {
     private final RagApiClient ragApiClient;
@@ -81,9 +84,10 @@ public class RagService {
 
     private String localAnswer(List<RetrievedChunk> chunks) {
         if (chunks.isEmpty()) {
-            return "No relevant context was found in local blog posts.";
+            return "在本地博客文章中未找到相关上下文。";
         }
         String titles = chunks.stream().map(RetrievedChunk::title).reduce((a, b) -> a + ", " + b).orElse("");
-        return "Related context found in these posts: " + titles + ".";
+        return "在以下文章中找到了相关上下文：" + titles + "。";
     }
 }
+

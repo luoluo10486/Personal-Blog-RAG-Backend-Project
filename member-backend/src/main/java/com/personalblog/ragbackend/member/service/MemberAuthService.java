@@ -1,10 +1,10 @@
-package com.personalblog.ragbackend.member.service;
+﻿package com.personalblog.ragbackend.member.service;
 
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
 import com.personalblog.ragbackend.member.dto.auth.MemberUserSummary;
-import com.personalblog.ragbackend.member.model.MemberSession;
-import com.personalblog.ragbackend.member.model.MemberUser;
+import com.personalblog.ragbackend.member.domain.MemberSession;
+import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.service.auth.MemberLoginStrategy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+/**
+ * MemberAuthService 服务类，封装业务处理逻辑。
+ */
 @Service
 public class MemberAuthService {
     private final Map<String, MemberLoginStrategy> strategyMap;
@@ -36,7 +39,7 @@ public class MemberAuthService {
         String grantType = normalizeGrantType(request.getGrantType());
         MemberLoginStrategy strategy = strategyMap.get(grantType);
         if (strategy == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "Unsupported grantType: " + grantType);
+            throw new ResponseStatusException(BAD_REQUEST, "不支持的 grantType：" + grantType);
         }
 
         MemberUser user = strategy.authenticate(request);
@@ -60,8 +63,9 @@ public class MemberAuthService {
 
     private String normalizeGrantType(String grantType) {
         if (grantType == null || grantType.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "grantType is required");
+            throw new ResponseStatusException(BAD_REQUEST, "grantType 不能为空");
         }
         return grantType.trim().toLowerCase(Locale.ROOT);
     }
 }
+

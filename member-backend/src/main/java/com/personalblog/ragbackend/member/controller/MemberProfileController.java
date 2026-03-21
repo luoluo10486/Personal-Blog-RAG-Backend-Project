@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.member.controller;
+﻿package com.personalblog.ragbackend.member.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.member.dto.profile.MemberProfileResponse;
@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * MemberProfileController 控制器，负责处理对外 HTTP 请求。
+ */
 @RestController
 @RequestMapping("${app.api-prefix}/member/profile")
 public class MemberProfileController {
@@ -28,3 +31,4 @@ public class MemberProfileController {
         return memberProfileService.getCurrentProfile(authorization);
     }
 }
+

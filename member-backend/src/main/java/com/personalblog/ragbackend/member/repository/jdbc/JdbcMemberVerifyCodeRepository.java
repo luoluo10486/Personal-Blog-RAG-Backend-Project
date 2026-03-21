@@ -11,6 +11,9 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+/**
+ * JdbcMemberVerifyCodeRepository 是仓储层 JDBC 实现，负责数据库访问。
+ */
 @Repository
 public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepository {
     private final JdbcTemplate jdbcTemplate;
@@ -34,8 +37,8 @@ public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepositor
         try {
             MemberVerifyCode code = jdbcTemplate.queryForObject(
                     """
-                    select id, target_type, target_value, verify_code, expires_at, used, created_at
-                    from member_verify_code
+                    select verify_code_id as id, target_type, target_value, verify_code, expires_at, used, created_at
+                    from sys_user_verify_code
                     where target_type = ?
                       and target_value = ?
                       and used = 0
@@ -59,9 +62,9 @@ public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepositor
     public void markUsed(Long id) {
         jdbcTemplate.update(
                 """
-                update member_verify_code
+                update sys_user_verify_code
                 set used = 1
-                where id = ? and deleted = 0
+                where verify_code_id = ? and deleted = 0
                 """,
                 id
         );
@@ -71,3 +74,4 @@ public class JdbcMemberVerifyCodeRepository implements MemberVerifyCodeRepositor
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 }
+

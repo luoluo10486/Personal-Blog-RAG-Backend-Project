@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.controller;
+﻿package com.personalblog.ragbackend.controller;
 
 import com.personalblog.ragbackend.dto.rag.RagQueryRequest;
 import com.personalblog.ragbackend.dto.rag.RagQueryResponse;
@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * RagController 控制器，负责处理对外 HTTP 请求。
+ */
 @RestController
 @RequestMapping("${app.api-prefix}/rag")
 public class RagController {
@@ -26,3 +29,4 @@ public class RagController {
         return ragService.query(request.question());
     }
 }
+

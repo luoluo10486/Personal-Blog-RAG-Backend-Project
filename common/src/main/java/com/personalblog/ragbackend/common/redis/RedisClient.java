@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.common.redis;
+﻿package com.personalblog.ragbackend.common.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * RedisClient 工具类，用于封装常用 Redis 读写操作。
+ */
 @Component
 public class RedisClient {
     private final StringRedisTemplate redisTemplate;
@@ -78,7 +81,7 @@ public class RedisClient {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize redis value", e);
+            throw new IllegalStateException("序列化 Redis 值失败", e);
         }
     }
 
@@ -86,7 +89,8 @@ public class RedisClient {
         try {
             return objectMapper.readValue(json, clazz);
         } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to deserialize redis value", e);
+            throw new IllegalStateException("反序列化 Redis 值失败", e);
         }
     }
 }
+

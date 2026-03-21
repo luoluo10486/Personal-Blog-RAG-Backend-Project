@@ -1,9 +1,9 @@
-package com.personalblog.ragbackend.member.service.auth.strategy;
+﻿package com.personalblog.ragbackend.member.service.auth.strategy;
 
 import com.personalblog.ragbackend.config.AppProperties;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
-import com.personalblog.ragbackend.member.model.MemberUser;
-import com.personalblog.ragbackend.member.repository.MemberUserRepository;
+import com.personalblog.ragbackend.member.domain.MemberUser;
+import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
 import com.personalblog.ragbackend.member.service.auth.MemberLoginStrategy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -12,18 +12,21 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
+/**
+ * PasswordLoginStrategy 登录策略实现类，负责处理对应方式的认证逻辑。
+ */
 @Service
 public class PasswordLoginStrategy implements MemberLoginStrategy {
-    private final MemberUserRepository userRepository;
+    private final MemberUserMapper memberUserMapper;
     private final PasswordEncoder passwordEncoder;
     private final AppProperties appProperties;
 
     public PasswordLoginStrategy(
-            MemberUserRepository userRepository,
+            MemberUserMapper memberUserMapper,
             PasswordEncoder passwordEncoder,
             AppProperties appProperties
     ) {
-        this.userRepository = userRepository;
+        this.memberUserMapper = memberUserMapper;
         this.passwordEncoder = passwordEncoder;
         this.appProperties = appProperties;
     }
@@ -38,15 +41,17 @@ public class PasswordLoginStrategy implements MemberLoginStrategy {
         String username = request.getUsername();
         String password = request.getPassword();
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "username and password are required");
+            throw new ResponseStatusException(BAD_REQUEST, "username 和 password 不能为空");
         }
 
-        MemberUser user = userRepository.findActiveByUsername(username.trim())
-                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Invalid username or password"));
+        MemberUser user = memberUserMapper.selectActiveByUsername(username.trim());
+        if (user == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "用户名或密码错误");
+        }
 
         boolean matched = matchesPassword(password, user.passwordHash());
         if (!matched) {
-            throw new ResponseStatusException(UNAUTHORIZED, "Invalid username or password");
+            throw new ResponseStatusException(UNAUTHORIZED, "用户名或密码错误");
         }
         return user;
     }
@@ -60,8 +65,9 @@ public class PasswordLoginStrategy implements MemberLoginStrategy {
                 return true;
             }
         } catch (IllegalArgumentException ignored) {
-            // Fall back to plain comparison only in local/dev-compatible mode.
+            // 仅在本地或开发兼容模式下回退为明文比较。
         }
         return appProperties.getMember().getAuth().isAllowPlainPassword() && raw.equals(storedHash);
     }
 }
+

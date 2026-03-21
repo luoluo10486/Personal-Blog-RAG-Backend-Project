@@ -40,5 +40,4 @@ mvn spring-boot:run
 - `../script/sql/member/baseline`
 - `../script/sql/member/migration`
 - `../script/sql/member/rollback`
-- `../script/sql/member/data`
-- `../script/sql/member/local`
+

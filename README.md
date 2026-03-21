@@ -46,7 +46,6 @@ mvn spring-boot:run
 - `script/sql/member/baseline`
 - `script/sql/member/migration`
 - `script/sql/member/rollback`
-- `script/sql/member/data`
-- `script/sql/member/local`
 
 > 说明：当前 SQL 作为备份/迁移脚本，默认不自动初始化数据库。
+

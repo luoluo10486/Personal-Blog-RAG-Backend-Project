@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.client;
+﻿package com.personalblog.ragbackend.client;
 
 import com.personalblog.ragbackend.config.AppProperties;
 import com.personalblog.ragbackend.model.RetrievedChunk;
@@ -10,6 +10,9 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * RagApiClient 客户端类，用于调用外部服务。
+ */
 @Component
 public class RagApiClient {
     private final RestClient restClient;
@@ -91,3 +94,4 @@ public class RagApiClient {
     private record GenerateResponse(String answer) {
     }
 }
+

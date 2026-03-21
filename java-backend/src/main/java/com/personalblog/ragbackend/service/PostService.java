@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.service;
+﻿package com.personalblog.ragbackend.service;
 
 import com.personalblog.ragbackend.dto.post.PostDetailResponse;
 import com.personalblog.ragbackend.dto.post.PostSummaryResponse;
@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * PostService 服务类，封装业务处理逻辑。
+ */
 @Service
 public class PostService {
     private final PostRepository postRepository;
@@ -38,3 +41,4 @@ public class PostService {
                 ));
     }
 }
+

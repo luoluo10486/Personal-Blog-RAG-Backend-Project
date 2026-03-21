@@ -11,6 +11,9 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+/**
+ * JdbcMemberSessionRepository 是仓储层 JDBC 实现，负责数据库访问。
+ */
 @Repository
 public class JdbcMemberSessionRepository implements MemberSessionRepository {
     private final JdbcTemplate jdbcTemplate;
@@ -33,7 +36,7 @@ public class JdbcMemberSessionRepository implements MemberSessionRepository {
     public void save(MemberSession session) {
         jdbcTemplate.update(
                 """
-                insert into member_login_session
+                insert into sys_user_login_session
                 (user_id, token, grant_type, expires_at, revoked, deleted, created_at)
                 values (?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -52,13 +55,13 @@ public class JdbcMemberSessionRepository implements MemberSessionRepository {
         try {
             MemberSession session = jdbcTemplate.queryForObject(
                     """
-                    select id, user_id, token, grant_type, expires_at, revoked, created_at
-                    from member_login_session
+                    select session_id as id, user_id, token, grant_type, expires_at, revoked, created_at
+                    from sys_user_login_session
                     where token = ?
                       and revoked = 0
                       and deleted = 0
                       and expires_at > current_timestamp
-                    order by id desc
+                    order by session_id desc
                     limit 1
                     """,
                     ROW_MAPPER,
@@ -74,3 +77,4 @@ public class JdbcMemberSessionRepository implements MemberSessionRepository {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 }
+

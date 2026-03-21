@@ -10,6 +10,9 @@ import org.springframework.stereotype.Repository;
 import java.sql.Timestamp;
 import java.util.Optional;
 
+/**
+ * JdbcMemberUserRepository 是仓储层 JDBC 实现，负责数据库访问。
+ */
 @Repository
 public class JdbcMemberUserRepository implements MemberUserRepository {
     private final JdbcTemplate jdbcTemplate;
@@ -34,8 +37,8 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
     public Optional<MemberUser> findActiveByUsername(String username) {
         return findOne(
                 """
-                select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
-                from member_user
+                select user_id as id, username, password_hash, phone, email, display_name, status, created_at, updated_at
+                from sys_user
                 where username = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
@@ -47,8 +50,8 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
     public Optional<MemberUser> findActiveByPhone(String phone) {
         return findOne(
                 """
-                select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
-                from member_user
+                select user_id as id, username, password_hash, phone, email, display_name, status, created_at, updated_at
+                from sys_user
                 where phone = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
@@ -60,8 +63,8 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
     public Optional<MemberUser> findActiveByEmail(String email) {
         return findOne(
                 """
-                select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
-                from member_user
+                select user_id as id, username, password_hash, phone, email, display_name, status, created_at, updated_at
+                from sys_user
                 where email = ? and status = 'ACTIVE' and deleted = 0
                 limit 1
                 """,
@@ -73,9 +76,9 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
     public Optional<MemberUser> findById(Long id) {
         return findOne(
                 """
-                select id, username, password_hash, phone, email, display_name, status, created_at, updated_at
-                from member_user
-                where id = ? and deleted = 0
+                select user_id as id, username, password_hash, phone, email, display_name, status, created_at, updated_at
+                from sys_user
+                where user_id = ? and deleted = 0
                 limit 1
                 """,
                 id
@@ -95,3 +98,4 @@ public class JdbcMemberUserRepository implements MemberUserRepository {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 }
+

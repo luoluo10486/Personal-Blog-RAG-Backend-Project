@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.member.controller;
+﻿package com.personalblog.ragbackend.member.controller;
 
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * MemberAuthController 控制器，负责处理对外 HTTP 请求。
+ */
 @RestController
 @RequestMapping("${app.api-prefix}/member/auth")
 public class MemberAuthController {
@@ -26,3 +29,4 @@ public class MemberAuthController {
         return memberAuthService.login(request);
     }
 }
+
