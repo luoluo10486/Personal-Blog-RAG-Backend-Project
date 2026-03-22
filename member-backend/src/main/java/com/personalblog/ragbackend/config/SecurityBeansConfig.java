@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.config;
+package com.personalblog.ragbackend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -6,7 +6,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
- * SecurityBeansConfig 配置类，用于注册项目相关组件。
+ * 安全组件配置类，负责注册密码编码器。
  */
 @Configuration
 public class SecurityBeansConfig {
@@ -16,4 +16,3 @@ public class SecurityBeansConfig {
         return new BCryptPasswordEncoder();
     }
 }
-

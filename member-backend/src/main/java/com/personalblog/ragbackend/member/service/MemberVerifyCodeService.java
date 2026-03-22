@@ -1,53 +1,68 @@
-﻿package com.personalblog.ragbackend.member.service;
+package com.personalblog.ragbackend.member.service;
 
+import com.personalblog.ragbackend.common.auth.dto.VerifyCodeIssueCommand;
+import com.personalblog.ragbackend.common.auth.dto.VerifyCodeVerifyCommand;
+import com.personalblog.ragbackend.common.auth.service.VerifyCodeService;
 import com.personalblog.ragbackend.config.AppProperties;
-import com.personalblog.ragbackend.member.domain.MemberVerifyCode;
-import com.personalblog.ragbackend.member.mapper.MemberVerifyCodeMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.Locale;
 
 /**
- * MemberVerifyCodeService 服务类，封装业务处理逻辑。
+ * 会员验证码服务，负责补齐会员场景参数并委托公共验证码能力处理。
  */
 @Service
 public class MemberVerifyCodeService {
-    private final MemberVerifyCodeMapper memberVerifyCodeMapper;
+    private static final String VERIFY_CODE_NAMESPACE = "member_auth";
+    private static final String LOGIN_BIZ_TYPE = "LOGIN";
+    private static final String SUBJECT_TYPE = "SYS_USER";
+
+    private final VerifyCodeService verifyCodeService;
     private final AppProperties appProperties;
 
-    public MemberVerifyCodeService(MemberVerifyCodeMapper memberVerifyCodeMapper, AppProperties appProperties) {
-        this.memberVerifyCodeMapper = memberVerifyCodeMapper;
+    public MemberVerifyCodeService(VerifyCodeService verifyCodeService, AppProperties appProperties) {
+        this.verifyCodeService = verifyCodeService;
         this.appProperties = appProperties;
     }
 
-    @Transactional
     public boolean verifyAndConsume(String targetType, String targetValue, String inputCode) {
-        if (targetValue == null || targetValue.isBlank() || inputCode == null || inputCode.isBlank()) {
-            return false;
-        }
-
-        var auth = appProperties.getMember().getAuth();
-        if (auth.isAllowMockVerifyCode() && inputCode.equals(auth.getMockVerifyCode())) {
-            return true;
-        }
-
-        String normalizedType = targetType.toLowerCase(Locale.ROOT);
-        MemberVerifyCode code = memberVerifyCodeMapper.selectLatestAvailable(
-                normalizedType,
+        return verifyCodeService.verifyAndConsume(new VerifyCodeVerifyCommand(
+                VERIFY_CODE_NAMESPACE,
+                LOGIN_BIZ_TYPE,
+                targetType,
                 targetValue,
-                LocalDateTime.now()
-        );
-        if (code == null) {
-            return false;
-        }
+                inputCode,
+                appProperties.getMember().getAuth().isAllowMockVerifyCode(),
+                appProperties.getMember().getAuth().getMockVerifyCode()
+        ));
+    }
 
-        if (!inputCode.equals(code.verifyCode())) {
-            return false;
-        }
-        memberVerifyCodeMapper.markUsed(code.id());
-        return true;
+    public void recordAndCache(
+            String bizType,
+            String bizId,
+            String userType,
+            String targetType,
+            String targetValue,
+            String messageChannel,
+            String templateId,
+            String provider,
+            String requestId,
+            String verifyCode,
+            String remark
+    ) {
+        verifyCodeService.issue(new VerifyCodeIssueCommand(
+                VERIFY_CODE_NAMESPACE,
+                bizType,
+                bizId,
+                SUBJECT_TYPE,
+                null,
+                targetType,
+                targetValue,
+                messageChannel,
+                templateId,
+                provider,
+                requestId,
+                verifyCode,
+                appProperties.getMember().getAuth().getVerifyCodeTtlSeconds(),
+                remark
+        ));
     }
 }
-

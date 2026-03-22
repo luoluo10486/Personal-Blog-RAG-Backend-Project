@@ -1,14 +1,14 @@
-﻿package com.personalblog.ragbackend.member.dto.auth;
+package com.personalblog.ragbackend.member.dto.auth;
 
 /**
- * MemberUserSummary 数据传输对象，用于接口参数与返回值封装。
+ * 用户摘要信息，用于登录成功后的轻量化展示。
  */
 public record MemberUserSummary(
         Long id,
         String username,
         String displayName,
         String phone,
-        String email
+        String email,
+        String userType
 ) {
 }
-

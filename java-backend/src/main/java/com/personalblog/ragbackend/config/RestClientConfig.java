@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.config;
+package com.personalblog.ragbackend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

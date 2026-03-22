@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.common.redis;
+package com.personalblog.ragbackend.common.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * RedisClient 工具类，用于封装常用 Redis 读写操作。
+ * Redis 工具类，封装项目内通用的字符串和对象读写操作。
  */
 @Component
 public class RedisClient {
@@ -93,4 +93,3 @@ public class RedisClient {
         }
     }
 }
-

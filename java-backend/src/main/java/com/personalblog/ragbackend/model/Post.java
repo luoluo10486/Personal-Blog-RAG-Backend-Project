@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.model;
+package com.personalblog.ragbackend.model;
 
 import java.util.List;
 

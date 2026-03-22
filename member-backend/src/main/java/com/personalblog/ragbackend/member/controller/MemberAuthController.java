@@ -1,32 +1,29 @@
-﻿package com.personalblog.ragbackend.member.controller;
+package com.personalblog.ragbackend.member.controller;
 
+import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.member.application.MemberAuthApplicationService;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
-import com.personalblog.ragbackend.member.service.MemberAuthService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * MemberAuthController 控制器，负责处理对外 HTTP 请求。
+ * 认证控制器，对外提供会员登录接口。
  */
 @RestController
 @RequestMapping("${app.api-prefix}/member/auth")
 public class MemberAuthController {
-    private final MemberAuthService memberAuthService;
+    private final MemberAuthApplicationService memberAuthApplicationService;
 
-    public MemberAuthController(MemberAuthService memberAuthService) {
-        this.memberAuthService = memberAuthService;
+    public MemberAuthController(MemberAuthApplicationService memberAuthApplicationService) {
+        this.memberAuthApplicationService = memberAuthApplicationService;
     }
 
     @PostMapping("/login")
-    @ResponseStatus(HttpStatus.OK)
-    public MemberLoginResponse login(@Valid @RequestBody MemberLoginRequest request) {
-        return memberAuthService.login(request);
+    public R<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest request) {
+        return R.ok("登录成功", memberAuthApplicationService.login(request));
     }
 }
-

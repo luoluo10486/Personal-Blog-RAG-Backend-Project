@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.dto.rag;
+package com.personalblog.ragbackend.dto.rag;
 
 /**
  * RagReferenceResponse 数据传输对象，用于接口参数与返回值封装。

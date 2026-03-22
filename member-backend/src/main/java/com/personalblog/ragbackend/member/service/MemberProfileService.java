@@ -1,41 +1,44 @@
-﻿package com.personalblog.ragbackend.member.service;
+package com.personalblog.ragbackend.member.service;
 
-import com.personalblog.ragbackend.member.dto.profile.MemberProfileResponse;
-import com.personalblog.ragbackend.member.domain.MemberSession;
 import com.personalblog.ragbackend.member.domain.MemberUser;
-import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
+import com.personalblog.ragbackend.member.dto.profile.MemberProfileResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 /**
- * MemberProfileService 服务类，封装业务处理逻辑。
+ * 会员资料领域服务，负责当前登录用户资料读取。
  */
 @Service
 public class MemberProfileService {
     private final MemberSessionService memberSessionService;
-    private final MemberUserMapper memberUserMapper;
+    private final MemberUserService memberUserService;
 
-    public MemberProfileService(MemberSessionService memberSessionService, MemberUserMapper memberUserMapper) {
+    public MemberProfileService(MemberSessionService memberSessionService, MemberUserService memberUserService) {
         this.memberSessionService = memberSessionService;
-        this.memberUserMapper = memberUserMapper;
+        this.memberUserService = memberUserService;
     }
 
-    public MemberProfileResponse getCurrentProfile(String authorizationHeader) {
-        MemberSession session = memberSessionService.requireValidSession(authorizationHeader);
-        MemberUser user = memberUserMapper.selectById(session.userId());
-        if (user == null) {
-            throw new ResponseStatusException(UNAUTHORIZED, "用户不存在");
+    public MemberProfileResponse getCurrentProfile() {
+        Long userId = memberSessionService.getCurrentLoginUserId();
+        if (userId == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "用户未登录");
         }
+
+        MemberUser user = memberUserService.findActiveById(userId);
+        if (user == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "用户不存在或状态不可用");
+        }
+
         return new MemberProfileResponse(
-                user.id(),
-                user.username(),
-                user.displayName(),
-                user.phone(),
-                user.email(),
-                user.status()
+                user.getUserId(),
+                user.getUsername(),
+                user.getDisplayName(),
+                user.getPhone(),
+                user.getEmail(),
+                user.getUserType(),
+                user.getStatus()
         );
     }
 }
-

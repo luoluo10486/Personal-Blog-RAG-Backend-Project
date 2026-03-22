@@ -1,5 +1,6 @@
-﻿package com.personalblog.ragbackend.controller;
+package com.personalblog.ragbackend.controller;
 
+import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.dto.post.PostDetailResponse;
 import com.personalblog.ragbackend.dto.post.PostSummaryResponse;
 import com.personalblog.ragbackend.service.PostService;
@@ -7,7 +8,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -26,16 +26,15 @@ public class PostController {
     }
 
     @GetMapping
-    @ResponseStatus(HttpStatus.OK)
-    public List<PostSummaryResponse> listPosts() {
-        return postService.listPosts();
+    public R<List<PostSummaryResponse>> listPosts() {
+        return R.ok("查询成功", postService.listPosts());
     }
 
     @GetMapping("/{slug}")
-    @ResponseStatus(HttpStatus.OK)
-    public PostDetailResponse getPost(@PathVariable String slug) {
-        return postService.getPost(slug)
+    public R<PostDetailResponse> getPost(@PathVariable String slug) {
+        PostDetailResponse post = postService.getPost(slug)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "文章不存在"));
+        return R.ok("查询成功", post);
     }
 }
 

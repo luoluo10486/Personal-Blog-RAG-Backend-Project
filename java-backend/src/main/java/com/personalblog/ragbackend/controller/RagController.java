@@ -1,14 +1,13 @@
-﻿package com.personalblog.ragbackend.controller;
+package com.personalblog.ragbackend.controller;
 
+import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.dto.rag.RagQueryRequest;
 import com.personalblog.ragbackend.dto.rag.RagQueryResponse;
 import com.personalblog.ragbackend.service.RagService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,9 +23,8 @@ public class RagController {
     }
 
     @PostMapping("/query")
-    @ResponseStatus(HttpStatus.OK)
-    public RagQueryResponse query(@Valid @RequestBody RagQueryRequest request) {
-        return ragService.query(request.question());
+    public R<RagQueryResponse> query(@Valid @RequestBody RagQueryRequest request) {
+        return R.ok("查询成功", ragService.query(request.question()));
     }
 }
 

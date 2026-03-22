@@ -6,7 +6,7 @@ import com.personalblog.ragbackend.member.service.MemberAuthService;
 import org.springframework.stereotype.Service;
 
 /**
- * MemberAuthApplicationService 应用层服务，负责登录用例编排。
+ * 认证应用服务，编排会员登录用例。
  */
 @Service
 public class MemberAuthApplicationService {
@@ -20,4 +20,3 @@ public class MemberAuthApplicationService {
         return memberAuthService.login(request);
     }
 }
-

@@ -1,5 +1,6 @@
-﻿package com.personalblog.ragbackend.controller;
+package com.personalblog.ragbackend.controller;
 
+import com.personalblog.ragbackend.common.web.domain.R;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,11 +18,11 @@ public class HealthController {
     private String appName;
 
     @GetMapping("/health")
-    public Map<String, String> health() {
-        return Map.of(
+    public R<Map<String, String>> health() {
+        return R.ok("服务正常", Map.of(
                 "status", "ok",
                 "service", appName
-        );
+        ));
     }
 }
 

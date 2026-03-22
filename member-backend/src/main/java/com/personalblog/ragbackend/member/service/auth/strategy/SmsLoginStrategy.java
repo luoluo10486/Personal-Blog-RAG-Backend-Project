@@ -1,8 +1,8 @@
-﻿package com.personalblog.ragbackend.member.service.auth.strategy;
+package com.personalblog.ragbackend.member.service.auth.strategy;
 
-import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.domain.MemberUser;
-import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
+import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
+import com.personalblog.ragbackend.member.service.MemberUserService;
 import com.personalblog.ragbackend.member.service.MemberVerifyCodeService;
 import com.personalblog.ragbackend.member.service.auth.MemberLoginStrategy;
 import org.springframework.stereotype.Service;
@@ -12,15 +12,15 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 /**
- * SmsLoginStrategy 登录策略实现类，负责处理对应方式的认证逻辑。
+ * 短信登录策略，处理手机号和短信验证码的认证流程。
  */
 @Service
 public class SmsLoginStrategy implements MemberLoginStrategy {
-    private final MemberUserMapper memberUserMapper;
+    private final MemberUserService memberUserService;
     private final MemberVerifyCodeService verifyCodeService;
 
-    public SmsLoginStrategy(MemberUserMapper memberUserMapper, MemberVerifyCodeService verifyCodeService) {
-        this.memberUserMapper = memberUserMapper;
+    public SmsLoginStrategy(MemberUserService memberUserService, MemberVerifyCodeService verifyCodeService) {
+        this.memberUserService = memberUserService;
         this.verifyCodeService = verifyCodeService;
     }
 
@@ -42,11 +42,10 @@ public class SmsLoginStrategy implements MemberLoginStrategy {
             throw new ResponseStatusException(UNAUTHORIZED, "短信验证码无效");
         }
 
-        MemberUser user = memberUserMapper.selectActiveByPhone(phone.trim());
+        MemberUser user = memberUserService.findActiveByPhone(phone.trim());
         if (user == null) {
             throw new ResponseStatusException(UNAUTHORIZED, "未找到手机号对应用户");
         }
         return user;
     }
 }
-

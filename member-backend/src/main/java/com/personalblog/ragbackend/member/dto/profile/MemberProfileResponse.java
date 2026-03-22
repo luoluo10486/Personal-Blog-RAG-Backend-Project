@@ -1,7 +1,7 @@
-﻿package com.personalblog.ragbackend.member.dto.profile;
+package com.personalblog.ragbackend.member.dto.profile;
 
 /**
- * MemberProfileResponse 数据传输对象，用于接口参数与返回值封装。
+ * 当前登录用户资料响应对象。
  */
 public record MemberProfileResponse(
         Long id,
@@ -9,7 +9,7 @@ public record MemberProfileResponse(
         String displayName,
         String phone,
         String email,
+        String userType,
         String status
 ) {
 }
-

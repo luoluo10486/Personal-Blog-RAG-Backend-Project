@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.dto.rag;
+package com.personalblog.ragbackend.dto.rag;
 
 import java.util.List;
 

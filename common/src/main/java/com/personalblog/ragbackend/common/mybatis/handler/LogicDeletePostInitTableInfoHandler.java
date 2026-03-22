@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.common.mybatis.handler;
+package com.personalblog.ragbackend.common.mybatis.handler;
 
 import com.baomidou.mybatisplus.core.handlers.PostInitTableInfoHandler;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
@@ -7,7 +7,7 @@ import org.apache.ibatis.session.Configuration;
 import java.lang.reflect.Field;
 
 /**
- * LogicDeletePostInitTableInfoHandler 处理器类，用于统一处理框架扩展逻辑。
+ * 逻辑删除后置处理器，用于按配置开关控制 MP 的逻辑删除能力。
  */
 public class LogicDeletePostInitTableInfoHandler implements PostInitTableInfoHandler {
     private static final String WITH_LOGIC_DELETE_FIELD = "withLogicDelete";
@@ -36,8 +36,7 @@ public class LogicDeletePostInitTableInfoHandler implements PostInitTableInfoHan
         try {
             TABLE_INFO_WITH_LOGIC_DELETE.set(tableInfo, false);
         } catch (IllegalAccessException e) {
-            throw new IllegalStateException("运行时关闭 mybatis-plus 逻辑删除失败", e);
+            throw new IllegalStateException("运行时关闭 MyBatis-Plus 逻辑删除失败", e);
         }
     }
 }
-

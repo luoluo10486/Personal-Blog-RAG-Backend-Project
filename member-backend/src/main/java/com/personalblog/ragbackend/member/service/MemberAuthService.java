@@ -1,10 +1,10 @@
-﻿package com.personalblog.ragbackend.member.service;
+package com.personalblog.ragbackend.member.service;
 
+import com.personalblog.ragbackend.common.auth.dto.AuthSessionResult;
+import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
 import com.personalblog.ragbackend.member.dto.auth.MemberUserSummary;
-import com.personalblog.ragbackend.member.domain.MemberSession;
-import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.service.auth.MemberLoginStrategy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 /**
- * MemberAuthService 服务类，封装业务处理逻辑。
+ * 会员认证领域服务，负责根据登录方式完成认证并签发会话。
  */
 @Service
 public class MemberAuthService {
@@ -43,7 +43,7 @@ public class MemberAuthService {
         }
 
         MemberUser user = strategy.authenticate(request);
-        MemberSession session = memberSessionService.createSession(user.id(), grantType);
+        AuthSessionResult session = memberSessionService.createSession(user.getUserId(), grantType);
         long expiresIn = Duration.between(LocalDateTime.now(), session.expiresAt()).toSeconds();
 
         return new MemberLoginResponse(
@@ -52,11 +52,12 @@ public class MemberAuthService {
                 Math.max(expiresIn, 0),
                 grantType,
                 new MemberUserSummary(
-                        user.id(),
-                        user.username(),
-                        user.displayName(),
-                        user.phone(),
-                        user.email()
+                        user.getUserId(),
+                        user.getUsername(),
+                        user.getDisplayName(),
+                        user.getPhone(),
+                        user.getEmail(),
+                        user.getUserType()
                 )
         );
     }
@@ -68,4 +69,3 @@ public class MemberAuthService {
         return grantType.trim().toLowerCase(Locale.ROOT);
     }
 }
-

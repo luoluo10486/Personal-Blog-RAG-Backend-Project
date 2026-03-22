@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.service;
+package com.personalblog.ragbackend.service;
 
 import com.personalblog.ragbackend.client.RagApiClient;
 import com.personalblog.ragbackend.config.AppProperties;

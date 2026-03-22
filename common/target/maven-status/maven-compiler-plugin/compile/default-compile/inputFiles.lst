@@ -4,3 +4,6 @@ D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalbl
 D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\satoken\annotation\MemberLoginRequired.java
 D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\satoken\config\SaTokenAnnotationConfig.java
 D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\satoken\handler\SaTokenExceptionHandler.java
+D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\web\constant\ResultCode.java
+D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\web\domain\R.java
+D:\develop\Personal-Blog-RAG-Backend-Project\common\src\main\java\com\personalblog\ragbackend\common\web\handler\GlobalExceptionHandler.java

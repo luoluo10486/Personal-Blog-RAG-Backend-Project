@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.common.mybatis.config;
+package com.personalblog.ragbackend.common.mybatis.config;
 
 import com.baomidou.mybatisplus.core.handlers.PostInitTableInfoHandler;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * MybatisPlusSupportConfig 配置类，用于注册项目相关组件。
+ * MyBatis-Plus 支持配置，统一注册分页和逻辑删除扩展。
  */
 @Configuration
 @EnableTransactionManagement(proxyTargetClass = true)
@@ -32,4 +32,3 @@ public class MybatisPlusSupportConfig {
         return new LogicDeletePostInitTableInfoHandler(enableLogicDelete);
     }
 }
-

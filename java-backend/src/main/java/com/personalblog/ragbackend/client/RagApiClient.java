@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.client;
+package com.personalblog.ragbackend.client;
 
 import com.personalblog.ragbackend.config.AppProperties;
 import com.personalblog.ragbackend.model.RetrievedChunk;

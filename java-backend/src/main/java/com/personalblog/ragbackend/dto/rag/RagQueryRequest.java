@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.dto.rag;
+package com.personalblog.ragbackend.dto.rag;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

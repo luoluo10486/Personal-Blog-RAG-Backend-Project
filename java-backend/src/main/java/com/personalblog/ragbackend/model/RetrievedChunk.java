@@ -1,4 +1,4 @@
-﻿package com.personalblog.ragbackend.model;
+package com.personalblog.ragbackend.model;
 
 /**
  * RetrievedChunk 领域模型，描述业务数据结构。
