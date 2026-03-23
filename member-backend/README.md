@@ -32,12 +32,18 @@ mvn spring-boot:run
 
 ## 主要接口
 
-- `POST /api/v1/member/auth/login`
-- `GET /api/v1/member/profile/me`（`Authorization: Bearer <token>`）
+- `POST /luoluo/member/auth/login`
+- `GET /luoluo/member/profile/me`（`Authorization: Bearer <token>`）
+
+公共验证码接口已迁移到 `ll-system`：
+
+- `GET /luoluo/system/public/captcha/image`
+- `POST /luoluo/system/public/member/auth/code/send`
+
+说明：当前默认不强制图形验证码，只保留发送频率限制；如需启用图形验证码，可打开 `app.member.auth.image-captcha-enabled`。
 
 ## SQL 目录（手动执行）
 
 - `../script/sql/member/baseline`
-- `../script/sql/member/migration`
 - `../script/sql/member/rollback`
 

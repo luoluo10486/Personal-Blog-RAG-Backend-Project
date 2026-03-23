@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 认证控制器，对外提供会员登录接口。
  */
 @RestController
-@RequestMapping("${app.api-prefix}/member/auth")
+@RequestMapping("/luoluo/member/auth")
 public class MemberAuthController {
     private final MemberAuthApplicationService memberAuthApplicationService;
 

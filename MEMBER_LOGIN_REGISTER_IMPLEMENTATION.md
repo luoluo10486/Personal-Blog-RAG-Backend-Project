@@ -23,16 +23,25 @@
 
 ---
 
-## 2. 登录实现链路
+## 2. 接口入口与登录链路
 
-### 2.1 接口入口
+### 2.1 固定前缀
 
-- 登录接口：`POST /api/v1/member/auth/login`
-- 控制器：`MemberAuthController`
+- 当前项目不再使用动态接口前缀配置
+- 会员端接口统一固定在 `/luoluo` 前缀下
+
+### 2.2 当前接口入口
+
+- 登录接口：`POST /luoluo/member/auth/login`
+- 图形验证码接口：`GET /luoluo/system/public/captcha/image`
+- 发送验证码接口：`POST /luoluo/system/public/member/auth/code/send`
+- 当前登录用户信息接口：`GET /luoluo/member/profile/me`
+- 会员控制器：`MemberAuthController`
+- 公共控制器：`PublicMemberAuthController`
 - 应用服务：`MemberAuthApplicationService`
 - 领域服务：`MemberAuthService`
 
-### 2.2 登录流程
+### 2.3 登录流程
 
 1. 控制器接收 `MemberLoginRequest`
 2. `MemberAuthApplicationService` 编排登录用例
@@ -45,7 +54,7 @@
 9. 数据库 `sys_auth_session` 只保存 `token_digest`
 10. 最终统一返回 `R<MemberLoginResponse>`
 
-### 2.3 支持的登录方式
+### 2.4 支持的登录方式
 
 当前支持三种 `grantType`：
 
@@ -58,6 +67,41 @@
 - `PasswordLoginStrategy`
 - `SmsLoginStrategy`
 - `EmailLoginStrategy`
+
+### 2.5 验证码发送流程
+
+验证码发送采用统一入口 + 策略分发的方式，和 `cde-base` 的抽象思路保持一致：
+
+1. `ll-system` 的公共控制器接收 `MemberSendVerifyCodeRequest`
+2. 若开启图形验证码，则公共接口层先校验图形验证码
+3. 公共接口层做同目标发送频率限制
+4. `MemberAuthApplicationService` 编排发送验证码用例
+5. `MemberSendCodeService` 根据 `grantType` 路由到具体发送策略
+6. `SmsSendCodeStrategy` 或 `EmailSendCodeStrategy` 校验发送目标参数是否合法
+7. 生成验证码后调用 `MemberVerifyCodeService`
+8. `MemberVerifyCodeService` 委托 `common.VerifyCodeService`
+9. `common` 层负责 Redis 缓存、摘要落库、记录发送流水
+
+该设计的职责边界是：
+
+- `ll-system`：对外暴露公共接口
+- `member-backend`：承载会员认证业务编排与规则
+- `common`：承载通用认证基础设施
+
+当前请求体字段：
+
+- `grantType`
+- `captchaKey`
+- `captchaCode`
+- `phone`
+- `email`
+
+其中：
+
+- `grantType=sms` 时使用 `phone`
+- `grantType=email` 时使用 `email`
+- 默认不强制图形验证码；开启后才要求传 `captchaKey` 和 `captchaCode`
+- 同一手机号或邮箱默认 `60` 秒内只能发送一次验证码
 
 ---
 

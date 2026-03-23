@@ -8,6 +8,8 @@ import com.personalblog.ragbackend.member.service.auth.MemberLoginStrategy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Locale;
+
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -37,7 +39,7 @@ public class EmailLoginStrategy implements MemberLoginStrategy {
             throw new ResponseStatusException(BAD_REQUEST, "email 和 emailCode 不能为空");
         }
 
-        String normalizedEmail = email.trim().toLowerCase();
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
         boolean verified = verifyCodeService.verifyAndConsume("email", normalizedEmail, emailCode.trim());
         if (!verified) {
             throw new ResponseStatusException(UNAUTHORIZED, "邮箱验证码无效");

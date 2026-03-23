@@ -29,7 +29,7 @@ class MemberAuthControllerTest {
 
     @Test
     void passwordLoginShouldReturnToken() throws Exception {
-        String response = mockMvc.perform(post("/api/v1/member/auth/login")
+        String response = mockMvc.perform(post("/luoluo/member/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -39,20 +39,22 @@ class MemberAuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.grantType").value("password"))
-                .andExpect(jsonPath("$.accessToken").isString())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("登录成功"))
+                .andExpect(jsonPath("$.data.grantType").value("password"))
+                .andExpect(jsonPath("$.data.token").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode json = objectMapper.readTree(response);
-        String token = json.get("accessToken").asText();
+        String token = json.get("data").get("token").asText();
         assertThat(token).isNotBlank();
     }
 
     @Test
     void profileShouldReturnCurrentUserWhenTokenValid() throws Exception {
-        String loginResponse = mockMvc.perform(post("/api/v1/member/auth/login")
+        String loginResponse = mockMvc.perform(post("/luoluo/member/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -66,12 +68,14 @@ class MemberAuthControllerTest {
                 .getResponse()
                 .getContentAsString();
 
-        String token = objectMapper.readTree(loginResponse).get("accessToken").asText();
+        String token = objectMapper.readTree(loginResponse).get("data").get("token").asText();
 
-        mockMvc.perform(get("/api/v1/member/profile/me")
+        mockMvc.perform(get("/luoluo/member/profile/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("demo_user"));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("查询成功"))
+                .andExpect(jsonPath("$.data.username").value("demo_user"));
     }
 }
 

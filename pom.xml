@@ -16,5 +16,6 @@
         <module>java-backend</module>
         <module>common</module>
         <module>member-backend</module>
+        <module>ll-system</module>
     </modules>
 </project>

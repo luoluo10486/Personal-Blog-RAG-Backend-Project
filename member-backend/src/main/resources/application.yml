@@ -34,11 +34,14 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 app:
-  api-prefix: ${API_PREFIX:/api/v1}
   member:
     auth:
       session-ttl-seconds: ${MEMBER_AUTH_SESSION_TTL_SECONDS:86400}
       verify-code-ttl-seconds: ${MEMBER_AUTH_VERIFY_CODE_TTL_SECONDS:120}
+      verify-code-send-interval-seconds: ${MEMBER_AUTH_VERIFY_CODE_SEND_INTERVAL_SECONDS:60}
+      image-captcha-ttl-seconds: ${MEMBER_AUTH_IMAGE_CAPTCHA_TTL_SECONDS:120}
+      image-captcha-length: ${MEMBER_AUTH_IMAGE_CAPTCHA_LENGTH:4}
+      image-captcha-enabled: ${MEMBER_AUTH_IMAGE_CAPTCHA_ENABLED:false}
       allow-mock-verify-code: ${MEMBER_AUTH_ALLOW_MOCK_VERIFY_CODE:true}
       mock-verify-code: ${MEMBER_AUTH_MOCK_VERIFY_CODE:123456}
       allow-plain-password: ${MEMBER_AUTH_ALLOW_PLAIN_PASSWORD:true}

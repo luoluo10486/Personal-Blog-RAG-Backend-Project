@@ -65,6 +65,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(exception.getStatusCode()).body(R.fail(code, message));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<R<Void>> handleIllegalArgument(IllegalArgumentException exception) {
+        return ResponseEntity.badRequest().body(R.fail(ResultCode.BAD_REQUEST, exception.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<R<Void>> handleException(Exception exception) {
         log.error("接口处理发生未捕获异常", exception);

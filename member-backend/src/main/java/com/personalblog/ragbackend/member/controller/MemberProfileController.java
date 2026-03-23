@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 资料控制器，对外提供当前登录用户信息查询接口。
  */
 @RestController
-@RequestMapping("${app.api-prefix}/member/profile")
+@RequestMapping("/luoluo/member/profile")
 public class MemberProfileController {
     private final MemberProfileApplicationService memberProfileApplicationService;
 
