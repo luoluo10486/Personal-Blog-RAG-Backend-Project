@@ -1,21 +1,23 @@
-﻿# remand.md（后端）
+# remand.md（后端）
 
 ## 当前目标
 
-- 维护 `common` 独立模块
-- `member-backend` 通过 Maven 依赖导入 common
+- 维护 `luoluo-common` 独立模块
+- `luoluo-member` 通过 Maven 依赖导入 `luoluo-common`
 - SQL 脚本统一放在仓库根 `script/sql/member`
 
 ## 模块关系
 
-- `common`：共享能力，不直接暴露业务接口
-- `member-backend`：登录认证、会话、个人中心接口
-- `java-backend`：RAG 相关接口
+- `luoluo-admin`：统一启动入口，负责装配所有业务模块
+- `luoluo-common`：共享能力，不直接暴露业务接口
+- `luoluo-member`：登录认证、会话、个人中心能力
+- `luoluo-rag`：RAG 相关能力
+- `luoluo-system`：公共系统接口能力
 
 ## 构建约定
 
 ```bash
-mvn -pl member-backend -am clean package
+mvn -pl luoluo-admin -am clean package
 ```
 
 ## 数据库约定

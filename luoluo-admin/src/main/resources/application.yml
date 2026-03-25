@@ -1,0 +1,87 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: luoluo-admin
+  sql:
+    init:
+      mode: never
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/personnal-blog?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:1234}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+  mail:
+    host: ${SPRING_MAIL_HOST:}
+    port: ${SPRING_MAIL_PORT:465}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    protocol: ${SPRING_MAIL_PROTOCOL:smtp}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
+          ssl:
+            enable: ${SPRING_MAIL_SMTP_SSL_ENABLE:false}
+          connectiontimeout: ${SPRING_MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          timeout: ${SPRING_MAIL_SMTP_TIMEOUT:5000}
+          writetimeout: ${SPRING_MAIL_SMTP_WRITE_TIMEOUT:5000}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      database: ${SPRING_DATA_REDIS_DATABASE:0}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:3s}
+
+sa-token:
+  token-name: ${SA_TOKEN_NAME:Authorization}
+  token-prefix: ${SA_TOKEN_PREFIX:Bearer}
+  is-read-header: true
+  is-read-body: true
+  is-read-cookie: false
+
+mybatis-plus:
+  enable-logic-delete: ${MYBATIS_PLUS_ENABLE_LOGIC_DELETE:true}
+  global-config:
+    db-config:
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+app:
+  api-prefix: ${API_PREFIX:/api/v1}
+  blog-title: ${BLOG_TITLE:My Personal Blog}
+  rag:
+    enabled: ${RAG_ENABLED:false}
+    top-k: ${RAG_TOP_K:3}
+    retrieval-url: ${RAG_RETRIEVAL_URL:}
+    llm-url: ${RAG_LLM_URL:}
+    api-key: ${RAG_API_KEY:}
+  member:
+    auth:
+      session-ttl-seconds: ${MEMBER_AUTH_SESSION_TTL_SECONDS:86400}
+      verify-code-ttl-seconds: ${MEMBER_AUTH_VERIFY_CODE_TTL_SECONDS:120}
+      verify-code-send-interval-seconds: ${MEMBER_AUTH_VERIFY_CODE_SEND_INTERVAL_SECONDS:60}
+      image-captcha-ttl-seconds: ${MEMBER_AUTH_IMAGE_CAPTCHA_TTL_SECONDS:120}
+      image-captcha-length: ${MEMBER_AUTH_IMAGE_CAPTCHA_LENGTH:4}
+      image-captcha-enabled: ${MEMBER_AUTH_IMAGE_CAPTCHA_ENABLED:false}
+      allow-mock-verify-code: ${MEMBER_AUTH_ALLOW_MOCK_VERIFY_CODE:true}
+      mock-verify-code: ${MEMBER_AUTH_MOCK_VERIFY_CODE:123456}
+      allow-plain-password: ${MEMBER_AUTH_ALLOW_PLAIN_PASSWORD:true}
+    sms:
+      aliyun:
+        enabled: ${MEMBER_SMS_ALIYUN_ENABLED:false}
+        access-key-id: ${MEMBER_SMS_ALIYUN_ACCESS_KEY_ID:}
+        access-key-secret: ${MEMBER_SMS_ALIYUN_ACCESS_KEY_SECRET:}
+        region-id: ${MEMBER_SMS_ALIYUN_REGION_ID:cn-hangzhou}
+        endpoint: ${MEMBER_SMS_ALIYUN_ENDPOINT:dysmsapi.aliyuncs.com}
+        sign-name: ${MEMBER_SMS_ALIYUN_SIGN_NAME:}
+        login-template-code: ${MEMBER_SMS_ALIYUN_LOGIN_TEMPLATE_CODE:}
+        code-param-name: ${MEMBER_SMS_ALIYUN_CODE_PARAM_NAME:code}
+        ttl-minutes-param-name: ${MEMBER_SMS_ALIYUN_TTL_MINUTES_PARAM_NAME:ttl}
+    email:
+      login-subject: ${MEMBER_EMAIL_LOGIN_SUBJECT:Login verification code}
+      login-content-template: ${MEMBER_EMAIL_LOGIN_CONTENT_TEMPLATE:Your verification code is %s. It is valid for %d minutes.}
