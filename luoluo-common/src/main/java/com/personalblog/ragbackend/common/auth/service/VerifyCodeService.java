@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 /**
- * 通用验证码服务，统一处理验证码缓存、摘要留痕和核销。
+ * 通用验证码服务，统一处理验证码缓存、留痕和核销。
  */
 @Service
 public class VerifyCodeService {
@@ -22,16 +22,13 @@ public class VerifyCodeService {
 
     private final VerifyCodeRecordMapper verifyCodeRecordMapper;
     private final RedisClient redisClient;
-    private final AuthDigestService authDigestService;
 
     public VerifyCodeService(
             VerifyCodeRecordMapper verifyCodeRecordMapper,
-            RedisClient redisClient,
-            AuthDigestService authDigestService
+            RedisClient redisClient
     ) {
         this.verifyCodeRecordMapper = verifyCodeRecordMapper;
         this.redisClient = redisClient;
-        this.authDigestService = authDigestService;
     }
 
     @Transactional
@@ -52,13 +49,13 @@ public class VerifyCodeService {
         String normalizedBizType = normalizeUpper(command.bizType());
         String normalizedTargetType = normalizeLower(command.targetType());
         String normalizedTargetValue = normalizeTargetValue(normalizedTargetType, command.targetValue());
-        String inputCodeDigest = authDigestService.sha256Hex(command.inputCode().trim());
+        String inputCodeValue = command.inputCode().trim();
         String cacheKey = buildCacheKey(command.namespace(), normalizedBizType, normalizedTargetType, normalizedTargetValue);
-        String cachedDigest = redisClient.get(cacheKey).orElse(null);
-        if (cachedDigest == null || cachedDigest.isBlank()) {
+        String cachedCodeValue = redisClient.get(cacheKey).orElse(null);
+        if (cachedCodeValue == null || cachedCodeValue.isBlank()) {
             return false;
         }
-        if (!inputCodeDigest.equals(cachedDigest)) {
+        if (!inputCodeValue.equals(cachedCodeValue)) {
             return false;
         }
         redisClient.delete(cacheKey);
@@ -68,7 +65,7 @@ public class VerifyCodeService {
                 .eq(VerifyCodeRecord::getBizType, normalizedBizType)
                 .eq(VerifyCodeRecord::getTargetType, normalizedTargetType)
                 .eq(VerifyCodeRecord::getTargetValue, normalizedTargetValue)
-                .eq(VerifyCodeRecord::getCodeDigest, inputCodeDigest)
+                .eq(VerifyCodeRecord::getCodeValue, inputCodeValue)
                 .eq(VerifyCodeRecord::getUsed, Boolean.FALSE)
                 .gt(VerifyCodeRecord::getExpiresAt, now)
                 .set(VerifyCodeRecord::getUsed, Boolean.TRUE)
@@ -96,16 +93,17 @@ public class VerifyCodeService {
         if (command.ttlSeconds() <= 0) {
             throw new IllegalArgumentException("验证码有效期必须大于 0");
         }
+
         String normalizedBizType = normalizeUpper(command.bizType());
         String normalizedTargetType = normalizeLower(command.targetType());
         String normalizedTargetValue = normalizeTargetValue(normalizedTargetType, command.targetValue());
+        String verifyCodeValue = command.verifyCode().trim();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusSeconds(command.ttlSeconds());
-        String verifyCodeDigest = authDigestService.sha256Hex(command.verifyCode().trim());
 
         redisClient.set(
                 buildCacheKey(command.namespace(), normalizedBizType, normalizedTargetType, normalizedTargetValue),
-                verifyCodeDigest,
+                verifyCodeValue,
                 Duration.ofSeconds(command.ttlSeconds())
         );
 
@@ -120,7 +118,7 @@ public class VerifyCodeService {
         record.setTemplateId(normalizeNullable(command.templateId(), false));
         record.setProvider(normalizeNullable(command.provider(), false));
         record.setRequestId(normalizeNullable(command.requestId(), false));
-        record.setCodeDigest(verifyCodeDigest);
+        record.setCodeValue(verifyCodeValue);
         record.setExpiresAt(expiresAt);
         record.setUsed(Boolean.FALSE);
         record.setDeleted(0);

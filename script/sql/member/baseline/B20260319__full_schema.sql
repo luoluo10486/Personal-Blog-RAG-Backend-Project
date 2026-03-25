@@ -2,7 +2,7 @@
 -- 脚本类型：基线脚本
 -- 版本：B20260319
 -- 模块：member
--- 说明：会员认证中心完整表结构（已整合历史全部前向变更）
+-- 说明：会员认证中心完整表结构
 -- 日期：2026-03-23
 -- ============================================================
 
@@ -18,12 +18,7 @@ create table if not exists sys_user (
     deleted         tinyint not null default 0 comment '逻辑删除标记：0 否，1 是',
     created_at      datetime not null default current_timestamp comment '创建时间',
     updated_at      datetime not null default current_timestamp on update current_timestamp comment '更新时间',
-    primary key (user_id),
-    unique key uk_sys_user_username_deleted (username, deleted),
-    unique key uk_sys_user_phone_deleted (phone, deleted),
-    unique key uk_sys_user_email_deleted (email, deleted),
-    key idx_sys_user_status_deleted (status, deleted),
-    key idx_sys_user_user_type_deleted (user_type, deleted)
+    primary key (user_id)
 ) engine=innodb comment='系统用户表';
 
 create table if not exists sys_verify_code_record (
@@ -38,17 +33,14 @@ create table if not exists sys_verify_code_record (
     template_id     varchar(100) default null comment '模板ID',
     provider        varchar(64) default null comment '服务提供商',
     request_id      varchar(128) default null comment '请求ID',
-    code_digest     varchar(64) not null comment '验证码摘要',
+    code_value      varchar(64) not null comment '验证码明文',
     expires_at      datetime not null comment '过期时间',
     used            tinyint not null default 0 comment '使用标记：0 否，1 是',
     used_at         datetime default null comment '使用时间',
     deleted         tinyint not null default 0 comment '逻辑删除标记：0 否，1 是',
     created_at      datetime not null default current_timestamp comment '创建时间',
     remark          varchar(500) default null comment '备注',
-    primary key (record_id),
-    key idx_sys_verify_code_record_lookup (biz_type, target_type, target_value, used, deleted),
-    key idx_sys_verify_code_record_subject (subject_type, subject_id, deleted),
-    key idx_sys_verify_code_record_request_id (request_id)
+    primary key (record_id)
 ) engine=innodb comment='验证码记录表';
 
 create table if not exists sys_auth_session (
@@ -64,8 +56,5 @@ create table if not exists sys_auth_session (
     last_active_at  datetime not null default current_timestamp comment '最后活跃时间',
     device_type     varchar(32) default null comment '设备类型',
     client_ip       varchar(64) default null comment '客户端IP',
-    primary key (session_id),
-    unique key uk_sys_auth_session_token_digest_deleted (token_digest, deleted),
-    key idx_sys_auth_session_subject_deleted (subject_type, subject_id, deleted),
-    key idx_sys_auth_session_expires_at (expires_at)
+    primary key (session_id)
 ) engine=innodb comment='认证会话表';

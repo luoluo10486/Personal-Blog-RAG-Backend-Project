@@ -46,8 +46,8 @@ public class VerifyCodeRecord {
     @TableField("request_id")
     private String requestId;
 
-    @TableField("code_digest")
-    private String codeDigest;
+    @TableField("code_value")
+    private String codeValue;
 
     @TableField("expires_at")
     private LocalDateTime expiresAt;
@@ -90,8 +90,8 @@ public class VerifyCodeRecord {
     public void setProvider(String provider) { this.provider = provider; }
     public String getRequestId() { return requestId; }
     public void setRequestId(String requestId) { this.requestId = requestId; }
-    public String getCodeDigest() { return codeDigest; }
-    public void setCodeDigest(String codeDigest) { this.codeDigest = codeDigest; }
+    public String getCodeValue() { return codeValue; }
+    public void setCodeValue(String codeValue) { this.codeValue = codeValue; }
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     public Boolean getUsed() { return used; }
