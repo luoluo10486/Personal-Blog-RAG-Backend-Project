@@ -1,4 +1,6 @@
 .env
+target/
+**/target/
 java-backend/target/
 member-backend/target/
 .idea/
