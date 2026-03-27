@@ -57,17 +57,8 @@ public class ImageCaptchaService {
         }
 
         String cacheKey = buildCacheKey(namespace, captchaKey);
-        String cachedDigest = redisClient.get(cacheKey).orElse(null);
-        if (cachedDigest == null || cachedDigest.isBlank()) {
-            return false;
-        }
-
         String inputDigest = authDigestService.sha256Hex(normalizeCode(inputCode));
-        if (!cachedDigest.equals(inputDigest)) {
-            return false;
-        }
-        redisClient.delete(cacheKey);
-        return true;
+        return redisClient.compareAndDelete(cacheKey, inputDigest);
     }
 
     private String buildCacheKey(String namespace, String captchaKey) {

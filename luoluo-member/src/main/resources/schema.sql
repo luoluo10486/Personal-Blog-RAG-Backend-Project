@@ -47,3 +47,21 @@ create table if not exists sys_auth_session (
     device_type     varchar(32),
     client_ip       varchar(64)
 );
+
+create unique index if not exists uk_sys_user_username_deleted on sys_user (username, deleted);
+create unique index if not exists uk_sys_user_phone_deleted on sys_user (phone, deleted);
+create unique index if not exists uk_sys_user_email_deleted on sys_user (email, deleted);
+create index if not exists idx_sys_user_status_deleted on sys_user (status, deleted);
+create index if not exists idx_sys_user_user_type_deleted on sys_user (user_type, deleted);
+
+create index if not exists idx_sys_verify_code_record_lookup
+    on sys_verify_code_record (biz_type, target_type, target_value, code_value, used, deleted, expires_at);
+create index if not exists idx_sys_verify_code_record_subject
+    on sys_verify_code_record (subject_type, subject_id, deleted);
+create index if not exists idx_sys_verify_code_record_request_id on sys_verify_code_record (request_id);
+
+create unique index if not exists uk_sys_auth_session_token_digest_deleted
+    on sys_auth_session (token_digest, deleted);
+create index if not exists idx_sys_auth_session_subject_deleted
+    on sys_auth_session (subject_id, subject_type, revoked, deleted);
+create index if not exists idx_sys_auth_session_expires_at on sys_auth_session (expires_at);

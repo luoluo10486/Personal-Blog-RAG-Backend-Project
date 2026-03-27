@@ -51,17 +51,12 @@ public class VerifyCodeService {
         String normalizedTargetValue = normalizeTargetValue(normalizedTargetType, command.targetValue());
         String inputCodeValue = command.inputCode().trim();
         String cacheKey = buildCacheKey(command.namespace(), normalizedBizType, normalizedTargetType, normalizedTargetValue);
-        String cachedCodeValue = redisClient.get(cacheKey).orElse(null);
-        if (cachedCodeValue == null || cachedCodeValue.isBlank()) {
+        if (!redisClient.compareAndDelete(cacheKey, inputCodeValue)) {
             return false;
         }
-        if (!inputCodeValue.equals(cachedCodeValue)) {
-            return false;
-        }
-        redisClient.delete(cacheKey);
 
         LocalDateTime now = LocalDateTime.now();
-        verifyCodeRecordMapper.update(null, Wrappers.<VerifyCodeRecord>lambdaUpdate()
+        int updatedRows = verifyCodeRecordMapper.update(null, Wrappers.<VerifyCodeRecord>lambdaUpdate()
                 .eq(VerifyCodeRecord::getBizType, normalizedBizType)
                 .eq(VerifyCodeRecord::getTargetType, normalizedTargetType)
                 .eq(VerifyCodeRecord::getTargetValue, normalizedTargetValue)
@@ -70,6 +65,9 @@ public class VerifyCodeService {
                 .gt(VerifyCodeRecord::getExpiresAt, now)
                 .set(VerifyCodeRecord::getUsed, Boolean.TRUE)
                 .set(VerifyCodeRecord::getUsedAt, now));
+        if (updatedRows != 1) {
+            throw new IllegalStateException("Verify code consume update expected 1 row but got " + updatedRows);
+        }
         return true;
     }
 

@@ -41,9 +41,9 @@ public class MemberProperties {
         @Min(4)
         private int imageCaptchaLength = 4;
         private boolean imageCaptchaEnabled = false;
-        private boolean allowMockVerifyCode = true;
-        private String mockVerifyCode = "123456";
-        private boolean allowPlainPassword = true;
+        private boolean allowMockVerifyCode = false;
+        private String mockVerifyCode = "";
+        private boolean allowPlainPassword = false;
 
         public long getSessionTtlSeconds() {
             return sessionTtlSeconds;

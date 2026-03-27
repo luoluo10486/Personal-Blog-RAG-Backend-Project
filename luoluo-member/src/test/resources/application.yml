@@ -13,3 +13,10 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
       database: ${SPRING_DATA_REDIS_DATABASE:0}
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:3s}
+
+app:
+  member:
+    auth:
+      allow-mock-verify-code: true
+      mock-verify-code: 123456
+      allow-plain-password: true
