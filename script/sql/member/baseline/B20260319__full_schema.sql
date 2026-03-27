@@ -18,7 +18,12 @@ create table if not exists sys_user (
     deleted         tinyint not null default 0 comment '逻辑删除标记：0 否，1 是',
     created_at      datetime not null default current_timestamp comment '创建时间',
     updated_at      datetime not null default current_timestamp on update current_timestamp comment '更新时间',
-    primary key (user_id)
+    primary key (user_id),
+    unique key uk_sys_user_username_deleted (username, deleted),
+    unique key uk_sys_user_phone_deleted (phone, deleted),
+    unique key uk_sys_user_email_deleted (email, deleted),
+    key idx_sys_user_status_deleted (status, deleted),
+    key idx_sys_user_user_type_deleted (user_type, deleted)
 ) engine=innodb comment='系统用户表';
 
 create table if not exists sys_verify_code_record (
@@ -40,7 +45,10 @@ create table if not exists sys_verify_code_record (
     deleted         tinyint not null default 0 comment '逻辑删除标记：0 否，1 是',
     created_at      datetime not null default current_timestamp comment '创建时间',
     remark          varchar(500) default null comment '备注',
-    primary key (record_id)
+    primary key (record_id),
+    key idx_sys_verify_code_record_lookup (biz_type, target_type, target_value, code_value, used, deleted, expires_at),
+    key idx_sys_verify_code_record_subject (subject_type, subject_id, deleted),
+    key idx_sys_verify_code_record_request_id (request_id)
 ) engine=innodb comment='验证码记录表';
 
 create table if not exists sys_auth_session (
@@ -56,5 +64,8 @@ create table if not exists sys_auth_session (
     last_active_at  datetime not null default current_timestamp comment '最后活跃时间',
     device_type     varchar(32) default null comment '设备类型',
     client_ip       varchar(64) default null comment '客户端IP',
-    primary key (session_id)
+    primary key (session_id),
+    unique key uk_sys_auth_session_token_digest_deleted (token_digest, deleted),
+    key idx_sys_auth_session_subject_deleted (subject_id, subject_type, revoked, deleted),
+    key idx_sys_auth_session_expires_at (expires_at)
 ) engine=innodb comment='认证会话表';
