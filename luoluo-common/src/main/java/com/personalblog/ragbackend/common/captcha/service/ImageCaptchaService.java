@@ -3,6 +3,9 @@ package com.personalblog.ragbackend.common.captcha.service;
 import com.personalblog.ragbackend.common.auth.service.AuthDigestService;
 import com.personalblog.ragbackend.common.captcha.dto.ImageCaptchaResponse;
 import com.personalblog.ragbackend.common.redis.RedisClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -17,15 +20,22 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 @Service
 public class ImageCaptchaService {
+    private static final Logger log = LoggerFactory.getLogger(ImageCaptchaService.class);
     private static final String CAPTCHA_KEY_PREFIX = "auth:image_captcha:";
     private static final char[] CAPTCHA_CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ".toCharArray();
 
     private final RedisClient redisClient;
     private final AuthDigestService authDigestService;
+    private final boolean plainVerifyCodeLogEnabled;
 
-    public ImageCaptchaService(RedisClient redisClient, AuthDigestService authDigestService) {
+    public ImageCaptchaService(
+            RedisClient redisClient,
+            AuthDigestService authDigestService,
+            @Value("${app.member.auth.plain-verify-code-log-enabled:false}") boolean plainVerifyCodeLogEnabled
+    ) {
         this.redisClient = redisClient;
         this.authDigestService = authDigestService;
+        this.plainVerifyCodeLogEnabled = plainVerifyCodeLogEnabled;
     }
 
     public ImageCaptchaResponse create(String namespace, int length, long ttlSeconds) {
@@ -43,6 +53,7 @@ public class ImageCaptchaService {
         String code = randomCode(length);
         String digest = authDigestService.sha256Hex(normalizeCode(code));
         redisClient.set(buildCacheKey(namespace, captchaKey), digest, Duration.ofSeconds(ttlSeconds));
+        logPlaintextCode("generated", namespace, captchaKey, code, ttlSeconds, null);
 
         String svg = buildSvg(code);
         String imageBase64 = Base64.getEncoder().encodeToString(svg.getBytes(StandardCharsets.UTF_8));
@@ -58,7 +69,9 @@ public class ImageCaptchaService {
 
         String cacheKey = buildCacheKey(namespace, captchaKey);
         String inputDigest = authDigestService.sha256Hex(normalizeCode(inputCode));
-        return redisClient.compareAndDelete(cacheKey, inputDigest);
+        boolean passed = redisClient.compareAndDelete(cacheKey, inputDigest);
+        logPlaintextCode("verified", namespace, captchaKey, inputCode, null, passed);
+        return passed;
     }
 
     private String buildCacheKey(String namespace, String captchaKey) {
@@ -120,5 +133,37 @@ public class ImageCaptchaService {
         int green = random.nextInt(40, 160);
         int blue = random.nextInt(40, 160);
         return String.format("#%02X%02X%02X", red, green, blue);
+    }
+
+    private void logPlaintextCode(
+            String action,
+            String namespace,
+            String captchaKey,
+            String plainCode,
+            Long ttlSeconds,
+            Boolean passed
+    ) {
+        if (!plainVerifyCodeLogEnabled) {
+            return;
+        }
+        if (passed == null) {
+            log.info(
+                    "Image captcha {}: namespace={}, captchaKey={}, plainCode={}, ttlSeconds={}",
+                    action,
+                    namespace,
+                    captchaKey,
+                    plainCode,
+                    ttlSeconds
+            );
+            return;
+        }
+        log.info(
+                "Image captcha {}: namespace={}, captchaKey={}, plainCode={}, passed={}",
+                action,
+                namespace,
+                captchaKey,
+                plainCode,
+                passed
+        );
     }
 }

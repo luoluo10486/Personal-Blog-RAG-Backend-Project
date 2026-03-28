@@ -7,6 +7,8 @@ import com.personalblog.ragbackend.member.service.MemberVerifyCodeService;
 import com.personalblog.ragbackend.member.service.code.MemberSendCodeStrategy;
 import com.personalblog.ragbackend.member.service.code.sms.MemberSmsSender;
 import com.personalblog.ragbackend.member.service.code.sms.SmsSendReceipt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -17,6 +19,7 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Service
 public class SmsSendCodeStrategy implements MemberSendCodeStrategy {
+    private static final Logger log = LoggerFactory.getLogger(SmsSendCodeStrategy.class);
     private final MemberVerifyCodeService memberVerifyCodeService;
     private final MemberProperties memberProperties;
     private final MemberSmsSender memberSmsSender;
@@ -47,6 +50,7 @@ public class SmsSendCodeStrategy implements MemberSendCodeStrategy {
         String verifyCode = randomVerifyCode();
         long ttlSeconds = memberProperties.getMember().getAuth().getVerifyCodeTtlSeconds();
         SmsSendReceipt receipt = memberSmsSender.sendLoginCode(normalizedPhone, verifyCode, ttlSeconds);
+        logPlaintextCode(normalizedPhone, verifyCode, ttlSeconds, receipt.requestId());
         if (!memberProperties.getMember().getAuth().isAllowMockVerifyCode() && receipt.debugCodeVisible()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "SMS sender is not configured");
         }
@@ -83,5 +87,18 @@ public class SmsSendCodeStrategy implements MemberSendCodeStrategy {
             return phone;
         }
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    private void logPlaintextCode(String phone, String verifyCode, long ttlSeconds, String requestId) {
+        if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
+            return;
+        }
+        log.info(
+                "Member sms verify code prepared: phone={}, plainCode={}, ttlSeconds={}, requestId={}",
+                phone,
+                verifyCode,
+                ttlSeconds,
+                requestId
+        );
     }
 }

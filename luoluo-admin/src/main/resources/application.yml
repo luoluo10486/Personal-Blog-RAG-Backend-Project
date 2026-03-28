@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: 8080
 
 spring:
@@ -22,10 +22,13 @@ spring:
     properties:
       mail:
         smtp:
+          # 是否启用 SMTP 身份认证
           auth: true
           starttls:
+            # 是否启用 STARTTLS
             enable: false
           ssl:
+            # 是否启用 SSL 直连
             enable: true
           connectiontimeout: 5000
           timeout: 5000
@@ -40,11 +43,15 @@ spring:
 sa-token:
   token-name: Authorization
   token-prefix: Bearer
+  # 是否允许从请求头读取 token
   is-read-header: true
+  # 是否允许从请求体读取 token
   is-read-body: true
+  # 是否允许从 Cookie 读取 token
   is-read-cookie: false
 
 mybatis-plus:
+  # 是否启用逻辑删除
   enable-logic-delete: true
   global-config:
     db-config:
@@ -55,11 +62,16 @@ app:
   api-prefix: /api/v1
   blog-title: My Personal Blog
   rag:
-    enabled: false
-    top-k: 3
-    retrieval-url: ""
-    llm-url: ""
-    api-key: ""
+    # 是否启用 RAG 功能
+    enabled: true
+    api-url: https://api.siliconflow.cn/v1/chat/completions
+    api-key: ${SILICONFLOW_API_KEY:}
+    model: Qwen/Qwen3-32B
+    temperature: 0
+    max-tokens: 1024
+    connect-timeout-seconds: 30
+    read-timeout-seconds: 60
+    system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
   member:
     auth:
       session-ttl-seconds: 86400
@@ -67,12 +79,18 @@ app:
       verify-code-send-interval-seconds: 60
       image-captcha-ttl-seconds: 120
       image-captcha-length: 4
-      image-captcha-enabled: false
+      # 是否启用图形验证码校验
+      image-captcha-enabled: true
+      # 是否打印验证码明文日志
+      plain-verify-code-log-enabled: true
+      # 是否允许返回 mock 验证码
       allow-mock-verify-code: false
       mock-verify-code: 123456
+      # 是否允许明文密码兼容登录
       allow-plain-password: true
     sms:
       aliyun:
+        # 是否启用阿里云短信发送
         enabled: false
         access-key-id: ""
         access-key-secret: ""
@@ -83,5 +101,5 @@ app:
         code-param-name: code
         ttl-minutes-param-name: ttl
     email:
-      login-subject: 落落大王邮箱验证码
-      login-content-template: 您的验证码是：%s，%d 分钟内有效，请勿泄露给他人。
+      login-subject: Login verification code
+      login-content-template: "Your verification code is %s. It is valid for %d minutes."

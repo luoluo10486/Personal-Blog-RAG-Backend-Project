@@ -4,10 +4,13 @@ import com.personalblog.ragbackend.common.auth.dto.VerifyCodeIssueCommand;
 import com.personalblog.ragbackend.common.auth.dto.VerifyCodeVerifyCommand;
 import com.personalblog.ragbackend.common.auth.service.VerifyCodeService;
 import com.personalblog.ragbackend.member.config.MemberProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MemberVerifyCodeService {
+    private static final Logger log = LoggerFactory.getLogger(MemberVerifyCodeService.class);
     private static final String VERIFY_CODE_NAMESPACE = "member_auth";
     private static final String LOGIN_BIZ_TYPE = "LOGIN";
     private static final String SUBJECT_TYPE = "SYS_USER";
@@ -21,7 +24,7 @@ public class MemberVerifyCodeService {
     }
 
     public boolean verifyAndConsume(String targetType, String targetValue, String inputCode) {
-        return verifyCodeService.verifyAndConsume(new VerifyCodeVerifyCommand(
+        boolean passed = verifyCodeService.verifyAndConsume(new VerifyCodeVerifyCommand(
                 VERIFY_CODE_NAMESPACE,
                 LOGIN_BIZ_TYPE,
                 targetType,
@@ -30,6 +33,8 @@ public class MemberVerifyCodeService {
                 memberProperties.getMember().getAuth().isAllowMockVerifyCode(),
                 memberProperties.getMember().getAuth().getMockVerifyCode()
         ));
+        logPlaintextVerify(targetType, targetValue, inputCode, passed);
+        return passed;
     }
 
     public void recordAndCache(
@@ -61,5 +66,19 @@ public class MemberVerifyCodeService {
                 memberProperties.getMember().getAuth().getVerifyCodeTtlSeconds(),
                 remark
         ));
+    }
+
+    private void logPlaintextVerify(String targetType, String targetValue, String inputCode, boolean passed) {
+        if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
+            return;
+        }
+        log.info(
+                "Member verify code checked: namespace={}, targetType={}, targetValue={}, plainCode={}, passed={}",
+                VERIFY_CODE_NAMESPACE,
+                targetType,
+                targetValue,
+                inputCode,
+                passed
+        );
     }
 }

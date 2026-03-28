@@ -41,6 +41,7 @@ public class MemberProperties {
         @Min(4)
         private int imageCaptchaLength = 4;
         private boolean imageCaptchaEnabled = false;
+        private boolean plainVerifyCodeLogEnabled = false;
         private boolean allowMockVerifyCode = false;
         private String mockVerifyCode = "";
         private boolean allowPlainPassword = false;
@@ -91,6 +92,14 @@ public class MemberProperties {
 
         public void setImageCaptchaEnabled(boolean imageCaptchaEnabled) {
             this.imageCaptchaEnabled = imageCaptchaEnabled;
+        }
+
+        public boolean isPlainVerifyCodeLogEnabled() {
+            return plainVerifyCodeLogEnabled;
+        }
+
+        public void setPlainVerifyCodeLogEnabled(boolean plainVerifyCodeLogEnabled) {
+            this.plainVerifyCodeLogEnabled = plainVerifyCodeLogEnabled;
         }
 
         public boolean isAllowMockVerifyCode() {

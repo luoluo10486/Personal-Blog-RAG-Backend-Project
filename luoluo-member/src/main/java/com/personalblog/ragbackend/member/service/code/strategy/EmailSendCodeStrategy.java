@@ -7,6 +7,8 @@ import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeResponse;
 import com.personalblog.ragbackend.member.service.MemberVerifyCodeService;
 import com.personalblog.ragbackend.member.service.code.MemberSendCodeStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -17,6 +19,7 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Service
 public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
+    private static final Logger log = LoggerFactory.getLogger(EmailSendCodeStrategy.class);
     private final MemberVerifyCodeService memberVerifyCodeService;
     private final MemberProperties memberProperties;
     private final CommonMailSender commonMailSender;
@@ -51,6 +54,7 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
                 memberProperties.getMember().getEmail().getLoginSubject(),
                 buildContent(verifyCode, ttlSeconds)
         );
+        logPlaintextCode(normalizedEmail, verifyCode, ttlSeconds, receipt.requestId());
         if (!memberProperties.getMember().getAuth().isAllowMockVerifyCode() && receipt.debugPayloadVisible()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Email sender is not configured");
         }
@@ -93,5 +97,18 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
             return email;
         }
         return email.substring(0, 1) + "***" + email.substring(atIndex);
+    }
+
+    private void logPlaintextCode(String email, String verifyCode, long ttlSeconds, String requestId) {
+        if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
+            return;
+        }
+        log.info(
+                "Member email verify code prepared: email={}, plainCode={}, ttlSeconds={}, requestId={}",
+                email,
+                verifyCode,
+                ttlSeconds,
+                requestId
+        );
     }
 }
