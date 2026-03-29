@@ -17,6 +17,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
+/**
+ * 邮件验证码发送策略。
+ */
 @Service
 public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
     private static final Logger log = LoggerFactory.getLogger(EmailSendCodeStrategy.class);
@@ -34,11 +37,17 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
         this.commonMailSender = commonMailSender;
     }
 
+    /**
+     * 返回当前策略支持的授权方式。
+     */
     @Override
     public String grantType() {
         return "email";
     }
 
+    /**
+     * 发送邮件验证码并记录验证码流水。
+     */
     @Override
     public MemberSendVerifyCodeResponse send(MemberSendVerifyCodeRequest request) {
         String email = request.getEmail();
@@ -82,15 +91,24 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
         );
     }
 
+    /**
+     * 生成 6 位随机验证码。
+     */
     private String randomVerifyCode() {
         return String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
     }
 
+    /**
+     * 按配置拼装邮件正文。
+     */
     private String buildContent(String verifyCode, long ttlSeconds) {
         long ttlMinutes = Math.max(1, (ttlSeconds + 59) / 60);
         return memberProperties.getMember().getEmail().getLoginContentTemplate().formatted(verifyCode, ttlMinutes);
     }
 
+    /**
+     * 对邮箱做脱敏展示。
+     */
     private String maskEmail(String email) {
         int atIndex = email.indexOf('@');
         if (atIndex <= 1) {
@@ -99,6 +117,9 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
         return email.substring(0, 1) + "***" + email.substring(atIndex);
     }
 
+    /**
+     * 根据配置决定是否输出明文验证码日志。
+     */
     private void logPlaintextCode(String email, String verifyCode, long ttlSeconds, String requestId) {
         if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
             return;

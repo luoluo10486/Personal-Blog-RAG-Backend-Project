@@ -13,6 +13,10 @@ import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+/**
+ * 对外开放的会员认证应用服务。
+ * 负责串联图形验证码校验、发送频控和验证码下发流程。
+ */
 @Service
 public class PublicMemberAuthApplicationService {
     private static final String IMAGE_CAPTCHA_NAMESPACE = "member_send_code";
@@ -35,6 +39,9 @@ public class PublicMemberAuthApplicationService {
         this.memberProperties = memberProperties;
     }
 
+    /**
+     * 对外发送验证码入口。
+     */
     public MemberSendVerifyCodeResponse sendCode(MemberSendVerifyCodeRequest request) {
         verifyImageCaptcha(request);
 
@@ -69,6 +76,9 @@ public class PublicMemberAuthApplicationService {
         }
     }
 
+    /**
+     * 校验图形验证码，并在通过后消费掉。
+     */
     private void verifyImageCaptcha(MemberSendVerifyCodeRequest request) {
         if (!memberProperties.getMember().getAuth().isImageCaptchaEnabled()) {
             return;
@@ -89,6 +99,9 @@ public class PublicMemberAuthApplicationService {
         }
     }
 
+    /**
+     * 规范化授权类型参数。
+     */
     private String normalizeGrantType(String grantType) {
         if (grantType == null || grantType.isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "grantType must not be blank");
@@ -96,6 +109,9 @@ public class PublicMemberAuthApplicationService {
         return grantType.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 根据授权类型提取并规范化验证码发送目标。
+     */
     private String normalizeTargetValue(String grantType, MemberSendVerifyCodeRequest request) {
         if ("sms".equals(grantType)) {
             if (request.getPhone() == null || request.getPhone().isBlank()) {

@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 对外公开的图形验证码控制器。
+ */
 @SaIgnore
 @RestController
 @RequestMapping("/luoluo/system/public/captcha")
@@ -23,6 +26,9 @@ public class PublicCaptchaController {
         this.memberProperties = memberProperties;
     }
 
+    /**
+     * 生成会员发送验证码前使用的图形验证码。
+     */
     @GetMapping("/image")
     public R<ImageCaptchaResponse> image() {
         if (!memberProperties.getMember().getAuth().isImageCaptchaEnabled()) {

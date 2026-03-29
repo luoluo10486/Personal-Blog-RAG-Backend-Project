@@ -6,6 +6,9 @@ import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
 import com.personalblog.ragbackend.member.config.MemberProperties;
 import org.springframework.stereotype.Service;
 
+/**
+ * 会员会话服务。
+ */
 @Service
 public class MemberSessionService {
     private static final String SUBJECT_TYPE = "SYS_USER";
@@ -18,6 +21,9 @@ public class MemberSessionService {
         this.memberProperties = memberProperties;
     }
 
+    /**
+     * 为指定用户创建登录会话。
+     */
     public AuthSessionResult createSession(Long userId, String grantType) {
         return authSessionService.createSession(new AuthSessionCreateCommand(
                 userId,
@@ -29,6 +35,9 @@ public class MemberSessionService {
         ));
     }
 
+    /**
+     * 获取当前登录会员的用户 ID。
+     */
     public Long getCurrentLoginUserId() {
         return authSessionService.getCurrentSubjectId();
     }

@@ -18,6 +18,9 @@ import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
+/**
+ * 基于阿里云短信服务的会员短信发送器。
+ */
 public class AliyunMemberSmsSender implements MemberSmsSender {
     private static final String PRODUCT = "Dysmsapi";
 
@@ -32,6 +35,9 @@ public class AliyunMemberSmsSender implements MemberSmsSender {
         this.acsClient = createClient(aliyunProperties);
     }
 
+    /**
+     * 发送登录验证码短信。
+     */
     @Override
     public SmsSendReceipt sendLoginCode(String phone, String verifyCode, long ttlSeconds) {
         SendSmsRequest request = new SendSmsRequest();
@@ -62,6 +68,9 @@ public class AliyunMemberSmsSender implements MemberSmsSender {
         }
     }
 
+    /**
+     * 创建阿里云短信客户端。
+     */
     private IAcsClient createClient(MemberProperties.Aliyun properties) {
         try {
             DefaultProfile.addEndpoint(
@@ -81,6 +90,9 @@ public class AliyunMemberSmsSender implements MemberSmsSender {
         }
     }
 
+    /**
+     * 构造模板参数 JSON。
+     */
     private String buildTemplateParamJson(String verifyCode, long ttlSeconds) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put(aliyunProperties.getCodeParamName(), verifyCode);
@@ -93,10 +105,16 @@ public class AliyunMemberSmsSender implements MemberSmsSender {
         }
     }
 
+    /**
+     * 将秒数换算为向上取整的分钟数。
+     */
     private long ttlMinutes(long ttlSeconds) {
         return Math.max(1, (ttlSeconds + 59) / 60);
     }
 
+    /**
+     * 校验阿里云短信配置是否完整。
+     */
     private void validateProperties(MemberProperties.Aliyun properties) {
         requireText(properties.getAccessKeyId(), "app.member.sms.aliyun.access-key-id");
         requireText(properties.getAccessKeySecret(), "app.member.sms.aliyun.access-key-secret");
@@ -108,6 +126,9 @@ public class AliyunMemberSmsSender implements MemberSmsSender {
         requireText(properties.getTtlMinutesParamName(), "app.member.sms.aliyun.ttl-minutes-param-name");
     }
 
+    /**
+     * 校验指定配置项不能为空。
+     */
     private void requireText(String value, String propertyName) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException(propertyName + " must be configured when Aliyun SMS is enabled");

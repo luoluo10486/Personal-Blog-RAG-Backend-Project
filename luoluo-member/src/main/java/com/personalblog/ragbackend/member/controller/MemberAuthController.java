@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 会员认证控制器。
+ */
 @RestController
 @RequestMapping("/luoluo/member/auth")
 public class MemberAuthController {
@@ -21,11 +24,17 @@ public class MemberAuthController {
         this.memberAuthApplicationService = memberAuthApplicationService;
     }
 
+    /**
+     * 会员登录接口。
+     */
     @PostMapping("/login")
     public R<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest request) {
         return R.ok("\u767b\u5f55\u6210\u529f", memberAuthApplicationService.login(request));
     }
 
+    /**
+     * 发送会员登录验证码。
+     */
     @PostMapping("/send-code")
     public R<MemberSendVerifyCodeResponse> sendCode(@Valid @RequestBody MemberSendVerifyCodeRequest request) {
         return R.ok("\u9a8c\u8bc1\u7801\u53d1\u9001\u6210\u529f", memberAuthApplicationService.sendCode(request));

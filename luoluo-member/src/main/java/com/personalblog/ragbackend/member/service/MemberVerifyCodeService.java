@@ -8,6 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+/**
+ * 会员验证码服务。
+ */
 @Service
 public class MemberVerifyCodeService {
     private static final Logger log = LoggerFactory.getLogger(MemberVerifyCodeService.class);
@@ -23,6 +26,9 @@ public class MemberVerifyCodeService {
         this.memberProperties = memberProperties;
     }
 
+    /**
+     * 校验验证码并在成功后消费掉。
+     */
     public boolean verifyAndConsume(String targetType, String targetValue, String inputCode) {
         boolean passed = verifyCodeService.verifyAndConsume(new VerifyCodeVerifyCommand(
                 VERIFY_CODE_NAMESPACE,
@@ -37,6 +43,9 @@ public class MemberVerifyCodeService {
         return passed;
     }
 
+    /**
+     * 记录验证码发送流水并写入缓存。
+     */
     public void recordAndCache(
             String bizType,
             String bizId,
@@ -68,6 +77,9 @@ public class MemberVerifyCodeService {
         ));
     }
 
+    /**
+     * 根据配置决定是否输出明文验证码校验日志。
+     */
     private void logPlaintextVerify(String targetType, String targetValue, String inputCode, boolean passed) {
         if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
             return;

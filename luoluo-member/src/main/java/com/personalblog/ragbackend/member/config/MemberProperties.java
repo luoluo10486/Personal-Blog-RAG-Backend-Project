@@ -3,14 +3,24 @@ package com.personalblog.ragbackend.member.config;
 import jakarta.validation.constraints.Min;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * 会员模块配置项。
+ * 对应 application.yml 中的 app.* 配置。
+ */
 @ConfigurationProperties(prefix = "app")
 public class MemberProperties {
+    /**
+     * 会员相关配置根节点。
+     */
     private final Member member = new Member();
 
     public Member getMember() {
         return member;
     }
 
+    /**
+     * 会员模块聚合配置。
+     */
     public static class Member {
         private final Auth auth = new Auth();
         private final Sms sms = new Sms();
@@ -29,21 +39,54 @@ public class MemberProperties {
         }
     }
 
+    /**
+     * 会员认证配置。
+     */
     public static class Auth {
+        /**
+         * 登录会话有效期，单位秒。
+         */
         @Min(60)
         private long sessionTtlSeconds = 86400;
+        /**
+         * 验证码有效期，单位秒。
+         */
         @Min(60)
         private long verifyCodeTtlSeconds = 120;
+        /**
+         * 同一目标的发送间隔，单位秒。
+         */
         @Min(1)
         private long verifyCodeSendIntervalSeconds = 60;
+        /**
+         * 图形验证码有效期，单位秒。
+         */
         @Min(60)
         private long imageCaptchaTtlSeconds = 120;
+        /**
+         * 图形验证码长度。
+         */
         @Min(4)
         private int imageCaptchaLength = 4;
+        /**
+         * 是否启用图形验证码校验。
+         */
         private boolean imageCaptchaEnabled = false;
+        /**
+         * 是否允许在日志中输出明文验证码。
+         */
         private boolean plainVerifyCodeLogEnabled = false;
+        /**
+         * 是否允许返回 mock 验证码，便于本地调试。
+         */
         private boolean allowMockVerifyCode = false;
+        /**
+         * mock 模式下允许通过的固定验证码。
+         */
         private String mockVerifyCode = "";
+        /**
+         * 是否允许明文密码直传登录。
+         */
         private boolean allowPlainPassword = false;
 
         public long getSessionTtlSeconds() {
@@ -127,6 +170,9 @@ public class MemberProperties {
         }
     }
 
+    /**
+     * 短信发送配置。
+     */
     public static class Sms {
         private final Aliyun aliyun = new Aliyun();
 
@@ -135,8 +181,17 @@ public class MemberProperties {
         }
     }
 
+    /**
+     * 邮件发送配置。
+     */
     public static class Email {
+        /**
+         * 登录验证码邮件主题。
+         */
         private String loginSubject = "Login verification code";
+        /**
+         * 登录验证码邮件模板，依次注入验证码和有效分钟数。
+         */
         private String loginContentTemplate = "Your verification code is %s. It is valid for %d minutes.";
 
         public String getLoginSubject() {
@@ -156,7 +211,13 @@ public class MemberProperties {
         }
     }
 
+    /**
+     * 阿里云短信配置。
+     */
     public static class Aliyun {
+        /**
+         * 是否启用阿里云短信通道。
+         */
         private boolean enabled = false;
         private String accessKeyId;
         private String accessKeySecret;

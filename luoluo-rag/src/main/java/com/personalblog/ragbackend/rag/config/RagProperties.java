@@ -7,6 +7,9 @@ import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+/**
+ * RAG 模块配置属性，统一承载模型地址、鉴权信息和生成参数。
+ */
 @Validated
 @ConfigurationProperties(prefix = "app.rag")
 public class RagProperties {
