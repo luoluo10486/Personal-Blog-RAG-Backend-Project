@@ -35,22 +35,35 @@ public class PasswordLoginStrategy implements MemberLoginStrategy {
 
     @Override
     public MemberUser authenticate(MemberLoginRequest request) {
-        String username = request.getUsername();
+        String account = resolvePasswordAccount(request);
         String password = request.getPassword();
-        if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "username and password must not be blank");
+        if (account == null || account.isBlank() || password == null || password.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "username/email/phone and password must not be blank");
         }
 
-        MemberUser user = memberUserService.findActiveByUsername(username.trim());
+        MemberUser user = memberUserService.findActiveByPasswordAccount(account);
         if (user == null) {
-            throw new ResponseStatusException(UNAUTHORIZED, "username or password is invalid");
+            throw new ResponseStatusException(UNAUTHORIZED, "account or password is invalid");
         }
 
         boolean matched = matchesPassword(password, user.getPasswordHash());
         if (!matched) {
-            throw new ResponseStatusException(UNAUTHORIZED, "username or password is invalid");
+            throw new ResponseStatusException(UNAUTHORIZED, "account or password is invalid");
         }
         return user;
+    }
+
+    private String resolvePasswordAccount(MemberLoginRequest request) {
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            return request.getUsername().trim();
+        }
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            return request.getEmail().trim();
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            return request.getPhone().trim();
+        }
+        return null;
     }
 
     private boolean matchesPassword(String raw, String storedHash) {

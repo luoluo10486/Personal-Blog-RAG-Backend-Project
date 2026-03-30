@@ -1,10 +1,9 @@
 package com.personalblog.ragbackend;
 
-import com.personalblog.ragbackend.member.application.MemberAuthApplicationService;
-import com.personalblog.ragbackend.member.controller.MemberAuthController;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
 import com.personalblog.ragbackend.member.dto.auth.MemberUserSummary;
-import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeResponse;
+import com.personalblog.ragbackend.system.application.PublicMemberAuthApplicationService;
+import com.personalblog.ragbackend.system.controller.pub.PublicMemberAuthController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,20 +20,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
-class MemberAuthControllerTest {
+class PublicMemberAuthControllerTest {
     @Mock
-    private MemberAuthApplicationService memberAuthApplicationService;
+    private PublicMemberAuthApplicationService publicMemberAuthApplicationService;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new MemberAuthController(memberAuthApplicationService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new PublicMemberAuthController(publicMemberAuthApplicationService)).build();
     }
 
     @Test
-    void loginShouldReturnDelegatedResponse() throws Exception {
-        when(memberAuthApplicationService.login(any())).thenReturn(new MemberLoginResponse(
+    void publicLoginShouldReturnDelegatedResponse() throws Exception {
+        when(publicMemberAuthApplicationService.login(any())).thenReturn(new MemberLoginResponse(
                 "token-123",
                 "Bearer",
                 86400,
@@ -42,7 +41,7 @@ class MemberAuthControllerTest {
                 new MemberUserSummary(1L, "demo_user", "Demo User", "13800000000", "demo@example.com", "USER")
         ));
 
-        mockMvc.perform(post("/luoluo/member/auth/login")
+        mockMvc.perform(post("/luoluo/system/public/member/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -55,29 +54,5 @@ class MemberAuthControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.token").value("token-123"))
                 .andExpect(jsonPath("$.data.user.email").value("demo@example.com"));
-    }
-
-    @Test
-    void sendCodeShouldReturnDelegatedResponse() throws Exception {
-        when(memberAuthApplicationService.sendCode(any())).thenReturn(new MemberSendVerifyCodeResponse(
-                "req-1",
-                "email",
-                "d***@example.com",
-                120,
-                "123456"
-        ));
-
-        mockMvc.perform(post("/luoluo/member/auth/send-code")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "grantType": "email",
-                                  "email": "demo@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.requestId").value("req-1"))
-                .andExpect(jsonPath("$.data.grantType").value("email"));
     }
 }

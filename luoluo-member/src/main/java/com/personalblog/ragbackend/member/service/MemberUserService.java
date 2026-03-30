@@ -5,6 +5,8 @@ import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 /**
  * 用户领域服务，封装系统用户的查询规则。
  */
@@ -21,6 +23,23 @@ public class MemberUserService {
     public MemberUser findActiveByUsername(String username) {
         return memberUserMapper.selectOne(Wrappers.<MemberUser>lambdaQuery()
                 .eq(MemberUser::getUsername, username)
+                .eq(MemberUser::getStatus, ACTIVE)
+                .last("limit 1"));
+    }
+
+    public MemberUser findActiveByPasswordAccount(String account) {
+        if (account == null || account.isBlank()) {
+            return null;
+        }
+
+        String normalizedAccount = account.trim();
+        return memberUserMapper.selectOne(Wrappers.<MemberUser>lambdaQuery()
+                .and(wrapper -> wrapper
+                        .eq(MemberUser::getUsername, normalizedAccount)
+                        .or()
+                        .eq(MemberUser::getPhone, normalizedAccount)
+                        .or()
+                        .eq(MemberUser::getEmail, normalizedAccount.toLowerCase(Locale.ROOT)))
                 .eq(MemberUser::getStatus, ACTIVE)
                 .last("limit 1"));
     }
