@@ -16,9 +16,13 @@ public class RagProperties {
     private boolean enabled = false;
     @NotBlank
     private String apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
+    @NotBlank
+    private String embeddingApiUrl = "https://api.siliconflow.cn/v1/embeddings";
     private String apiKey = "";
     @NotBlank
     private String model = "Qwen/Qwen3-32B";
+    @NotBlank
+    private String embeddingModel = "Qwen/Qwen3-Embedding-8B";
     @DecimalMin("0.0")
     @DecimalMax("2.0")
     private double temperature = 0;
@@ -55,12 +59,28 @@ public class RagProperties {
         this.apiKey = apiKey;
     }
 
+    public String getEmbeddingApiUrl() {
+        return embeddingApiUrl;
+    }
+
+    public void setEmbeddingApiUrl(String embeddingApiUrl) {
+        this.embeddingApiUrl = embeddingApiUrl;
+    }
+
     public String getModel() {
         return model;
     }
 
     public void setModel(String model) {
         this.model = model;
+    }
+
+    public String getEmbeddingModel() {
+        return embeddingModel;
+    }
+
+    public void setEmbeddingModel(String embeddingModel) {
+        this.embeddingModel = embeddingModel;
     }
 
     public double getTemperature() {

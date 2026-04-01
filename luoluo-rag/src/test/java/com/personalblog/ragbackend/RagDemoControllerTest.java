@@ -1,7 +1,10 @@
 package com.personalblog.ragbackend;
 
 import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
+import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
+import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResult;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
+import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -12,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -30,12 +34,48 @@ class RagDemoControllerTest {
     @MockBean
     private SiliconFlowChatDemoService siliconFlowChatDemoService;
 
+    @MockBean
+    private SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
+
     @Test
     void healthEndpointShouldReturnOk() throws Exception {
         mockMvc.perform(get("/luoluo/rag/demo/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.apiUrl").exists())
-                .andExpect(jsonPath("$.data.model").exists());
+                .andExpect(jsonPath("$.data.model").exists())
+                .andExpect(jsonPath("$.data.embeddingApiUrl").exists())
+                .andExpect(jsonPath("$.data.embeddingModel").exists());
+    }
+
+    @Test
+    void embeddingSearchEndpointShouldReturnDelegatedResponse() throws Exception {
+        doReturn(new RagEmbeddingSearchResponse(
+                "Can I still return something after a week?",
+                "Qwen/Qwen3-Embedding-8B",
+                5,
+                1024,
+                java.util.List.of(
+                        new RagEmbeddingSearchResult(
+                                1,
+                                0.9876,
+                                "Within 7 days after receipt, unused goods that still allow resale can be returned without reason.",
+                                java.util.Map.of("doc_id", "policy_001", "title", "Return Policy")
+                        )
+                )
+        )).when(siliconFlowEmbeddingDemoService).search(any());
+
+        mockMvc.perform(post("/luoluo/rag/demo/embedding/search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "Can I still return something after a week?",
+                                  "topK": 3
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.query").value("Can I still return something after a week?"))
+                .andExpect(jsonPath("$.data.embeddingModel").value("Qwen/Qwen3-Embedding-8B"))
+                .andExpect(jsonPath("$.data.results[0].metadata.title").value("Return Policy"));
     }
 
     @Test
