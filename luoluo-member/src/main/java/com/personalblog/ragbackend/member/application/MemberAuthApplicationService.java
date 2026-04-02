@@ -9,7 +9,7 @@ import com.personalblog.ragbackend.member.service.code.MemberSendCodeService;
 import org.springframework.stereotype.Service;
 
 /**
- * 认证应用服务，编排会员登录与验证码发送用例。
+ * 认证应用服务，编排会员登录、退出与验证码发送用例。
  */
 @Service
 public class MemberAuthApplicationService {
@@ -24,8 +24,12 @@ public class MemberAuthApplicationService {
         this.memberSendCodeService = memberSendCodeService;
     }
 
-    public MemberLoginResponse login(MemberLoginRequest request) {
-        return memberAuthService.login(request);
+    public MemberLoginResponse login(MemberLoginRequest request, String clientIp) {
+        return memberAuthService.login(request, clientIp);
+    }
+
+    public void logout() {
+        memberAuthService.logoutCurrentSession();
     }
 
     public MemberSendVerifyCodeResponse sendCode(MemberSendVerifyCodeRequest request) {

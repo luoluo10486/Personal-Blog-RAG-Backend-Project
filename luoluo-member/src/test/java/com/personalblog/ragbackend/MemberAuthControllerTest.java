@@ -15,6 +15,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,7 +38,7 @@ class MemberAuthControllerTest {
 
     @Test
     void loginShouldReturnDelegatedResponse() throws Exception {
-        when(memberAuthApplicationService.login(any())).thenReturn(new MemberLoginResponse(
+        when(memberAuthApplicationService.login(any(), anyString())).thenReturn(new MemberLoginResponse(
                 "token-123",
                 "Bearer",
                 86400,
@@ -43,10 +47,12 @@ class MemberAuthControllerTest {
         ));
 
         mockMvc.perform(post("/luoluo/member/auth/login")
+                        .header("X-Forwarded-For", "198.51.100.10, 10.0.0.1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "grantType": "password",
+                                  "deviceType": "web",
                                   "email": "demo@example.com",
                                   "password": "123456"
                                 }
@@ -55,6 +61,20 @@ class MemberAuthControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.token").value("token-123"))
                 .andExpect(jsonPath("$.data.user.email").value("demo@example.com"));
+
+        verify(memberAuthApplicationService).login(any(), eq("198.51.100.10"));
+    }
+
+    @Test
+    void logoutShouldReturnSuccess() throws Exception {
+        doNothing().when(memberAuthApplicationService).logout();
+
+        mockMvc.perform(post("/luoluo/member/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("退出成功"));
+
+        verify(memberAuthApplicationService).logout();
     }
 
     @Test

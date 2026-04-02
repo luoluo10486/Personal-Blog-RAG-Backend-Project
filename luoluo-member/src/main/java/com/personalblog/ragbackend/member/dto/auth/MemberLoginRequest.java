@@ -6,8 +6,9 @@ import jakarta.validation.constraints.NotBlank;
  * 登录请求参数，按不同登录方式承载对应的认证字段。
  */
 public class MemberLoginRequest {
-    @NotBlank
+    @NotBlank(message = "grantType 不能为空")
     private String grantType;
+    private String deviceType;
     private String username;
     private String password;
     private String phone;
@@ -17,6 +18,8 @@ public class MemberLoginRequest {
 
     public String getGrantType() { return grantType; }
     public void setGrantType(String grantType) { this.grantType = grantType; }
+    public String getDeviceType() { return deviceType; }
+    public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getPassword() { return password; }

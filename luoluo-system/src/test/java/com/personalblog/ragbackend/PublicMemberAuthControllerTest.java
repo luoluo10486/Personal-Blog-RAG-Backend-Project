@@ -14,6 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -33,7 +36,7 @@ class PublicMemberAuthControllerTest {
 
     @Test
     void publicLoginShouldReturnDelegatedResponse() throws Exception {
-        when(publicMemberAuthApplicationService.login(any())).thenReturn(new MemberLoginResponse(
+        when(publicMemberAuthApplicationService.login(any(), anyString())).thenReturn(new MemberLoginResponse(
                 "token-123",
                 "Bearer",
                 86400,
@@ -42,10 +45,12 @@ class PublicMemberAuthControllerTest {
         ));
 
         mockMvc.perform(post("/luoluo/system/public/member/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.8, 10.0.0.1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "grantType": "password",
+                                  "deviceType": "web",
                                   "email": "demo@example.com",
                                   "password": "123456"
                                 }
@@ -54,5 +59,7 @@ class PublicMemberAuthControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.token").value("token-123"))
                 .andExpect(jsonPath("$.data.user.email").value("demo@example.com"));
+
+        verify(publicMemberAuthApplicationService).login(any(), eq("203.0.113.8"));
     }
 }

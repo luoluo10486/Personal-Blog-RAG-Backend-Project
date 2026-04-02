@@ -24,15 +24,19 @@ public class MemberSessionService {
     /**
      * 为指定用户创建登录会话。
      */
-    public AuthSessionResult createSession(Long userId, String grantType) {
+    public AuthSessionResult createSession(Long userId, String grantType, String deviceType, String clientIp) {
         return authSessionService.createSession(new AuthSessionCreateCommand(
                 userId,
                 SUBJECT_TYPE,
                 grantType,
                 memberProperties.getMember().getAuth().getSessionTtlSeconds(),
-                grantType,
-                null
+                deviceType,
+                clientIp
         ));
+    }
+
+    public void logoutCurrentSession() {
+        authSessionService.logoutCurrentSession();
     }
 
     /**

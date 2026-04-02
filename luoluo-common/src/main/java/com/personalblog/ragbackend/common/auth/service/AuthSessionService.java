@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 /**
- * 通用认证会话服务，负责登录令牌签发后的摘要落库与查询。
+ * 通用认证会话服务，负责登录会话签发后的摘要落库、查询与撤销。
  */
 @Service
 public class AuthSessionService {
@@ -59,6 +59,25 @@ public class AuthSessionService {
         authSessionMapper.insert(session);
 
         return new AuthSessionResult(session.getSessionId(), token, session.getExpiresAt());
+    }
+
+    public void logoutCurrentSession() {
+        logoutByTokenValue(StpUtil.getTokenValue());
+    }
+
+    public void logoutByTokenValue(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+
+        String normalizedToken = token.trim();
+        LocalDateTime now = LocalDateTime.now();
+        authSessionMapper.update(null, Wrappers.<AuthSession>lambdaUpdate()
+                .eq(AuthSession::getTokenDigest, authDigestService.sha256Hex(normalizedToken))
+                .eq(AuthSession::getRevoked, Boolean.FALSE)
+                .set(AuthSession::getRevoked, Boolean.TRUE)
+                .set(AuthSession::getLastActiveAt, now));
+        StpUtil.logoutByTokenValue(normalizedToken);
     }
 
     public Long getCurrentSubjectId() {

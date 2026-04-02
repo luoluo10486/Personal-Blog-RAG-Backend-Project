@@ -37,8 +37,8 @@ public class PublicMemberAuthApplicationService {
         this.memberProperties = memberProperties;
     }
 
-    public MemberLoginResponse login(MemberLoginRequest request) {
-        return memberAuthApplicationService.login(request);
+    public MemberLoginResponse login(MemberLoginRequest request, String clientIp) {
+        return memberAuthApplicationService.login(request, clientIp);
     }
 
     public MemberSendVerifyCodeResponse sendCode(MemberSendVerifyCodeRequest request) {

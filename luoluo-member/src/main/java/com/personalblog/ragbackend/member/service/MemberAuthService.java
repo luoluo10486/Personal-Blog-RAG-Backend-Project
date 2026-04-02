@@ -35,7 +35,7 @@ public class MemberAuthService {
         this.memberSessionService = memberSessionService;
     }
 
-    public MemberLoginResponse login(MemberLoginRequest request) {
+    public MemberLoginResponse login(MemberLoginRequest request, String clientIp) {
         String grantType = normalizeGrantType(request.getGrantType());
         MemberLoginStrategy strategy = strategyMap.get(grantType);
         if (strategy == null) {
@@ -43,7 +43,12 @@ public class MemberAuthService {
         }
 
         MemberUser user = strategy.authenticate(request);
-        AuthSessionResult session = memberSessionService.createSession(user.getUserId(), grantType);
+        AuthSessionResult session = memberSessionService.createSession(
+                user.getUserId(),
+                grantType,
+                normalizeNullable(request.getDeviceType()),
+                normalizeNullable(clientIp)
+        );
         long expiresIn = Duration.between(LocalDateTime.now(), session.expiresAt()).toSeconds();
 
         return new MemberLoginResponse(
@@ -62,10 +67,21 @@ public class MemberAuthService {
         );
     }
 
+    public void logoutCurrentSession() {
+        memberSessionService.logoutCurrentSession();
+    }
+
     private String normalizeGrantType(String grantType) {
         if (grantType == null || grantType.isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "grantType 不能为空");
         }
         return grantType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 }
