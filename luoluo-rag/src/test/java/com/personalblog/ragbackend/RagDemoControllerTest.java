@@ -44,7 +44,9 @@ class RagDemoControllerTest {
                 .andExpect(jsonPath("$.data.apiUrl").exists())
                 .andExpect(jsonPath("$.data.model").exists())
                 .andExpect(jsonPath("$.data.embeddingApiUrl").exists())
-                .andExpect(jsonPath("$.data.embeddingModel").exists());
+                .andExpect(jsonPath("$.data.embeddingModel").exists())
+                .andExpect(jsonPath("$.data.embeddingProvider").exists())
+                .andExpect(jsonPath("$.data.milvusEnabled").exists());
     }
 
     @Test

@@ -64,6 +64,8 @@ app:
   rag:
     # 是否启用 RAG 功能
     enabled: true
+    # embedding 检索模式：demo / siliconflow
+    embedding-provider: demo
     api-url: https://api.siliconflow.cn/v1/chat/completions
     embedding-api-url: https://api.siliconflow.cn/v1/embeddings
     api-key: ${SILICONFLOW_API_KEY:}
@@ -73,7 +75,14 @@ app:
     max-tokens: 1024
     connect-timeout-seconds: 30
     read-timeout-seconds: 60
+    demo-embedding-dimension: 64
     system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
+    milvus:
+      enabled: false
+      uri: http://127.0.0.1:19530
+      token: ""
+      database-name: ""
+      collection-name: rag_demo_chunks
   member:
     auth:
       session-ttl-seconds: 86400

@@ -48,7 +48,9 @@ public class RagDemoController {
                 ragProperties.getApiUrl(),
                 ragProperties.getModel(),
                 ragProperties.getEmbeddingApiUrl(),
-                ragProperties.getEmbeddingModel()
+                ragProperties.getEmbeddingModel(),
+                ragProperties.getEmbeddingProvider(),
+                ragProperties.getMilvus().isEnabled()
         ));
     }
 

@@ -22,7 +22,9 @@ class SiliconFlowEmbeddingDemoServiceTest {
         SiliconFlowEmbeddingDemoService service = new SiliconFlowEmbeddingDemoService(
                 mock(HttpClient.class),
                 new ObjectMapper(),
-                buildRagProperties()
+                buildRagProperties(),
+                new DemoHashEmbeddingService(buildRagProperties()),
+                java.util.Optional.empty()
         );
 
         List<double[]> vectors = service.parseEmbeddingResponse("""
@@ -70,7 +72,9 @@ class SiliconFlowEmbeddingDemoServiceTest {
         SiliconFlowEmbeddingDemoService service = new SiliconFlowEmbeddingDemoService(
                 httpClient,
                 new ObjectMapper(),
-                buildRagProperties()
+                buildRagProperties(),
+                new DemoHashEmbeddingService(buildRagProperties()),
+                java.util.Optional.empty()
         );
 
         RagEmbeddingSearchResponse response = service.search(new RagEmbeddingSearchRequest("Can I still return something after a week?", 3));
@@ -88,6 +92,7 @@ class SiliconFlowEmbeddingDemoServiceTest {
     private RagProperties buildRagProperties() {
         RagProperties properties = new RagProperties();
         properties.setEnabled(true);
+        properties.setEmbeddingProvider("siliconflow");
         properties.setApiKey("test-key");
         properties.setConnectTimeoutSeconds(30);
         properties.setReadTimeoutSeconds(60);

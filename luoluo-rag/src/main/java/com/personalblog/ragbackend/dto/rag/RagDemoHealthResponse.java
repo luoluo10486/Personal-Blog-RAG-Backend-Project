@@ -8,6 +8,8 @@ public record RagDemoHealthResponse(
         String apiUrl,
         String model,
         String embeddingApiUrl,
-        String embeddingModel
+        String embeddingModel,
+        String embeddingProvider,
+        boolean milvusEnabled
 ) {
 }

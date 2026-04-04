@@ -24,9 +24,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * SiliconFlow Embedding 检索演示服务。
+ * Embedding 检索演示服务。
  */
 @Service
 public class SiliconFlowEmbeddingDemoService {
@@ -58,11 +59,21 @@ public class SiliconFlowEmbeddingDemoService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final RagProperties ragProperties;
+    private final DemoHashEmbeddingService demoHashEmbeddingService;
+    private final Optional<MilvusVectorStoreService> milvusVectorStoreService;
 
-    public SiliconFlowEmbeddingDemoService(HttpClient ragHttpClient, ObjectMapper objectMapper, RagProperties ragProperties) {
+    public SiliconFlowEmbeddingDemoService(
+            HttpClient ragHttpClient,
+            ObjectMapper objectMapper,
+            RagProperties ragProperties,
+            DemoHashEmbeddingService demoHashEmbeddingService,
+            Optional<MilvusVectorStoreService> milvusVectorStoreService
+    ) {
         this.httpClient = ragHttpClient;
         this.objectMapper = objectMapper;
         this.ragProperties = ragProperties;
+        this.demoHashEmbeddingService = demoHashEmbeddingService;
+        this.milvusVectorStoreService = milvusVectorStoreService;
     }
 
     public RagEmbeddingSearchResponse search(RagEmbeddingSearchRequest request) {
@@ -76,17 +87,19 @@ public class SiliconFlowEmbeddingDemoService {
         if (chunkVectors.size() != DEMO_CHUNKS.size()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "siliconflow embedding response size does not match demo chunks"
+                    "embedding response size does not match demo chunks"
             );
         }
 
         int vectorDimension = queryVector.length;
         int topK = request.topK() == null ? DEFAULT_TOP_K : request.topK();
-        List<RagEmbeddingSearchResult> results = buildResults(queryVector, chunkVectors, topK);
+        List<RagEmbeddingSearchResult> results = ragProperties.getMilvus().isEnabled()
+                ? buildMilvusResults(queryVector, chunkVectors, topK)
+                : buildInMemoryResults(queryVector, chunkVectors, topK);
 
         return new RagEmbeddingSearchResponse(
                 request.query().trim(),
-                ragProperties.getEmbeddingModel(),
+                resolveEmbeddingModel(),
                 DEMO_CHUNKS.size(),
                 vectorDimension,
                 results
@@ -94,6 +107,10 @@ public class SiliconFlowEmbeddingDemoService {
     }
 
     List<double[]> embed(List<String> texts) {
+        if (useDemoEmbeddingProvider()) {
+            return demoHashEmbeddingService.embed(texts);
+        }
+
         HttpRequest request = buildEmbeddingHttpRequest(texts);
 
         try {
@@ -130,6 +147,10 @@ public class SiliconFlowEmbeddingDemoService {
     }
 
     double[] embed(String text) {
+        if (useDemoEmbeddingProvider()) {
+            return demoHashEmbeddingService.embed(text);
+        }
+
         List<double[]> embeddings = embed(List.of(text));
         if (embeddings.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow embedding response is empty");
@@ -186,7 +207,7 @@ public class SiliconFlowEmbeddingDemoService {
         }
     }
 
-    private List<RagEmbeddingSearchResult> buildResults(double[] queryVector, List<double[]> chunkVectors, int topK) {
+    private List<RagEmbeddingSearchResult> buildInMemoryResults(double[] queryVector, List<double[]> chunkVectors, int topK) {
         List<ScoredChunk> scoredChunks = new ArrayList<>();
         for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
             DemoChunk chunk = DEMO_CHUNKS.get(index);
@@ -210,13 +231,58 @@ public class SiliconFlowEmbeddingDemoService {
         return results;
     }
 
+    private List<RagEmbeddingSearchResult> buildMilvusResults(double[] queryVector, List<double[]> chunkVectors, int topK) {
+        MilvusVectorStoreService vectorStoreService = milvusVectorStoreService.orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "milvus vector store is not available")
+        );
+
+        String collectionName = vectorStoreService.prepareCollection(queryVector.length);
+        vectorStoreService.upsert(collectionName, buildMilvusDocuments(), chunkVectors);
+
+        List<RagEmbeddingSearchResult> results = new ArrayList<>();
+        for (MilvusVectorStoreService.SearchHit hit : vectorStoreService.search(collectionName, queryVector, topK)) {
+            results.add(new RagEmbeddingSearchResult(
+                    hit.rank(),
+                    hit.score(),
+                    hit.content(),
+                    hit.metadata()
+            ));
+        }
+        return results;
+    }
+
+    private List<MilvusVectorStoreService.ChunkDocument> buildMilvusDocuments() {
+        List<MilvusVectorStoreService.ChunkDocument> documents = new ArrayList<>(DEMO_CHUNKS.size());
+        for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
+            DemoChunk chunk = DEMO_CHUNKS.get(index);
+            documents.add(new MilvusVectorStoreService.ChunkDocument(
+                    "demo_chunk_" + (index + 1),
+                    chunk.content(),
+                    chunk.metadata().getOrDefault("doc_id", ""),
+                    chunk.metadata().getOrDefault("title", "")
+            ));
+        }
+        return documents;
+    }
+
     private void validateAvailability() {
         if (!ragProperties.isEnabled()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "rag demo is disabled");
         }
-        if (ragProperties.getApiKey() == null || ragProperties.getApiKey().isBlank()) {
+        if (!useDemoEmbeddingProvider() && (ragProperties.getApiKey() == null || ragProperties.getApiKey().isBlank())) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "siliconflow api key is not configured");
         }
+    }
+
+    private boolean useDemoEmbeddingProvider() {
+        return "demo".equalsIgnoreCase(ragProperties.getEmbeddingProvider());
+    }
+
+    private String resolveEmbeddingModel() {
+        if (useDemoEmbeddingProvider()) {
+            return demoHashEmbeddingService.modelName();
+        }
+        return ragProperties.getEmbeddingModel();
     }
 
     private record DemoChunk(String content, Map<String, String> metadata) {
