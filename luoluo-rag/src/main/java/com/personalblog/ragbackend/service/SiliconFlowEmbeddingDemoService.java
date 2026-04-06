@@ -35,24 +35,24 @@ public class SiliconFlowEmbeddingDemoService {
 
     private static final List<DemoChunk> DEMO_CHUNKS = List.of(
             new DemoChunk(
-                    "Within 7 days after receipt, unused goods that still allow resale can be returned without reason.",
-                    Map.of("doc_id", "policy_001", "title", "Return Policy")
+                    "签收后 7 天内，未使用且不影响二次销售的商品支持无理由退货。",
+                    Map.of("doc_id", "policy_001", "title", "退货政策")
             ),
             new DemoChunk(
-                    "Return shipping is paid by the customer unless the product has a quality issue.",
-                    Map.of("doc_id", "policy_001", "title", "Return Policy")
+                    "退货运费由用户承担，若商品存在质量问题则由商家承担。",
+                    Map.of("doc_id", "policy_001", "title", "退货政策")
             ),
             new DemoChunk(
-                    "After shipment, logistics information is updated within 24 hours and can be viewed on the order detail page.",
-                    Map.of("doc_id", "logistics_001", "title", "Logistics Guide")
+                    "订单发货后 24 小时内会更新物流信息，用户可在订单详情页查看配送进度。",
+                    Map.of("doc_id", "logistics_001", "title", "物流说明")
             ),
             new DemoChunk(
-                    "Member points can offset cash at checkout. Every 100 points equal 1 unit of currency, capped at 50 percent per order.",
-                    Map.of("doc_id", "member_001", "title", "Membership Benefits")
+                    "会员积分可在结算时抵扣现金，每 100 积分可抵扣 1 元，单笔订单最多抵扣订单金额的 50%。",
+                    Map.of("doc_id", "member_001", "title", "会员权益")
             ),
             new DemoChunk(
-                    "Fresh products do not support 7-day no-reason returns. Quality issues must be reported within 48 hours after receipt.",
-                    Map.of("doc_id", "policy_002", "title", "Fresh Return Policy")
+                    "生鲜商品不支持 7 天无理由退货，如有质量问题需在签收后 48 小时内反馈。",
+                    Map.of("doc_id", "policy_002", "title", "生鲜退货政策")
             )
     );
 

@@ -78,7 +78,7 @@ app:
     demo-embedding-dimension: 64
     system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
     milvus:
-      enabled: false
+      enabled: true
       uri: http://127.0.0.1:19530
       token: ""
       database-name: ""

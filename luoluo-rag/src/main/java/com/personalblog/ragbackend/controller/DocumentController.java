@@ -1,6 +1,8 @@
 package com.personalblog.ragbackend.controller;
 
+import com.personalblog.ragbackend.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.dto.document.ParseResult;
+import com.personalblog.ragbackend.service.DocumentChunkService;
 import com.personalblog.ragbackend.service.TikaParseService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +19,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/luoluo/rag/document")
 public class DocumentController {
     private final TikaParseService tikaParseService;
+    private final DocumentChunkService documentChunkService;
 
-    public DocumentController(TikaParseService tikaParseService) {
+    public DocumentController(TikaParseService tikaParseService, DocumentChunkService documentChunkService) {
         this.tikaParseService = tikaParseService;
+        this.documentChunkService = documentChunkService;
     }
 
     /**
@@ -28,6 +32,18 @@ public class DocumentController {
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ParseResult> parseDocument(@RequestPart("file") MultipartFile file) {
         ParseResult result = tikaParseService.parseFile(file);
+        if (result.success()) {
+            return ResponseEntity.ok(result);
+        }
+        return ResponseEntity.badRequest().body(result);
+    }
+
+    /**
+     * Parse and chunk an uploaded document for downstream embedding and retrieval tests.
+     */
+    @PostMapping(value = "/chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DocumentChunkResponse> chunkDocument(@RequestPart("file") MultipartFile file) {
+        DocumentChunkResponse result = documentChunkService.chunkFile(file);
         if (result.success()) {
             return ResponseEntity.ok(result);
         }

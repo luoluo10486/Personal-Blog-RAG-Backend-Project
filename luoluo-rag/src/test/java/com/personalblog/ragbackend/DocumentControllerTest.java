@@ -1,6 +1,9 @@
 package com.personalblog.ragbackend;
 
+import com.personalblog.ragbackend.dto.document.DocumentChunk;
+import com.personalblog.ragbackend.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.dto.document.ParseResult;
+import com.personalblog.ragbackend.service.DocumentChunkService;
 import com.personalblog.ragbackend.service.TikaParseService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,9 @@ class DocumentControllerTest {
     @MockBean
     private TikaParseService tikaParseService;
 
+    @MockBean
+    private DocumentChunkService documentChunkService;
+
     @Test
     void parseEndpointShouldReturnParsedResult() throws Exception {
         when(tikaParseService.parseFile(any())).thenReturn(ParseResult.success(
@@ -48,5 +54,28 @@ class DocumentControllerTest {
                 .andExpect(jsonPath("$.contentLength").value(11))
                 .andExpect(jsonPath("$.metadata.resourceName").value("test.txt"))
                 .andExpect(jsonPath("$.errorMessage").value(nullValue()));
+    }
+
+    @Test
+    void chunkEndpointShouldReturnChunkedResult() throws Exception {
+        when(documentChunkService.chunkFile(any())).thenReturn(DocumentChunkResponse.success(
+                "text/plain",
+                Map.of("resourceName", "policy.txt"),
+                42,
+                700,
+                1100,
+                120,
+                java.util.List.of(
+                        new DocumentChunk(1, "Order Policy", "Within 7 days after receipt...", 30, false)
+                )
+        ));
+
+        mockMvc.perform(multipart("/luoluo/rag/document/chunk")
+                        .file(new MockMultipartFile("file", "policy.txt", "text/plain", "demo".getBytes())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.chunkCount").value(1))
+                .andExpect(jsonPath("$.targetChunkSize").value(700))
+                .andExpect(jsonPath("$.chunks[0].sectionTitle").value("Order Policy"));
     }
 }
