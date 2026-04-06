@@ -77,16 +77,17 @@ class SiliconFlowEmbeddingDemoServiceTest {
                 java.util.Optional.empty()
         );
 
-        RagEmbeddingSearchResponse response = service.search(new RagEmbeddingSearchRequest("Can I still return something after a week?", 3));
+        RagEmbeddingSearchResponse response = service.search(new RagEmbeddingSearchRequest("七天内还能退货吗", 3));
 
         assertEquals("Qwen/Qwen3-Embedding-8B", response.embeddingModel());
         assertEquals(5, response.chunkCount());
         assertEquals(2, response.vectorDimension());
         assertEquals(3, response.results().size());
-        assertEquals("Return Policy", response.results().get(0).metadata().get("title"));
-        assertEquals("Within 7 days after receipt, unused goods that still allow resale can be returned without reason.", response.results().get(0).content());
-        assertEquals("Return Policy", response.results().get(1).metadata().get("title"));
-        assertEquals("Fresh Return Policy", response.results().get(2).metadata().get("title"));
+        assertEquals("policy_001", response.results().get(0).metadata().get("doc_id"));
+        assertEquals("退货政策", response.results().get(0).metadata().get("title"));
+        assertEquals("return_policy", response.results().get(0).metadata().get("category"));
+        assertEquals("policy_001", response.results().get(1).metadata().get("doc_id"));
+        assertEquals("policy_002", response.results().get(2).metadata().get("doc_id"));
     }
 
     private RagProperties buildRagProperties() {

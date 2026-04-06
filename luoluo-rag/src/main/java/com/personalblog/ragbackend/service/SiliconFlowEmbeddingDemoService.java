@@ -36,23 +36,23 @@ public class SiliconFlowEmbeddingDemoService {
     private static final List<DemoChunk> DEMO_CHUNKS = List.of(
             new DemoChunk(
                     "签收后 7 天内，未使用且不影响二次销售的商品支持无理由退货。",
-                    Map.of("doc_id", "policy_001", "title", "退货政策")
+                    Map.of("doc_id", "policy_001", "title", "退货政策", "category", "return_policy")
             ),
             new DemoChunk(
                     "退货运费由用户承担，若商品存在质量问题则由商家承担。",
-                    Map.of("doc_id", "policy_001", "title", "退货政策")
+                    Map.of("doc_id", "policy_001", "title", "退货政策", "category", "return_policy")
             ),
             new DemoChunk(
                     "订单发货后 24 小时内会更新物流信息，用户可在订单详情页查看配送进度。",
-                    Map.of("doc_id", "logistics_001", "title", "物流说明")
+                    Map.of("doc_id", "logistics_001", "title", "物流说明", "category", "logistics")
             ),
             new DemoChunk(
                     "会员积分可在结算时抵扣现金，每 100 积分可抵扣 1 元，单笔订单最多抵扣订单金额的 50%。",
-                    Map.of("doc_id", "member_001", "title", "会员权益")
+                    Map.of("doc_id", "member_001", "title", "会员权益", "category", "membership")
             ),
             new DemoChunk(
                     "生鲜商品不支持 7 天无理由退货，如有质量问题需在签收后 48 小时内反馈。",
-                    Map.of("doc_id", "policy_002", "title", "生鲜退货政策")
+                    Map.of("doc_id", "policy_002", "title", "生鲜退货政策", "category", "return_policy")
             )
     );
 
@@ -236,11 +236,13 @@ public class SiliconFlowEmbeddingDemoService {
                 new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "milvus vector store is not available")
         );
 
-        String collectionName = vectorStoreService.prepareCollection(queryVector.length);
-        vectorStoreService.upsert(collectionName, buildMilvusDocuments(), chunkVectors);
+        MilvusVectorStoreService.PreparedCollection preparedCollection = vectorStoreService.prepareCollection(queryVector.length);
+        if (preparedCollection.created() || vectorStoreService.isCollectionEmpty(preparedCollection.collectionName())) {
+            vectorStoreService.insert(preparedCollection.collectionName(), buildMilvusDocuments(), chunkVectors);
+        }
 
         List<RagEmbeddingSearchResult> results = new ArrayList<>();
-        for (MilvusVectorStoreService.SearchHit hit : vectorStoreService.search(collectionName, queryVector, topK)) {
+        for (MilvusVectorStoreService.SearchHit hit : vectorStoreService.search(preparedCollection.collectionName(), queryVector, topK)) {
             results.add(new RagEmbeddingSearchResult(
                     hit.rank(),
                     hit.score(),
@@ -259,7 +261,8 @@ public class SiliconFlowEmbeddingDemoService {
                     "demo_chunk_" + (index + 1),
                     chunk.content(),
                     chunk.metadata().getOrDefault("doc_id", ""),
-                    chunk.metadata().getOrDefault("title", "")
+                    chunk.metadata().getOrDefault("title", ""),
+                    chunk.metadata().getOrDefault("category", "general")
             ));
         }
         return documents;
