@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.dto.rag;
 import java.util.List;
 
 /**
- * Response payload for embedding-based retrieval.
+ * 检索响应：返回召回模式、是否重排，以及最终结果列表。
  */
 public record RagEmbeddingSearchResponse(
         String query,

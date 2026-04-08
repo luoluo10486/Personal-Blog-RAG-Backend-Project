@@ -98,7 +98,7 @@ public class SiliconFlowEmbeddingDemoService {
         List<double[]> chunkVectors = embed(chunkTexts);
         double[] queryVector = embed(query);
         if (chunkVectors.size() != DEMO_CHUNKS.size()) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "embedding response size does not match demo chunks");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Embedding 返回条数与 demo chunk 数量不一致");
         }
 
         int vectorDimension = queryVector.length;
@@ -175,32 +175,32 @@ public class SiliconFlowEmbeddingDemoService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new ResponseStatusException(
-                        HttpStatus.BAD_GATEWAY,
-                        "siliconflow embedding request failed: status=" + response.statusCode() + ", body=" + response.body()
+                    HttpStatus.BAD_GATEWAY,
+                    "SiliconFlow Embedding 请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + response.body()
                 );
             }
             return parseEmbeddingResponse(response.body());
         } catch (HttpConnectTimeoutException exception) {
             throw new ResponseStatusException(
                     HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow embedding connect timed out after " + ragProperties.getConnectTimeoutSeconds() + " seconds",
+                    "SiliconFlow Embedding 连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (HttpTimeoutException exception) {
             throw new ResponseStatusException(
                     HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow embedding request timed out after " + ragProperties.getReadTimeoutSeconds() + " seconds",
+                    "SiliconFlow Embedding 请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (IOException exception) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "siliconflow embedding request failed: " + exception.getMessage(),
+                    "SiliconFlow Embedding 请求失败：" + exception.getMessage(),
                     exception
             );
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow embedding request interrupted", exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow Embedding 请求被中断", exception);
         }
     }
 
@@ -211,7 +211,7 @@ public class SiliconFlowEmbeddingDemoService {
 
         List<double[]> embeddings = embed(List.of(text));
         if (embeddings.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow embedding response is empty");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow Embedding 响应为空");
         }
         return embeddings.get(0);
     }
@@ -220,14 +220,14 @@ public class SiliconFlowEmbeddingDemoService {
         JsonNode root = objectMapper.readTree(responseBody);
         JsonNode dataArray = root.path("data");
         if (!dataArray.isArray() || dataArray.size() == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow embedding response does not contain data");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow Embedding 响应缺少 data 字段");
         }
 
         List<double[]> embeddings = new ArrayList<>();
         for (JsonNode item : dataArray) {
             JsonNode embeddingNode = item.path("embedding");
             if (!embeddingNode.isArray() || embeddingNode.size() == 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow embedding item does not contain embedding");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow Embedding 响应中存在缺失 embedding 的条目");
             }
 
             double[] vector = new double[embeddingNode.size()];
@@ -261,7 +261,7 @@ public class SiliconFlowEmbeddingDemoService {
         try {
             return objectMapper.writeValueAsString(requestBody);
         } catch (IOException exception) {
-            throw new IllegalStateException("failed to serialize siliconflow embedding request", exception);
+            throw new IllegalStateException("序列化 SiliconFlow Embedding 请求体失败", exception);
         }
     }
 
@@ -277,7 +277,7 @@ public class SiliconFlowEmbeddingDemoService {
     private List<CandidateHit> buildMilvusCandidates(String query, double[] queryVector, List<double[]> chunkVectors,
                                                      List<Double> sparseScores, SearchPlan plan) {
         MilvusVectorStoreService vectorStoreService = milvusVectorStoreService.orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "milvus vector store is not available")
+                new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Milvus 向量库服务不可用（请检查 app.rag.milvus.enabled 是否已开启）")
         );
 
         MilvusVectorStoreService.PreparedCollection preparedCollection = vectorStoreService.prepareCollection(queryVector.length);
@@ -428,10 +428,10 @@ public class SiliconFlowEmbeddingDemoService {
 
     private void validateAvailability() {
         if (!ragProperties.isEnabled()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "rag demo is disabled");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "RAG 演示功能未启用");
         }
         if (!useDemoEmbeddingProvider() && (ragProperties.getApiKey() == null || ragProperties.getApiKey().isBlank())) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "siliconflow api key is not configured");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SiliconFlow API Key 未配置");
         }
     }
 

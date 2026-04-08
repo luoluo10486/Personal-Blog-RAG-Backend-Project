@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Milvus-backed storage and retrieval for the RAG demo chunks.
+ * 基于 Milvus 的向量存储与检索服务（支持 dense/sparse/hybrid 粗检索）。
  */
 @Service
 @ConditionalOnProperty(prefix = "app.rag.milvus", name = "enabled", havingValue = "true")
@@ -217,7 +217,7 @@ public class MilvusVectorStoreService {
 
         CreateCollectionReq.CreateCollectionReqBuilder builder = CreateCollectionReq.builder()
                 .collectionName(collectionName)
-                .description("RAG demo chunks stored in Milvus with dense and sparse retrieval")
+                .description("RAG 演示 chunks（dense + sparse + hybrid）")
                 .collectionSchema(schema);
         appendDatabase(builder);
         milvusClient.createCollection(builder.build());

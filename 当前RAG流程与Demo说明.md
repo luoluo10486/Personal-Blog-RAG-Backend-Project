@@ -80,6 +80,8 @@
 - 当前聊天模型是什么
 - 当前 Embedding 提供方是什么
 - Milvus 是否启用
+- 当前检索召回模式是什么（Dense / Sparse / Hybrid）
+- 是否启用 rerank（重排序）
 
 ### 4.2 请求方式
 
@@ -128,7 +130,7 @@ GET /luoluo/rag/demo/health
 ```json
 {
   "code": 0,
-  "message": "rag demo is ready",
+  "message": "RAG 演示模块已就绪",
   "data": {
     "enabled": true,
     "apiUrl": "https://api.siliconflow.cn/v1/chat/completions",
@@ -136,7 +138,11 @@ GET /luoluo/rag/demo/health
     "embeddingApiUrl": "https://api.siliconflow.cn/v1/embeddings",
     "embeddingModel": "Qwen/Qwen3-Embedding-8B",
     "embeddingProvider": "demo",
-    "milvusEnabled": false
+    "milvusEnabled": true,
+    "retrievalMode": "HYBRID",
+    "rerankEnabled": true,
+    "rerankProvider": "demo",
+    "rerankModel": "BAAI/bge-reranker-v2-m3"
   }
 }
 ```
@@ -157,6 +163,14 @@ GET /luoluo/rag/demo/health
   - 当前 Embedding 提供方，通常是 `demo` 或 `siliconflow`
 - `milvusEnabled`
   - 当前 Milvus 是否启用
+- `retrievalMode`
+  - 当前粗检索模式：`DENSE_ONLY` / `SPARSE_ONLY` / `HYBRID`
+- `rerankEnabled`
+  - 是否启用二阶段重排序
+- `rerankProvider`
+  - 重排序提供方：`demo` / `siliconflow`
+- `rerankModel`
+  - 重排序模型名（当 provider=demo 时为本地启发式模型名）
 
 ### 4.6 这个接口能回答什么，不能回答什么
 
@@ -229,8 +243,8 @@ Content-Type: application/json
 
 ```json
 {
-  "systemPrompt": "You are a helpful ecommerce assistant. Answer briefly.",
-  "message": "What is your return policy?"
+  "systemPrompt": "你是一名专业的电商客服助手，请用简洁的中文回答。",
+  "message": "退货政策是什么？"
 }
 ```
 
@@ -238,7 +252,7 @@ Content-Type: application/json
 
 当前会做的最直接校验是：
 
-- `message must not be blank`
+- `消息内容不能为空`
 
 也就是说：
 
@@ -271,8 +285,8 @@ Content-Type: application/json
 
 如果不满足，会直接抛出：
 
-- `rag demo is disabled`
-- `siliconflow api key is not configured`
+- `RAG 演示功能未启用`
+- `SiliconFlow API Key 未配置`
 
 #### 第二步：确定 system prompt
 
@@ -284,7 +298,7 @@ Content-Type: application/json
 当前默认配置是：
 
 ```text
-You are a professional ecommerce support assistant. Keep answers concise.
+你是一名专业的电商客服助手。请用简洁、明确的中文回答用户问题。
 ```
 
 #### 第三步：组装 SiliconFlow 请求体
@@ -333,7 +347,7 @@ You are a professional ecommerce support assistant. Keep answers concise.
 
 如果 HTTP 状态码不是 2xx，会抛：
 
-- `siliconflow request failed: status=..., body=...`
+- `SiliconFlow 请求失败：HTTP 状态码=...，响应体=...`
 
 如果是 2xx，则解析 JSON，提取：
 
@@ -347,7 +361,7 @@ You are a professional ecommerce support assistant. Keep answers concise.
 
 如果 `choices[0].message.content` 为空，会抛：
 
-- `siliconflow response does not contain answer content`
+- `SiliconFlow 响应中不包含有效答案内容`
 
 ### 5.6 返回结构
 
@@ -356,7 +370,7 @@ You are a professional ecommerce support assistant. Keep answers concise.
 ```json
 {
   "code": 0,
-  "message": "chat completed",
+  "message": "对话完成",
   "data": {
     "requestId": "xxx",
     "model": "Qwen/Qwen3-32B",
@@ -373,13 +387,13 @@ You are a professional ecommerce support assistant. Keep answers concise.
 
 常见错误包括：
 
-- `message must not be blank`
-- `rag demo is disabled`
-- `siliconflow api key is not configured`
-- `siliconflow connect timed out after ... seconds`
-- `siliconflow request timed out after ... seconds`
-- `siliconflow request failed: ...`
-- `siliconflow response does not contain answer content`
+- `消息内容不能为空`
+- `RAG 演示功能未启用`
+- `SiliconFlow API Key 未配置`
+- `SiliconFlow 连接超时（... 秒）`
+- `SiliconFlow 请求超时（... 秒）`
+- `SiliconFlow 请求失败：...`
+- `SiliconFlow 响应中不包含有效答案内容`
 
 ### 5.8 当前局限
 
@@ -433,7 +447,7 @@ Accept: text/event-stream
 
 ```json
 {
-  "systemPrompt": "You are a helpful ecommerce assistant. Answer briefly.",
+  "systemPrompt": "你是一名专业的电商客服助手，请用简洁的中文回答。",
   "message": "What is your return policy?"
 }
 ```
@@ -569,7 +583,7 @@ data: {"requestId":"...","model":"Qwen/Qwen3-32B","answer":"Hello!...","finishRe
 
 ```text
 event: error
-data: {"message":"siliconflow request timed out after 60 seconds"}
+data: {"message":"SiliconFlow 请求超时（60 秒）"}
 ```
 
 ### 6.6 常见失败分支
@@ -580,8 +594,8 @@ data: {"message":"siliconflow request timed out after 60 seconds"}
 
 这类和普通 `chat` 基本一样：
 
-- `rag demo is disabled`
-- `siliconflow api key is not configured`
+- `RAG 演示功能未启用`
+- `SiliconFlow API Key 未配置`
 
 #### B. 建立连接后，在流式过程中失败
 
@@ -627,13 +641,14 @@ data: How
 
 - 接收用户 query
 - 生成 query embedding
-- 和当前内置 demo chunks 做相似度检索
-- 返回 topK 命中结果
+- 执行“粗检索召回”（dense / sparse / hybrid）
+- 对粗召回候选做“重排序 rerank”（可选）
+- 返回 topK 命中结果（最终排序结果）
 
 但是要特别注意：
 
 - 现在检索的不是用户上传文档
-- 而是代码里写死的 5 条 demo 文本
+- 而是代码里内置的 demo 文本（当前为 6 条）
 
 ### 7.2 请求方式
 
@@ -668,24 +683,26 @@ Content-Type: application/json
 
 当前会做这些校验：
 
-- `query must not be blank`
-- `topK must be at least 1`
-- `topK must not exceed 20`
+- `检索问题不能为空`
+- `topK 不能小于 1`
+- `topK 不能大于 20`
 
 ### 7.4 当前 demo chunks 是什么
 
-当前代码里内置了 5 段英文电商示例文本，主题大概包括：
+当前代码里内置了 6 段 demo 文本，主题大概包括：
 
 1. 7 天无理由退货
 2. 退货运费承担规则
-3. 发货后物流更新时间
-4. 会员积分抵扣规则
-5. 生鲜商品退货例外规则
+3. 订单物流状态（带订单号）
+4. 发货后物流更新时间
+5. 会员积分抵扣规则
+6. 生鲜商品退货例外规则
 
 每段文本都会带 metadata，例如：
 
 - `doc_id`
 - `title`
+- `category`
 
 ### 7.5 控制器与服务调用链
 
@@ -694,10 +711,12 @@ Content-Type: application/json
 1. `RagDemoController.embeddingSearch(...)`
 2. `SiliconFlowEmbeddingDemoService.search(...)`
 3. `validateAvailability()`
-4. 先给所有 demo chunks 生成向量
-5. 再给 query 生成向量
-6. 按是否启用 Milvus 分流
-7. 返回统一结果
+4. 先给所有 demo chunks 生成 dense 向量
+5. 再给 query 生成 dense 向量
+6. 为 query 与 chunks 计算稀疏分数（BM25，用于 SPARSE/HYBRID）
+7. 按是否启用 Milvus 分流，执行粗召回（Dense/Sparse/Hybrid）
+8. 可选：对粗召回候选进行 rerank（重排序）
+9. 返回统一结果
 
 ### 7.6 接口内部详细逻辑
 
@@ -714,7 +733,7 @@ Content-Type: application/json
 
 #### 第二步：给 demo chunks 生成向量
 
-服务会把 5 条内置 demo 文本全部取出来，生成向量。
+服务会把 6 条内置 demo 文本全部取出来，生成向量。
 
 这一点很关键，因为当前检索不是查已有索引，而是每次请求时都重新准备当前 demo 数据。
 
@@ -741,9 +760,11 @@ app.rag.milvus.enabled: false
 
 则使用内存检索逻辑：
 
-1. 逐条计算 query 向量与 chunk 向量的余弦相似度
-2. 按相似度从高到低排序
-3. 取前 topK 条
+1. Dense：逐条计算 query 向量与 chunk 向量的余弦相似度
+2. Sparse：用本地 BM25 对 query 与 chunk 做稀疏打分
+3. Hybrid：对 dense/sparse 两路做 RRF 融合得到粗排
+4. 可选：调用 rerank（或本地启发式）对候选重排
+5. 取前 topK 条
 
 ##### B. 启用 Milvus
 
@@ -757,9 +778,19 @@ app.rag.milvus.enabled: true
 
 1. 先准备 collection
 2. collection 不存在就创建
-3. 把 5 条 demo chunk upsert 到 Milvus
-4. 再用 query 向量去 Milvus 搜索
-5. 把 Milvus 返回结果转成统一输出
+3. 把 demo chunks 写入 Milvus（包含 dense 向量；sparse 向量由 Milvus BM25 function 自动生成）
+4. 按配置选择 Dense / Sparse / Hybrid 粗检索
+5. 可选：对候选做 rerank
+6. 把结果转成统一输出
+
+粗检索模式由配置决定：
+
+```yaml
+app:
+  rag:
+    retrieval:
+      mode: HYBRID   # DENSE_ONLY / SPARSE_ONLY / HYBRID
+```
 
 ### 7.7 当前支持两种 embedding 提供方
 
@@ -811,12 +842,17 @@ app.rag.embedding-provider: siliconflow
 ```json
 {
   "code": 0,
-  "message": "embedding search completed",
+  "message": "检索完成",
   "data": {
     "query": "Can I still return something after a week?",
     "embeddingModel": "demo-hash-embedding-v1",
-    "chunkCount": 5,
+    "chunkCount": 6,
     "vectorDimension": 64,
+    "recallMode": "HYBRID",
+    "recallCount": 6,
+    "rerankApplied": true,
+    "rerankProvider": "demo",
+    "rerankModel": "heuristic-rerank-v1",
     "results": [
       {
         "rank": 1,
@@ -824,7 +860,8 @@ app.rag.embedding-provider: siliconflow
         "content": "Within 7 days after receipt, unused goods that still allow resale can be returned without reason.",
         "metadata": {
           "doc_id": "policy_001",
-          "title": "Return Policy"
+          "title": "Return Policy",
+          "category": "return_policy"
         }
       }
     ]
@@ -844,18 +881,35 @@ app.rag.embedding-provider: siliconflow
   - 当前向量维度
 - `results`
   - 检索命中列表
+- `recallMode`
+  - 粗召回模式：`DENSE_ONLY` / `SPARSE_ONLY` / `HYBRID`
+- `recallCount`
+  - 参与粗召回并进入二阶段候选的条数（便于联调观察）
+- `rerankApplied`
+  - 是否对候选集执行了 rerank（重排序）
+- `rerankProvider`
+  - rerank 提供方：`demo` / `siliconflow`（未启用时为 `未启用`）
+- `rerankModel`
+  - rerank 使用的模型名
 
 ### 7.9 常见失败场景
 
 常见错误包括：
 
-- `rag demo is disabled`
-- `siliconflow api key is not configured`
-- `siliconflow embedding connect timed out after ... seconds`
-- `siliconflow embedding request timed out after ... seconds`
-- `siliconflow embedding request failed: ...`
-- `embedding response size does not match demo chunks`
-- `milvus vector store is not available`
+- `RAG 演示功能未启用`
+- `SiliconFlow API Key 未配置`
+- `SiliconFlow Embedding 连接超时（... 秒）`
+- `SiliconFlow Embedding 请求超时（... 秒）`
+- `SiliconFlow Embedding 请求失败：...`
+- `Embedding 返回条数与 demo chunk 数量不一致`
+- `Milvus 向量库服务不可用（请检查 app.rag.milvus.enabled 是否已开启）`
+
+另外，如果你在服务启动阶段看到类似 `DEADLINE_EXCEEDED` / `deadline exceeded` 的异常，一般意味着：
+
+- Milvus 没启动，或 `app.rag.milvus.uri` 配错了
+- 机器端口不可达（本机/容器网络、端口映射、防火墙等）
+
+最直接的验证方式是确认 `19530` 端口可用，并且服务端确实是 Milvus 的 gRPC 服务。
 
 ### 7.10 当前局限
 
@@ -1298,161 +1352,91 @@ document/parse -> chunk -> embedding/search 的数据源 -> chat
 
 ## 14. 当前推荐的向量检索策略
 
-如果结合当前项目阶段、现有代码实现、以及后续准备接“真实文档入库”的方向来看，当前最推荐的向量检索策略是：
+如果结合当前项目阶段、现有代码实现（Dense/Sparse/Hybrid 粗检索 + 可选 rerank）、以及后续准备接“真实文档入库”的方向来看，当前最推荐的策略是一个典型的“两阶段检索”：
 
 ```text
-HNSW 向量召回 + COSINE 相似度 + metadata 过滤 + 小 TopK 返回
+第一阶段（粗检索/召回）：Hybrid（Dense 向量 + Sparse(BM25)）+ RRF 融合 -> TopK 候选
+第二阶段（可选重排）：rerank（siliconflow 或 demo 启发式）-> 最终 TopK
 ```
 
-也就是：
+这一套策略的核心价值是：
 
-- 向量字段：`vector`
-- 向量索引：`HNSW`
-- 相似度度量：`COSINE`
-- 标量过滤字段：优先保留 `category`，后续可扩展 `doc_id`
-- 初始召回数量：建议 `topK = 5 ~ 10`
+- Dense 负责语义召回（同义改写、口语化表达、上下文相关）
+- Sparse(BM25) 负责关键词/编号/规则条款等“字面命中”（例如订单号、时间、具体术语）
+- RRF 把两路召回结果融合成一个更稳的候选集
+- rerank 在候选集上做更精细的判别，降低“看似相似但不相关”的误召回
 
-### 14.1 为什么当前推荐 HNSW
+### 14.1 为什么当前推荐 Hybrid（Dense + Sparse）
 
-当前这套 RAG 更适合先用 `HNSW`，原因很直接：
+在客服 FAQ、政策说明、订单物流等场景里，很多 query 既有语义成分，也有强关键词成分：
 
-1. 当前知识库规模还不大
+- “订单号 2026012345 的物流状态”这类问题，BM25 对“2026012345”这种编号会非常敏感
+- “退货多久到账”这类问题，Dense 对语义改写更友好
 
-你现在还处在：
+所以相比单纯 Dense 或单纯 BM25，Hybrid 更容易做到“既不漏召回，也不太乱召回”。
 
-- demo 检索已经打通
-- 真实文档 chunk 即将开始入库
+### 14.2 与当前代码实现的对应关系
 
-这个阶段通常文档量不会大到需要优先考虑 `IVF_FLAT`、`IVF_PQ` 这种更偏大规模压缩/分桶的方案。
+当前项目里已经按 Hybrid 的方向把 Milvus schema 和检索链路落地了：
 
-2. HNSW 在中小规模检索里通常更稳
+- dense 向量字段：`vector`
+- sparse 向量字段：`sparse_vector`
+  - 由 Milvus 的 BM25 function 基于 `content` 自动生成（无需你在 insert 时自己算稀疏向量）
+- dense 索引：`HNSW` + `COSINE`
+- sparse 索引：`AUTOINDEX` + `BM25`
+- 融合：RRF（`rrfK`）
+- 预留元数据字段：`doc_id` / `title` / `category`
+  - 当前 demo 侧主要用于展示；后续要做过滤时，可在 Milvus 查询里补 filter 表达式
 
-对于你现在这种：
+### 14.3 建议的参数范围（可直接照抄作为默认值）
 
-- 客服知识库
-- 博客知识库
-- FAQ / 政策说明类内容
+如果你希望“先稳住效果，再慢慢调参”，可以优先用下面这组默认值：
 
-`HNSW` 往往能在“召回质量”和“查询速度”之间给出比较均衡的结果，而且调参也相对直观。
+- `denseRecallTopK = 20`
+- `sparseRecallTopK = 20`
+- `finalTopK = 8`
+- `nprobe = 16`
+- `dropRatioSearch = 0.2`
+- `rrfK = 60`
 
-3. 你的数据更适合“高召回优先”
+### 14.4 什么时候用 DENSE_ONLY / SPARSE_ONLY
 
-RAG 第一阶段最怕的不是慢一点，而是“该召回的 chunk 没召回出来”。
+虽然推荐 Hybrid，但单路模式仍然有价值：
 
-所以相比一开始就做更激进的压缩索引，你现在更应该优先保证：
+- `DENSE_ONLY`
+  - 适合 query 比较“语义化”，且不太依赖关键词精确命中
+  - 也适合你还没启用 BM25 function 的早期阶段
+- `SPARSE_ONLY`
+  - 适合强关键词/编号/术语检索（订单号、规则编号、接口名、错误码等）
+  - 也适合你暂时不想接 embedding API 的场景
 
-- 召回尽量准
-- 召回尽量稳定
-- 结果更容易解释
+### 14.5 是否要启用 rerank（重排序）
 
-从这个角度，`HNSW + COSINE` 是更适合当前阶段的。
+建议按项目阶段分两步走：
 
-### 14.2 为什么推荐 COSINE
+1. 第一阶段先把 Hybrid 粗检索跑稳
+2. 当知识库变大、相似条目变多时，再打开 `rerankEnabled=true`
 
-当前 embedding 检索更推荐用 `COSINE`，原因是：
+原因很简单：
 
-1. 绝大多数文本 embedding 检索场景都更习惯按方向相似度比较
-2. 你现在用的 embedding 模型和后续打算接的真实 embedding，本质上都更适合语义相似度检索
-3. 现在代码里 demo 检索和 Milvus 检索已经统一按 `COSINE` 在走，认知成本最低
+- rerank 更准，但更慢也更贵（如果走外部 API）
+- 在小数据量阶段，Hybrid + 小 TopK 往往已经够用
 
-简单理解就是：
-
-- `L2` 更偏几何距离
-- `COSINE` 更偏语义方向相似
-
-当前 RAG 问答更推荐后者。
-
-### 14.3 为什么要加 metadata 过滤
-
-如果只有“纯向量检索”，后面很容易出现一个问题：
-
-- query 明明问的是退货
-- 结果把物流、会员、活动说明也一起召回进来了
-
-所以当前最推荐的做法不是“只做向量相似度”，而是：
-
-```text
-先按 metadata 做粗过滤，再做向量 TopK 召回
-```
-
-当前项目里已经比较适合作为第一批 metadata 的字段有：
-
-- `category`
-- `doc_id`
-- `title`
-
-其中：
-
-- `category` 适合做主题过滤
-- `doc_id` 适合同一篇文档内检索
-- `title` 更适合作为展示和解释字段
-
-所以你现在最合理的第一版策略是：
-
-- 向量主召回：`vector`
-- 标量过滤：`category`
-- 展示元数据：`doc_id + title`
-
-### 14.4 当前代码里已经怎么落了
-
-现在 Milvus 这块已经按这个方向实现了第一版：
-
-- 向量字段：`vector`
-- 标量字段：`category`
-- 检索度量：`COSINE`
-- 向量索引：`HNSW`
-- 标量索引：`TRIE`
-
-也就是说，当前代码已经不是“只有 collection，没有索引”的状态了，而是已经进入：
-
-```text
-建 collection -> 建 HNSW 索引 -> 建 category 索引 -> insert -> search
-```
-
-### 14.5 当前不推荐一开始就上的策略
-
-现阶段不推荐你一上来就把重点放在这些方案上：
-
-1. `IVF_PQ`
-
-它更适合大规模向量压缩场景，但你现在首先要解决的是“真实文档链路先打通”，不是存储压缩极限优化。
-
-2. 只做纯向量，不做 metadata
-
-短期 demo 还能看，真实知识库一上来后，主题串扰会变明显。
-
-3. 一开始就上复杂混合检索
-
-比如：
-
-- 向量召回 + BM25 混合
-- 多路召回
-- rerank
-
-这些当然是后续可加的，但你当前最优先的不是“把检索系统做复杂”，而是“把真实文档入库和召回链路做闭环”。
-
-### 14.6 当前阶段最推荐的正式表述
+### 14.6 当前阶段最推荐的“正式表述”
 
 如果你要把这件事写成项目方案说明，当前最合适的说法可以直接写成：
 
-> 当前 RAG 检索策略采用 `HNSW + COSINE` 作为向量召回主策略，并结合 `category` 等元数据字段进行过滤约束；在现阶段以中小规模知识库为目标，优先保证召回质量、检索稳定性和后续扩展性。
+> 当前 RAG 检索采用两阶段策略：第一阶段使用 Milvus HybridSearch（Dense 向量 + BM25 稀疏）并通过 RRF 融合召回候选；第二阶段可选启用 rerank 对候选重排。在现阶段以中小规模知识库为目标，优先保证召回质量、结果稳定性与后续扩展性。
 
-### 14.7 后续升级路线
+### 14.7 后续升级路线（从 demo 走向真实闭环）
 
-等真实文档入库链路打通后，检索策略建议按这个顺序升级：
+等真实文档入库链路打通后，建议按这个顺序升级：
 
-1. 先打通真实文档 `chunk -> embedding -> Milvus`
-2. 再补 `category/doc_id` 过滤表达式
-3. 再评估是否需要 `topK` 扩大到 `10 ~ 20`
-4. 再决定要不要加 `rerank`
-5. 最后再考虑混合检索或更复杂索引策略
-
-所以一句话结论就是：
-
-```text
-你当前这套 RAG，最推荐的向量检索策略就是：
-HNSW + COSINE + category 过滤
-```
+1. 打通真实文档 `parse -> chunk -> embedding -> Milvus`
+2. 为检索补充 `category/doc_id` 等过滤表达式，降低主题串扰
+3. 扩大粗召回候选（例如 `denseRecallTopK/sparseRecallTopK` 从 20 增到 50），再用 rerank 收敛
+4. 增加缓存与批量 embedding，降低接口耗时
+5. 最后再考虑更复杂的多路召回与策略化调参
 
 ---
 

@@ -10,7 +10,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Configuration for the RAG demo module.
+ * RAG 模块配置。
+ *
+ * 说明：
+ * - `embeddingProvider` 控制 embedding 生成方式：`demo`（本地哈希向量）或 `siliconflow`（真实 API）。
+ * - `retrieval` 控制粗检索（Dense / Sparse / Hybrid）与召回参数。
+ * - `rerank` 控制二阶段重排序（可选走 SiliconFlow rerank；失败时回退本地启发式重排）。
  */
 @Validated
 @ConfigurationProperties(prefix = "app.rag")

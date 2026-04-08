@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Chunking response for a parsed document.
+ * 文档分块（chunk）接口响应结构。
  */
 public record DocumentChunkResponse(
         boolean success,

@@ -29,7 +29,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Reranks coarse retrieval candidates. It can use SiliconFlow or a local heuristic fallback.
+ * 二阶段重排序服务：对粗召回候选集进行重排。
+ *
+ * 支持：
+ * - SiliconFlow rerank API
+ * - 本地启发式兜底（当未配置/调用失败时）
  */
 @Service
 public class SiliconFlowRerankService {
@@ -48,12 +52,12 @@ public class SiliconFlowRerankService {
 
     public RerankOutcome rerank(String query, List<Candidate> candidates, int topN) {
         if (candidates == null || candidates.isEmpty()) {
-            return new RerankOutcome(false, "disabled", "", List.of());
+            return new RerankOutcome(false, "未启用", "", List.of());
         }
 
         int limitedTopN = Math.max(1, Math.min(topN, candidates.size()));
         if (!ragProperties.getRerank().isEnabled()) {
-            return new RerankOutcome(false, "disabled", "", passThrough(candidates, limitedTopN));
+            return new RerankOutcome(false, "未启用", "", passThrough(candidates, limitedTopN));
         }
 
         if (usesSiliconFlowProvider() && hasApiKey()) {
@@ -61,7 +65,7 @@ public class SiliconFlowRerankService {
                 return new RerankOutcome(true, "siliconflow", ragProperties.getRerank().getModel(),
                         rerankBySiliconFlow(query, candidates, limitedTopN));
             } catch (RuntimeException exception) {
-                log.warn("SiliconFlow rerank failed, falling back to local heuristic: {}", exception.getMessage());
+                log.warn("SiliconFlow 重排序调用失败，已回退到本地启发式重排: {}", exception.getMessage());
             }
         }
 
@@ -74,23 +78,23 @@ public class SiliconFlowRerankService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                        "siliconflow rerank request failed: status=" + response.statusCode() + ", body=" + response.body());
+                        "SiliconFlow 重排序请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + response.body());
             }
             return parseRerankResponse(response.body(), candidates, topN);
         } catch (HttpConnectTimeoutException exception) {
             throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow rerank connect timed out after " + ragProperties.getConnectTimeoutSeconds() + " seconds",
+                    "SiliconFlow 重排序连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
                     exception);
         } catch (HttpTimeoutException exception) {
             throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow rerank request timed out after " + ragProperties.getReadTimeoutSeconds() + " seconds",
+                    "SiliconFlow 重排序请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
                     exception);
         } catch (IOException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "siliconflow rerank request failed: " + exception.getMessage(), exception);
+                    "SiliconFlow 重排序请求失败：" + exception.getMessage(), exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow rerank request interrupted", exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 重排序请求被中断", exception);
         }
     }
 
@@ -117,7 +121,7 @@ public class SiliconFlowRerankService {
         try {
             return objectMapper.writeValueAsString(requestBody);
         } catch (IOException exception) {
-            throw new IllegalStateException("failed to serialize siliconflow rerank request", exception);
+            throw new IllegalStateException("序列化 SiliconFlow 重排序请求体失败", exception);
         }
     }
 
@@ -125,7 +129,7 @@ public class SiliconFlowRerankService {
         JsonNode root = objectMapper.readTree(responseBody);
         JsonNode resultsNode = root.path("results");
         if (!resultsNode.isArray() || resultsNode.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow rerank response does not contain results");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 重排序响应缺少 results 字段");
         }
 
         List<RerankResult> results = new ArrayList<>();

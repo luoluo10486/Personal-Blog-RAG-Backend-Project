@@ -56,27 +56,27 @@ public class SiliconFlowChatDemoService {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_GATEWAY,
-                        "siliconflow request failed: status=" + response.statusCode() + ", body=" + response.body()
+                        "SiliconFlow 请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + response.body()
                 );
             }
             return parseResponse(response.body());
         } catch (HttpConnectTimeoutException exception) {
             throw new ResponseStatusException(
                     HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow connect timed out after " + ragProperties.getConnectTimeoutSeconds() + " seconds",
+                    "SiliconFlow 连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (HttpTimeoutException exception) {
             throw new ResponseStatusException(
                     HttpStatus.GATEWAY_TIMEOUT,
-                    "siliconflow request timed out after " + ragProperties.getReadTimeoutSeconds() + " seconds",
+                    "SiliconFlow 请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (IOException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow request failed: " + exception.getMessage(), exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求失败：" + exception.getMessage(), exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow request interrupted", exception);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求被中断", exception);
         }
     }
 
@@ -141,7 +141,7 @@ public class SiliconFlowChatDemoService {
             }
 
             if (fullContent.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow stream does not contain answer content");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 流式响应中不包含有效答案内容");
             }
 
             return new RagDemoChatResponse(
@@ -167,7 +167,7 @@ public class SiliconFlowChatDemoService {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 try (InputStream errorBody = response.body()) {
                     String body = new String(errorBody.readAllBytes(), StandardCharsets.UTF_8);
-                    sendErrorEvent(emitter, "siliconflow request failed: status=" + response.statusCode() + ", body=" + body);
+                    sendErrorEvent(emitter, "SiliconFlow 请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + body);
                 }
                 emitter.complete();
                 return;
@@ -181,22 +181,22 @@ public class SiliconFlowChatDemoService {
         } catch (HttpConnectTimeoutException exception) {
             completeStreamWithError(
                     emitter,
-                    "siliconflow connect timed out after " + ragProperties.getConnectTimeoutSeconds() + " seconds",
+                    "SiliconFlow 连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (HttpTimeoutException exception) {
             completeStreamWithError(
                     emitter,
-                    "siliconflow request timed out after " + ragProperties.getReadTimeoutSeconds() + " seconds",
+                    "SiliconFlow 请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
                     exception
             );
         } catch (UncheckedIOException exception) {
             emitter.completeWithError(exception.getCause());
         } catch (IOException exception) {
-            completeStreamWithError(emitter, "siliconflow request failed: " + exception.getMessage(), exception);
+            completeStreamWithError(emitter, "SiliconFlow 请求失败：" + exception.getMessage(), exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            completeStreamWithError(emitter, "siliconflow request interrupted", exception);
+            completeStreamWithError(emitter, "SiliconFlow 请求被中断", exception);
         }
     }
 
@@ -205,10 +205,10 @@ public class SiliconFlowChatDemoService {
      */
     private void validateAvailability() {
         if (!ragProperties.isEnabled()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "rag demo is disabled");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "RAG 演示功能未启用");
         }
         if (ragProperties.getApiKey() == null || ragProperties.getApiKey().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "siliconflow api key is not configured");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SiliconFlow API Key 未配置");
         }
     }
 
@@ -260,7 +260,7 @@ public class SiliconFlowChatDemoService {
         try {
             return objectMapper.writeValueAsString(requestBody);
         } catch (IOException exception) {
-            throw new IllegalStateException("failed to serialize siliconflow request", exception);
+            throw new IllegalStateException("序列化 SiliconFlow 请求体失败", exception);
         }
     }
 
@@ -272,7 +272,7 @@ public class SiliconFlowChatDemoService {
         JsonNode choice = root.path("choices").path(0);
         String answer = choice.path("message").path("content").asText(null);
         if (answer == null || answer.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "siliconflow response does not contain answer content");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 响应中不包含有效答案内容");
         }
 
         JsonNode usage = root.path("usage");

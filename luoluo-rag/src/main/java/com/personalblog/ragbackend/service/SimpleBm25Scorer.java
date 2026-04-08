@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Lightweight BM25 scorer for demo-mode sparse retrieval and rerank fallback.
+ * 轻量 BM25 评分器：用于 demo 模式下的稀疏召回与重排兜底。
  */
 final class SimpleBm25Scorer {
     private static final double K1 = 1.5;

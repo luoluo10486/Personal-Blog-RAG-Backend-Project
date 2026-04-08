@@ -43,7 +43,7 @@ class SiliconFlowChatDemoServiceTest {
         );
 
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, exception.getStatusCode());
-        assertEquals("siliconflow request timed out after 60 seconds", exception.getReason());
+        assertEquals("SiliconFlow 请求超时（60 秒）", exception.getReason());
     }
 
     @Test
@@ -64,7 +64,7 @@ class SiliconFlowChatDemoServiceTest {
         );
 
         assertEquals(HttpStatus.GATEWAY_TIMEOUT, exception.getStatusCode());
-        assertEquals("siliconflow connect timed out after 30 seconds", exception.getReason());
+        assertEquals("SiliconFlow 连接超时（30 秒）", exception.getReason());
     }
 
     @Test

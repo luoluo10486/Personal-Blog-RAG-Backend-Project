@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * Demo endpoints for health checks, chat, and retrieval.
+ * RAG 演示接口集合：健康检查、对话、检索（包含混合检索与可选重排序）。
  */
 @RestController
 @RequestMapping("/luoluo/rag/demo")

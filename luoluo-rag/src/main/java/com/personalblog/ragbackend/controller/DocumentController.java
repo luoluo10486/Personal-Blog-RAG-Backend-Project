@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 文档解析控制器，提供基于 Tika 的文件正文提取能力。
+ * 文档处理控制器，提供基于 Tika 的正文解析，以及基于结构化规则的分块（chunk）能力。
  */
 @RestController
 @RequestMapping("/luoluo/rag/document")
@@ -27,7 +27,7 @@ public class DocumentController {
     }
 
     /**
-     * 解析上传文件，返回正文、MIME 类型和元数据。
+     * 解析上传的文档，返回正文内容、MIME 类型和元数据。
      */
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ParseResult> parseDocument(@RequestPart("file") MultipartFile file) {
@@ -39,7 +39,7 @@ public class DocumentController {
     }
 
     /**
-     * Parse and chunk an uploaded document for downstream embedding and retrieval tests.
+     * 解析并分块上传的文档，方便后续做 embedding、入库与检索联调。
      */
     @PostMapping(value = "/chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentChunkResponse> chunkDocument(@RequestPart("file") MultipartFile file) {

@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
- * Chunks parsed document text using structure-first splitting with size fallback and overlap.
+ * 文档分块（chunk）服务：优先按结构（标题/列表/表格/代码块）分段，再按长度策略合并与重叠切分。
  */
 @Service
 public class DocumentChunkService {

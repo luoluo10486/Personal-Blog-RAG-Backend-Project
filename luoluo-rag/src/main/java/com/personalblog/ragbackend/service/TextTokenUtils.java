@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Small tokenizer shared by sparse retrieval and local rerank fallback.
+ * 简单分词工具：供本地稀疏检索与启发式重排序复用。
  */
 final class TextTokenUtils {
     private TextTokenUtils() {

@@ -9,7 +9,7 @@ public final class CosineSimilarity {
 
     public static double calculate(double[] vectorA, double[] vectorB) {
         if (vectorA.length != vectorB.length) {
-            throw new IllegalArgumentException("vector dimensions do not match");
+            throw new IllegalArgumentException("向量维度不一致，无法计算相似度");
         }
 
         double dotProduct = 0.0;

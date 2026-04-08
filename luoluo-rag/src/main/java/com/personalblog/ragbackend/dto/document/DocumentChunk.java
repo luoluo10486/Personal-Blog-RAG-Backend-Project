@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.dto.document;
 
 /**
- * A single chunk generated from a parsed document.
+ * 文档分块（chunk）结果中的单条 chunk。
  */
 public record DocumentChunk(
         int chunkIndex,

@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.dto.rag;
 
 /**
- * Health summary for the RAG demo module.
+ * RAG 演示模块健康检查响应，返回关键开关与配置摘要。
  */
 public record RagDemoHealthResponse(
         boolean enabled,
