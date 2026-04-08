@@ -47,8 +47,9 @@ class MilvusEmbeddingSearchIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.embeddingModel").value("demo-hash-embedding-v1"))
-                .andExpect(jsonPath("$.data.chunkCount").value(5))
+                .andExpect(jsonPath("$.data.chunkCount").value(6))
                 .andExpect(jsonPath("$.data.vectorDimension").value(64))
+                .andExpect(jsonPath("$.data.recallMode").value("HYBRID"))
                 .andExpect(jsonPath("$.data.results[0].metadata.doc_id").exists())
                 .andExpect(jsonPath("$.data.results[0].metadata.title").exists());
     }

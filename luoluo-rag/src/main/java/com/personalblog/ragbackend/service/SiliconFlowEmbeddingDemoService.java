@@ -8,6 +8,7 @@ import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchRequest;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResult;
 import com.personalblog.ragbackend.rag.config.RagProperties;
+import io.milvus.v2.common.ConsistencyLevel;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,12 +23,15 @@ import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * Embedding 检索演示服务。
+ * Embedding retrieval demo service with hybrid coarse retrieval and optional rerank.
  */
 @Service
 public class SiliconFlowEmbeddingDemoService {
@@ -41,6 +45,10 @@ public class SiliconFlowEmbeddingDemoService {
             new DemoChunk(
                     "退货运费由用户承担，若商品存在质量问题则由商家承担。",
                     Map.of("doc_id", "policy_001", "title", "退货政策", "category", "return_policy")
+            ),
+            new DemoChunk(
+                    "订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出，承运商顺丰，当前状态运输中。",
+                    Map.of("doc_id", "logistics_002", "title", "物流状态", "category", "logistics")
             ),
             new DemoChunk(
                     "订单发货后 24 小时内会更新物流信息，用户可在订单详情页查看配送进度。",
@@ -60,6 +68,7 @@ public class SiliconFlowEmbeddingDemoService {
     private final ObjectMapper objectMapper;
     private final RagProperties ragProperties;
     private final DemoHashEmbeddingService demoHashEmbeddingService;
+    private final SiliconFlowRerankService siliconFlowRerankService;
     private final Optional<MilvusVectorStoreService> milvusVectorStoreService;
 
     public SiliconFlowEmbeddingDemoService(
@@ -67,41 +76,90 @@ public class SiliconFlowEmbeddingDemoService {
             ObjectMapper objectMapper,
             RagProperties ragProperties,
             DemoHashEmbeddingService demoHashEmbeddingService,
+            SiliconFlowRerankService siliconFlowRerankService,
             Optional<MilvusVectorStoreService> milvusVectorStoreService
     ) {
         this.httpClient = ragHttpClient;
         this.objectMapper = objectMapper;
         this.ragProperties = ragProperties;
         this.demoHashEmbeddingService = demoHashEmbeddingService;
+        this.siliconFlowRerankService = siliconFlowRerankService;
         this.milvusVectorStoreService = milvusVectorStoreService;
     }
 
     public RagEmbeddingSearchResponse search(RagEmbeddingSearchRequest request) {
         validateAvailability();
 
-        List<String> chunkTexts = DEMO_CHUNKS.stream()
-                .map(DemoChunk::content)
-                .toList();
+        String query = request.query().trim();
+        int topK = request.topK() == null ? DEFAULT_TOP_K : request.topK();
+        SearchPlan plan = buildSearchPlan(topK);
+
+        List<String> chunkTexts = DEMO_CHUNKS.stream().map(DemoChunk::content).toList();
         List<double[]> chunkVectors = embed(chunkTexts);
-        double[] queryVector = embed(request.query().trim());
+        double[] queryVector = embed(query);
         if (chunkVectors.size() != DEMO_CHUNKS.size()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_GATEWAY,
-                    "embedding response size does not match demo chunks"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "embedding response size does not match demo chunks");
         }
 
         int vectorDimension = queryVector.length;
-        int topK = request.topK() == null ? DEFAULT_TOP_K : request.topK();
-        List<RagEmbeddingSearchResult> results = ragProperties.getMilvus().isEnabled()
-                ? buildMilvusResults(queryVector, chunkVectors, topK)
-                : buildInMemoryResults(queryVector, chunkVectors, topK);
+        List<Double> sparseScores = new SimpleBm25Scorer(chunkTexts).scoreAll(query);
+        List<CandidateHit> coarseHits = ragProperties.getMilvus().isEnabled()
+                ? buildMilvusCandidates(query, queryVector, chunkVectors, sparseScores, plan)
+                : buildInMemoryCandidates(queryVector, chunkVectors, sparseScores, plan);
+
+        SiliconFlowRerankService.RerankOutcome rerankOutcome = siliconFlowRerankService.rerank(
+                query,
+                coarseHits.stream()
+                        .map(hit -> new SiliconFlowRerankService.Candidate(
+                                hit.id(),
+                                hit.content(),
+                                hit.metadata(),
+                                hit.denseScore(),
+                                hit.sparseScore(),
+                                hit.coarseScore()))
+                        .toList(),
+                plan.finalTopK()
+        );
+
+        List<RagEmbeddingSearchResult> results = new ArrayList<>();
+        List<SiliconFlowRerankService.RerankResult> rankedResults = rerankOutcome.applied()
+                ? rerankOutcome.results()
+                : siliconFlowRerankService.rerank(query, List.of(), 1).results();
+        if (!rerankOutcome.applied()) {
+            rankedResults = coarseHits.stream()
+                    .sorted(Comparator.comparingDouble(CandidateHit::coarseScore).reversed())
+                    .limit(plan.finalTopK())
+                    .map(hit -> new SiliconFlowRerankService.RerankResult(
+                            new SiliconFlowRerankService.Candidate(
+                                    hit.id(), hit.content(), hit.metadata(), hit.denseScore(), hit.sparseScore(), hit.coarseScore()),
+                            0,
+                            hit.coarseScore()))
+                    .toList();
+        }
+
+        for (int index = 0; index < rankedResults.size(); index++) {
+            SiliconFlowRerankService.RerankResult reranked = rankedResults.get(index);
+            SiliconFlowRerankService.Candidate candidate = reranked.candidate();
+            Map<String, String> metadata = new LinkedHashMap<>(candidate.metadata());
+            metadata.put("dense_score", formatScore(candidate.denseScore()));
+            metadata.put("sparse_score", formatScore(candidate.sparseScore()));
+            metadata.put("coarse_score", formatScore(candidate.coarseScore()));
+            metadata.put("rerank_score", formatScore(reranked.score()));
+            metadata.put("recall_mode", plan.mode().name());
+            metadata.put("rerank_provider", rerankOutcome.provider());
+            results.add(new RagEmbeddingSearchResult(index + 1, reranked.score(), candidate.content(), metadata));
+        }
 
         return new RagEmbeddingSearchResponse(
-                request.query().trim(),
+                query,
                 resolveEmbeddingModel(),
                 DEMO_CHUNKS.size(),
                 vectorDimension,
+                plan.mode().name(),
+                coarseHits.size(),
+                rerankOutcome.applied(),
+                rerankOutcome.provider(),
+                rerankOutcome.model(),
                 results
         );
     }
@@ -207,31 +265,17 @@ public class SiliconFlowEmbeddingDemoService {
         }
     }
 
-    private List<RagEmbeddingSearchResult> buildInMemoryResults(double[] queryVector, List<double[]> chunkVectors, int topK) {
-        List<ScoredChunk> scoredChunks = new ArrayList<>();
-        for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
-            DemoChunk chunk = DEMO_CHUNKS.get(index);
-            double similarity = CosineSimilarity.calculate(queryVector, chunkVectors.get(index));
-            scoredChunks.add(new ScoredChunk(chunk, similarity));
-        }
-
-        scoredChunks.sort(Comparator.comparingDouble(ScoredChunk::similarity).reversed());
-
-        List<RagEmbeddingSearchResult> results = new ArrayList<>();
-        int resultSize = Math.min(topK, scoredChunks.size());
-        for (int index = 0; index < resultSize; index++) {
-            ScoredChunk scoredChunk = scoredChunks.get(index);
-            results.add(new RagEmbeddingSearchResult(
-                    index + 1,
-                    scoredChunk.similarity(),
-                    scoredChunk.chunk().content(),
-                    scoredChunk.chunk().metadata()
-            ));
-        }
-        return results;
+    private List<CandidateHit> buildInMemoryCandidates(double[] queryVector, List<double[]> chunkVectors,
+                                                       List<Double> sparseScores, SearchPlan plan) {
+        return switch (plan.mode()) {
+            case DENSE_ONLY -> selectDenseCandidates(queryVector, chunkVectors, sparseScores, plan.denseCandidateCount());
+            case SPARSE_ONLY -> selectSparseCandidates(queryVector, chunkVectors, sparseScores, plan.sparseCandidateCount());
+            case HYBRID -> selectHybridCandidates(queryVector, chunkVectors, sparseScores, plan);
+        };
     }
 
-    private List<RagEmbeddingSearchResult> buildMilvusResults(double[] queryVector, List<double[]> chunkVectors, int topK) {
+    private List<CandidateHit> buildMilvusCandidates(String query, double[] queryVector, List<double[]> chunkVectors,
+                                                     List<Double> sparseScores, SearchPlan plan) {
         MilvusVectorStoreService vectorStoreService = milvusVectorStoreService.orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "milvus vector store is not available")
         );
@@ -241,16 +285,126 @@ public class SiliconFlowEmbeddingDemoService {
             vectorStoreService.insert(preparedCollection.collectionName(), buildMilvusDocuments(), chunkVectors);
         }
 
-        List<RagEmbeddingSearchResult> results = new ArrayList<>();
-        for (MilvusVectorStoreService.SearchHit hit : vectorStoreService.search(preparedCollection.collectionName(), queryVector, topK)) {
-            results.add(new RagEmbeddingSearchResult(
-                    hit.rank(),
-                    hit.score(),
-                    hit.content(),
-                    hit.metadata()
+        Map<String, CandidateHit> allCandidates = buildCandidateLookup(queryVector, chunkVectors, sparseScores);
+        List<MilvusVectorStoreService.SearchHit> coarseSearchHits = switch (plan.mode()) {
+            case DENSE_ONLY -> vectorStoreService.denseSearch(
+                    preparedCollection.collectionName(), queryVector, plan.denseCandidateCount(),
+                    plan.nprobe(), plan.consistencyLevel());
+            case SPARSE_ONLY -> vectorStoreService.sparseSearch(
+                    preparedCollection.collectionName(), query, plan.sparseCandidateCount(),
+                    plan.dropRatioSearch(), plan.consistencyLevel());
+            case HYBRID -> vectorStoreService.hybridSearch(
+                    preparedCollection.collectionName(), query, queryVector, plan.hybridCandidateCount(),
+                    plan.denseCandidateCount(), plan.sparseCandidateCount(), plan.nprobe(),
+                    plan.dropRatioSearch(), plan.rrfK(), plan.consistencyLevel());
+        };
+
+        return coarseSearchHits.stream()
+                .map(hit -> enrichMilvusHit(hit, allCandidates))
+                .sorted(Comparator.comparingDouble(CandidateHit::coarseScore).reversed())
+                .toList();
+    }
+
+    private CandidateHit enrichMilvusHit(MilvusVectorStoreService.SearchHit hit, Map<String, CandidateHit> allCandidates) {
+        CandidateHit candidate = allCandidates.get(hit.id());
+        if (candidate == null) {
+            return new CandidateHit(hit.id(), hit.content(), hit.metadata(), 0, 0, hit.score());
+        }
+        return new CandidateHit(candidate.id(), candidate.content(), candidate.metadata(),
+                candidate.denseScore(), candidate.sparseScore(), hit.score());
+    }
+
+    private Map<String, CandidateHit> buildCandidateLookup(double[] queryVector, List<double[]> chunkVectors, List<Double> sparseScores) {
+        Map<String, CandidateHit> lookup = new LinkedHashMap<>();
+        for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
+            DemoChunk chunk = DEMO_CHUNKS.get(index);
+            String id = buildChunkId(index);
+            lookup.put(id, new CandidateHit(
+                    id,
+                    chunk.content(),
+                    new LinkedHashMap<>(chunk.metadata()),
+                    CosineSimilarity.calculate(queryVector, chunkVectors.get(index)),
+                    sparseScores.get(index),
+                    0
             ));
         }
-        return results;
+        return lookup;
+    }
+
+    private List<CandidateHit> selectDenseCandidates(double[] queryVector, List<double[]> chunkVectors,
+                                                     List<Double> sparseScores, int candidateCount) {
+        return buildScoredCandidates(queryVector, chunkVectors, sparseScores).stream()
+                .sorted(Comparator.comparingDouble(CandidateHit::denseScore).reversed())
+                .limit(candidateCount)
+                .map(hit -> hit.withCoarseScore(hit.denseScore()))
+                .toList();
+    }
+
+    private List<CandidateHit> selectSparseCandidates(double[] queryVector, List<double[]> chunkVectors,
+                                                      List<Double> sparseScores, int candidateCount) {
+        return buildScoredCandidates(queryVector, chunkVectors, sparseScores).stream()
+                .sorted(Comparator.comparingDouble(CandidateHit::sparseScore).reversed())
+                .limit(candidateCount)
+                .map(hit -> hit.withCoarseScore(hit.sparseScore()))
+                .toList();
+    }
+
+    private List<CandidateHit> selectHybridCandidates(double[] queryVector, List<double[]> chunkVectors,
+                                                      List<Double> sparseScores, SearchPlan plan) {
+        List<CandidateHit> allCandidates = buildScoredCandidates(queryVector, chunkVectors, sparseScores);
+        List<CandidateHit> denseHits = allCandidates.stream()
+                .sorted(Comparator.comparingDouble(CandidateHit::denseScore).reversed())
+                .limit(plan.denseCandidateCount())
+                .toList();
+        List<CandidateHit> sparseHits = allCandidates.stream()
+                .sorted(Comparator.comparingDouble(CandidateHit::sparseScore).reversed())
+                .limit(plan.sparseCandidateCount())
+                .toList();
+
+        Map<String, Double> fusionScores = new LinkedHashMap<>();
+        for (int index = 0; index < denseHits.size(); index++) {
+            fusionScores.merge(denseHits.get(index).id(), 1.0 / (plan.rrfK() + index + 1), Double::sum);
+        }
+        for (int index = 0; index < sparseHits.size(); index++) {
+            fusionScores.merge(sparseHits.get(index).id(), 1.0 / (plan.rrfK() + index + 1), Double::sum);
+        }
+
+        return allCandidates.stream()
+                .filter(hit -> fusionScores.containsKey(hit.id()))
+                .map(hit -> hit.withCoarseScore(fusionScores.get(hit.id())))
+                .sorted(Comparator.comparingDouble(CandidateHit::coarseScore).reversed())
+                .limit(plan.hybridCandidateCount())
+                .toList();
+    }
+
+    private List<CandidateHit> buildScoredCandidates(double[] queryVector, List<double[]> chunkVectors, List<Double> sparseScores) {
+        List<CandidateHit> candidates = new ArrayList<>();
+        for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
+            DemoChunk chunk = DEMO_CHUNKS.get(index);
+            candidates.add(new CandidateHit(
+                    buildChunkId(index),
+                    chunk.content(),
+                    new LinkedHashMap<>(chunk.metadata()),
+                    CosineSimilarity.calculate(queryVector, chunkVectors.get(index)),
+                    sparseScores.get(index),
+                    0
+            ));
+        }
+        return candidates;
+    }
+
+    private SearchPlan buildSearchPlan(int finalTopK) {
+        RagProperties.RetrievalProperties retrieval = ragProperties.getRetrieval();
+        return new SearchPlan(
+                retrieval.getMode(),
+                Math.max(finalTopK, retrieval.getDenseRecallTopK()),
+                Math.max(finalTopK, retrieval.getSparseRecallTopK()),
+                finalTopK,
+                retrieval.getNprobe(),
+                retrieval.getDropRatioSearch(),
+                retrieval.getRrfK(),
+                retrieval.resolveConsistencyLevel()
+        );
     }
 
     private List<MilvusVectorStoreService.ChunkDocument> buildMilvusDocuments() {
@@ -258,7 +412,7 @@ public class SiliconFlowEmbeddingDemoService {
         for (int index = 0; index < DEMO_CHUNKS.size(); index++) {
             DemoChunk chunk = DEMO_CHUNKS.get(index);
             documents.add(new MilvusVectorStoreService.ChunkDocument(
-                    "demo_chunk_" + (index + 1),
+                    buildChunkId(index),
                     chunk.content(),
                     chunk.metadata().getOrDefault("doc_id", ""),
                     chunk.metadata().getOrDefault("title", ""),
@@ -266,6 +420,10 @@ public class SiliconFlowEmbeddingDemoService {
             ));
         }
         return documents;
+    }
+
+    private String buildChunkId(int index) {
+        return "demo_chunk_" + (index + 1);
     }
 
     private void validateAvailability() {
@@ -288,9 +446,25 @@ public class SiliconFlowEmbeddingDemoService {
         return ragProperties.getEmbeddingModel();
     }
 
+    private String formatScore(double score) {
+        return String.format(Locale.ROOT, "%.6f", score);
+    }
+
     private record DemoChunk(String content, Map<String, String> metadata) {
     }
 
-    private record ScoredChunk(DemoChunk chunk, double similarity) {
+    private record CandidateHit(String id, String content, Map<String, String> metadata,
+                                double denseScore, double sparseScore, double coarseScore) {
+        private CandidateHit withCoarseScore(double nextCoarseScore) {
+            return new CandidateHit(id, content, metadata, denseScore, sparseScore, nextCoarseScore);
+        }
+    }
+
+    private record SearchPlan(RagProperties.SearchMode mode, int denseCandidateCount, int sparseCandidateCount,
+                              int finalTopK, int nprobe, double dropRatioSearch, int rrfK,
+                              ConsistencyLevel consistencyLevel) {
+        private int hybridCandidateCount() {
+            return Math.max(finalTopK, Math.max(denseCandidateCount, sparseCandidateCount));
+        }
     }
 }

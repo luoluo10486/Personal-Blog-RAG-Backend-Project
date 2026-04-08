@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.rag.config;
 
+import io.milvus.v2.common.ConsistencyLevel;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -9,7 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * RAG 模块配置属性。
+ * Configuration for the RAG demo module.
  */
 @Validated
 @ConfigurationProperties(prefix = "app.rag")
@@ -41,6 +42,10 @@ public class RagProperties {
     private String systemPrompt = "You are a professional ecommerce support assistant. Keep answers concise.";
     @Valid
     private final MilvusProperties milvus = new MilvusProperties();
+    @Valid
+    private final RetrievalProperties retrieval = new RetrievalProperties();
+    @Valid
+    private final RerankProperties rerank = new RerankProperties();
 
     public boolean isEnabled() {
         return enabled;
@@ -150,6 +155,20 @@ public class RagProperties {
         return milvus;
     }
 
+    public RetrievalProperties getRetrieval() {
+        return retrieval;
+    }
+
+    public RerankProperties getRerank() {
+        return rerank;
+    }
+
+    public enum SearchMode {
+        DENSE_ONLY,
+        SPARSE_ONLY,
+        HYBRID
+    }
+
     public static class MilvusProperties {
         private boolean enabled = false;
         @NotBlank
@@ -197,6 +216,125 @@ public class RagProperties {
 
         public void setCollectionName(String collectionName) {
             this.collectionName = collectionName;
+        }
+    }
+
+    public static class RetrievalProperties {
+        private SearchMode mode = SearchMode.HYBRID;
+        @Min(1)
+        private int denseRecallTopK = 12;
+        @Min(1)
+        private int sparseRecallTopK = 12;
+        @Min(1)
+        private int nprobe = 16;
+        @DecimalMin("0.0")
+        @DecimalMax("1.0")
+        private double dropRatioSearch = 0.2;
+        @Min(1)
+        private int rrfK = 60;
+        @NotBlank
+        private String consistencyLevel = "BOUNDED";
+
+        public SearchMode getMode() {
+            return mode;
+        }
+
+        public void setMode(SearchMode mode) {
+            this.mode = mode;
+        }
+
+        public int getDenseRecallTopK() {
+            return denseRecallTopK;
+        }
+
+        public void setDenseRecallTopK(int denseRecallTopK) {
+            this.denseRecallTopK = denseRecallTopK;
+        }
+
+        public int getSparseRecallTopK() {
+            return sparseRecallTopK;
+        }
+
+        public void setSparseRecallTopK(int sparseRecallTopK) {
+            this.sparseRecallTopK = sparseRecallTopK;
+        }
+
+        public int getNprobe() {
+            return nprobe;
+        }
+
+        public void setNprobe(int nprobe) {
+            this.nprobe = nprobe;
+        }
+
+        public double getDropRatioSearch() {
+            return dropRatioSearch;
+        }
+
+        public void setDropRatioSearch(double dropRatioSearch) {
+            this.dropRatioSearch = dropRatioSearch;
+        }
+
+        public int getRrfK() {
+            return rrfK;
+        }
+
+        public void setRrfK(int rrfK) {
+            this.rrfK = rrfK;
+        }
+
+        public String getConsistencyLevel() {
+            return consistencyLevel;
+        }
+
+        public void setConsistencyLevel(String consistencyLevel) {
+            this.consistencyLevel = consistencyLevel;
+        }
+
+        public ConsistencyLevel resolveConsistencyLevel() {
+            return ConsistencyLevel.valueOf(consistencyLevel.trim().toUpperCase());
+        }
+    }
+
+    public static class RerankProperties {
+        private boolean enabled = true;
+        @NotBlank
+        private String provider = "demo";
+        @NotBlank
+        private String apiUrl = "https://api.siliconflow.cn/v1/rerank";
+        @NotBlank
+        private String model = "BAAI/bge-reranker-v2-m3";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+
+        public String getApiUrl() {
+            return apiUrl;
+        }
+
+        public void setApiUrl(String apiUrl) {
+            this.apiUrl = apiUrl;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
         }
     }
 }

@@ -46,7 +46,10 @@ class RagDemoControllerTest {
                 .andExpect(jsonPath("$.data.embeddingApiUrl").exists())
                 .andExpect(jsonPath("$.data.embeddingModel").exists())
                 .andExpect(jsonPath("$.data.embeddingProvider").exists())
-                .andExpect(jsonPath("$.data.milvusEnabled").exists());
+                .andExpect(jsonPath("$.data.milvusEnabled").exists())
+                .andExpect(jsonPath("$.data.retrievalMode").exists())
+                .andExpect(jsonPath("$.data.rerankEnabled").exists())
+                .andExpect(jsonPath("$.data.rerankProvider").exists());
     }
 
     @Test
@@ -54,8 +57,13 @@ class RagDemoControllerTest {
         doReturn(new RagEmbeddingSearchResponse(
                 "Can I still return something after a week?",
                 "Qwen/Qwen3-Embedding-8B",
-                5,
+                6,
                 1024,
+                "HYBRID",
+                6,
+                true,
+                "demo",
+                "heuristic-rerank-v1",
                 java.util.List.of(
                         new RagEmbeddingSearchResult(
                                 1,
@@ -77,6 +85,7 @@ class RagDemoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.query").value("Can I still return something after a week?"))
                 .andExpect(jsonPath("$.data.embeddingModel").value("Qwen/Qwen3-Embedding-8B"))
+                .andExpect(jsonPath("$.data.recallMode").value("HYBRID"))
                 .andExpect(jsonPath("$.data.results[0].metadata.title").value("Return Policy"));
     }
 
