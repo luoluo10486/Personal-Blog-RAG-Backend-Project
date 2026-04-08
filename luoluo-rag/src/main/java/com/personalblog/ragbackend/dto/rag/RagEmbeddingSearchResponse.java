@@ -25,6 +25,6 @@ public record RagEmbeddingSearchResponse(
             List<RagEmbeddingSearchResult> results
     ) {
         this(query, embeddingModel, chunkCount, vectorDimension, "DENSE_ONLY",
-                results == null ? 0 : results.size(), false, "disabled", "", results);
+                results == null ? 0 : results.size(), false, "未启用", "", results);
     }
 }

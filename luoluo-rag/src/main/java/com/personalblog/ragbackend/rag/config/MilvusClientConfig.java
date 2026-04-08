@@ -6,6 +6,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Objects;
+
 /**
  * Milvus 客户端配置。
  */
@@ -26,6 +28,17 @@ public class MilvusClientConfig {
         if (milvusProperties.getDatabaseName() != null && !milvusProperties.getDatabaseName().isBlank()) {
             builder.dbName(milvusProperties.getDatabaseName().trim());
         }
-        return new MilvusClientV2(builder.build());
+        try {
+            return new MilvusClientV2(builder.build());
+        } catch (RuntimeException exception) {
+            String databaseName = milvusProperties.getDatabaseName();
+            String databaseLabel = (databaseName == null || databaseName.isBlank()) ? "默认库" : databaseName.trim();
+            throw new IllegalStateException(
+                    "Milvus 客户端初始化失败，请检查 Milvus 服务是否已启动，以及连接地址是否可用。"
+                            + " 当前地址: " + Objects.toString(milvusProperties.getUri(), "")
+                            + "，数据库: " + databaseLabel,
+                    exception
+            );
+        }
     }
 }

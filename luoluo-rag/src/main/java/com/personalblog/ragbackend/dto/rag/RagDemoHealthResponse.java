@@ -26,6 +26,6 @@ public record RagDemoHealthResponse(
             boolean milvusEnabled
     ) {
         this(enabled, apiUrl, model, embeddingApiUrl, embeddingModel, embeddingProvider, milvusEnabled,
-                "HYBRID", false, "disabled", "");
+                "HYBRID", false, "未启用", "");
     }
 }

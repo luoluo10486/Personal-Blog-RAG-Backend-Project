@@ -40,7 +40,7 @@ public class RagDemoController {
 
     @GetMapping("/health")
     public R<RagDemoHealthResponse> health() {
-        return R.ok("rag demo is ready", new RagDemoHealthResponse(
+        return R.ok("RAG 演示模块已就绪", new RagDemoHealthResponse(
                 ragProperties.isEnabled(),
                 ragProperties.getApiUrl(),
                 ragProperties.getModel(),
@@ -57,12 +57,12 @@ public class RagDemoController {
 
     @PostMapping("/chat")
     public R<RagDemoChatResponse> chat(@Valid @RequestBody RagDemoChatRequest request) {
-        return R.ok("chat completed", siliconFlowChatDemoService.chat(request));
+        return R.ok("对话完成", siliconFlowChatDemoService.chat(request));
     }
 
     @PostMapping("/embedding/search")
     public R<RagEmbeddingSearchResponse> embeddingSearch(@Valid @RequestBody RagEmbeddingSearchRequest request) {
-        return R.ok("embedding search completed", siliconFlowEmbeddingDemoService.search(request));
+        return R.ok("检索完成", siliconFlowEmbeddingDemoService.search(request));
     }
 
     @PostMapping(path = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

@@ -8,10 +8,10 @@ import jakarta.validation.constraints.NotBlank;
  * Embedding 检索演示请求。
  */
 public record RagEmbeddingSearchRequest(
-        @NotBlank(message = "query must not be blank")
+        @NotBlank(message = "检索问题不能为空")
         String query,
-        @Min(value = 1, message = "topK must be at least 1")
-        @Max(value = 20, message = "topK must not exceed 20")
+        @Min(value = 1, message = "topK 不能小于 1")
+        @Max(value = 20, message = "topK 不能大于 20")
         Integer topK
 ) {
 }

@@ -39,7 +39,7 @@ public class RagProperties {
     @Min(8)
     private int demoEmbeddingDimension = 64;
     @NotBlank
-    private String systemPrompt = "You are a professional ecommerce support assistant. Keep answers concise.";
+    private String systemPrompt = "你是一名专业的电商客服助手，请保持回答简洁准确。";
     @Valid
     private final MilvusProperties milvus = new MilvusProperties();
     @Valid

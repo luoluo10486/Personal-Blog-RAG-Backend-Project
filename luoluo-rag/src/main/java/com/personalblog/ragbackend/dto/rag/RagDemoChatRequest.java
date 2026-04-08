@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record RagDemoChatRequest(
         String systemPrompt,
-        @NotBlank(message = "message must not be blank")
+        @NotBlank(message = "消息内容不能为空")
         String message
 ) {
 }
