@@ -15,23 +15,31 @@
 - 普通大模型聊天
 - SSE 流式聊天
 - Embedding 检索
+- RAG 生成（检索 + 上下文组装 + 引用回答）
 - Milvus 向量库接入
 
-但是现在还**不能算完整 RAG 闭环已经打通**。
+但是现在还**不能算“真实知识库”RAG 闭环已经打通**。
 
 更准确地说，当前状态是：
 
 - `document/parse` 是独立的文档解析能力
 - `embedding/search` 是独立的向量检索 demo
 - `chat` / `chat/stream` 是独立的大模型聊天能力
+- `generate` 已经能把“内置 demo chunks 的检索结果”真正送入生成链路
 
-它们目前还是并列能力，还没有真正打成下面这条链路：
+也就是说，目前已经打通了下面这条“内置 demo 数据”的演示链路：
+
+```text
+用户问题 -> embedding/search 粗检索 + rerank -> 拼接参考资料上下文 -> Chat API 生成答案 -> 解析引用编号
+```
+
+但还没有真正打成下面这条“真实文档知识库”链路：
 
 ```text
 上传文档 -> 解析 -> 切 chunk -> 生成 embedding -> 入向量库 -> query 检索 -> 拼接 prompt -> 模型回答 -> 返回引用来源
 ```
 
-所以你现在能测通接口，但还不能说“知识库问答闭环已经通了”。
+所以你现在可以说“demo 级 RAG 生成闭环已经通了”，但还不能说“真实知识库问答闭环已经通了”。
 
 ## 2. 当前模块结构
 
@@ -46,6 +54,8 @@
   - `SiliconFlowEmbeddingDemoService`
   - `DemoHashEmbeddingService`
   - `MilvusVectorStoreService`
+- RAG 生成服务
+  - `RagGenerationDemoService`
 - 文档解析服务
   - `TikaParseService`
 - 配置层
@@ -55,12 +65,13 @@
 
 ## 3. 当前暴露的接口总览
 
-当前对外主要有 6 个接口：
+当前对外主要有 7 个接口：
 
 - `GET /luoluo/rag/demo/health`
 - `POST /luoluo/rag/demo/chat`
 - `POST /luoluo/rag/demo/chat/stream`
 - `POST /luoluo/rag/demo/embedding/search`
+- `POST /luoluo/rag/demo/generate`
 - `POST /luoluo/rag/document/parse`
 - `POST /luoluo/rag/document/chunk`
 
@@ -925,6 +936,109 @@ app.rag.embedding-provider: siliconflow
 
 - 真正的知识库召回接口
 
+### 7.11 `POST /luoluo/rag/demo/generate`
+
+这是当前项目里真正把“检索结果送进生成链路”的 demo 接口。
+
+它内部会完成下面 4 步：
+
+1. 复用 `embedding/search` 的检索逻辑，拿到 Top-K chunk
+2. 把 Top-K chunk 组装成带编号的“参考资料”上下文
+3. 拼接 System Prompt + 上下文 + 用户问题，调用 Chat API 生成答案
+4. 解析回答中的 `[1]`、`[2]` 等引用编号，并回填来源信息
+
+请求方式：
+
+```text
+POST /luoluo/rag/demo/generate
+Content-Type: application/json
+```
+
+请求体字段：
+
+- `query`
+  - 必填，用户问题
+- `topK`
+  - 可选，最终参与生成的候选条数
+- `systemPrompt`
+  - 可选，自定义生成阶段的 system prompt；不传时使用内置“带引用规则”的默认提示词
+
+请求示例：
+
+```json
+{
+  "query": "订单号 2026012345 的物流状态",
+  "topK": 3
+}
+```
+
+主链路如下：
+
+1. `RagDemoController.generate(...)`
+2. `RagGenerationDemoService.generate(...)`
+3. 调 `SiliconFlowEmbeddingDemoService.search(...)`
+4. 把检索结果转成 `【参考资料】`
+5. 调 `SiliconFlowChatDemoService.chat(...)`
+6. 解析回答中的引用编号
+7. 返回答案 + 检索摘要 + 引用列表
+
+当前生成阶段使用的上下文格式大致如下：
+
+```text
+【参考资料】
+
+[1] 标题：物流状态 | 文档ID：logistics_002 | 分类：logistics
+订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出，承运商顺丰，当前状态运输中。
+
+[2] 标题：物流说明 | 文档ID：logistics_001 | 分类：logistics
+订单发货后 24 小时内会更新物流信息，用户可在订单详情页查看配送进度。
+
+【用户问题】
+订单号 2026012345 的物流状态
+```
+
+返回结构示例：
+
+```json
+{
+  "code": 0,
+  "message": "RAG 生成完成",
+  "data": {
+    "query": "订单号 2026012345 的物流状态",
+    "answer": "订单已从杭州仓发出，承运商为顺丰，当前状态为运输中。[1] 发货后 24 小时内会更新物流信息，可在订单详情页查看配送进度。[2]",
+    "requestId": "chatcmpl-123",
+    "model": "Qwen/Qwen3-32B",
+    "finishReason": "stop",
+    "promptTokens": 128,
+    "completionTokens": 66,
+    "totalTokens": 194,
+    "embeddingModel": "demo-hash-embedding-v1",
+    "retrievedChunkCount": 2,
+    "recallMode": "HYBRID",
+    "rerankApplied": true,
+    "rerankProvider": "demo",
+    "rerankModel": "heuristic-rerank-v1",
+    "citations": [
+      {
+        "index": 1,
+        "source": "物流状态（logistics_002）",
+        "docId": "logistics_002",
+        "title": "物流状态",
+        "category": "logistics",
+        "sourceUrl": "",
+        "chunkContent": "订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出，承运商顺丰，当前状态运输中。"
+      }
+    ]
+  }
+}
+```
+
+这个接口当前已经能演示“检索增强生成 + 引用解析”的完整过程，但要注意：
+
+- 它依赖的仍然是内置 demo chunks，不是用户上传文档
+- 如果模型没有按要求输出 `[1]` 这类编号，`citations` 可能为空
+- 它复用的是普通 `chat` 接口，不是 SSE 流式生成
+
 ---
 
 ## 8. `POST /luoluo/rag/document/parse`
@@ -1265,9 +1379,16 @@ Content-Type: multipart/form-data
 
 ---
 
-## 10. 这 6 个接口之间现在是什么关系
+## 10. 这 7 个接口之间现在是什么关系
 
-当前它们之间的关系是“并列能力”，不是闭环依赖关系。
+当前它们之间已经不是完全并列了。
+
+更准确地说：
+
+- `health` / `chat` / `chat/stream` 仍然是独立能力
+- `embedding/search` 是独立的检索能力
+- `generate` 已经把“检索 -> 上下文 -> 生成 -> 引用解析”串成了一条 demo 闭环
+- `document/parse` / `document/chunk` 仍然没有自动接入 `generate`
 
 ### 10.1 `health`
 
@@ -1285,29 +1406,34 @@ Content-Type: multipart/form-data
 
 只负责演示 query 向量化和向量检索。
 
-### 10.5 `document/parse`
+### 10.5 `generate`
+
+负责把检索结果真正送入生成链路，并返回带引用的答案。
+
+### 10.6 `document/parse`
 
 只负责从上传文件里抽正文。
 
-### 10.6 `document/chunk`
+### 10.7 `document/chunk`
 
 负责把解析后的正文切成适合后续 embedding 的 chunk。
 
-### 10.7 当前还没有打通的地方
+### 10.8 当前还没有打通的地方
 
 当前没有下面这条真正的链路：
 
 ```text
-document/parse -> chunk -> embedding/search 的数据源 -> chat
+document/parse -> chunk -> 向量入库 -> generate
 ```
 
 更具体地说：
 
 - `document/parse` 的输出不会自动进入 `embedding/search`
-- `embedding/search` 的结果不会自动进入 `chat`
-- `chat` 完全不知道用户上传过哪些文档
+- `document/chunk` 的结果不会自动进入 Milvus
+- `generate` 当前只会检索内置 demo chunks
+- `chat` 仍然完全不知道用户上传过哪些文档
 
-这就是为什么当前它还不是完整 RAG 闭环。
+这就是为什么当前它还不是“真实知识库”RAG 闭环。
 
 ---
 
@@ -1320,15 +1446,13 @@ document/parse -> chunk -> embedding/search 的数据源 -> chat
 - chunk 的 embedding 生成
 - 向量库持久化写入
 - query 检索流程抽象成正式 retrieval 服务
-- 在 `chat` 前增加 retrieval
-- 把召回文本拼到 prompt
-- 输出引用来源
+- 把 `generate` 的数据源从 demo chunks 切换为真实文档
 - 可选 rerank
 - 会话上下文管理
 
 当前最核心的缺口只有一句话：
 
-> 检索结果还没有真正进入生成链路。
+> 真实文档检索结果还没有真正进入生成链路。
 
 ---
 
@@ -1338,15 +1462,16 @@ document/parse -> chunk -> embedding/search 的数据源 -> chat
 
 1. `GET /luoluo/rag/demo/health`
 2. `POST /luoluo/rag/demo/embedding/search`
-3. `POST /luoluo/rag/document/parse`
-4. `POST /luoluo/rag/document/chunk`
-5. `POST /luoluo/rag/demo/chat`
-6. `POST /luoluo/rag/demo/chat/stream`
+3. `POST /luoluo/rag/demo/generate`
+4. `POST /luoluo/rag/document/parse`
+5. `POST /luoluo/rag/document/chunk`
+6. `POST /luoluo/rag/demo/chat`
+7. `POST /luoluo/rag/demo/chat/stream`
 
 其中：
 
-- 前 4 个更偏“组件可用性”
-- 后 2 个更偏“模型链路可用性”
+- 前 5 个更偏“组件与 RAG 主链路可用性”
+- 后 2 个更偏“纯模型链路可用性”
 
 ---
 
@@ -1449,10 +1574,13 @@ document/parse -> chunk -> embedding/search 的数据源 -> chat
 - 大模型聊天
 - 流式聊天
 - Embedding 检索
+- RAG 生成
 - Milvus 检索
 
 这些能力都拆开实现并暴露出来了，而且单接口层面是可以测通的。
 
-但从严格意义上说，当前仍然是“RAG 相关 demo 集合”，不是“完整 RAG 问答闭环”，因为最关键的一步还没做完：
+其中，`POST /luoluo/rag/demo/generate` 已经把“检索 -> 上下文组装 -> 生成 -> 引用解析”这条 demo 主链路打通了。
 
-- 检索结果还没有注入到聊天生成过程里。
+但从严格意义上说，当前仍然不是“完整真实知识库 RAG 问答闭环”，因为最关键的一步还没做完：
+
+- 用户上传文档的解析/分块结果还没有真正进入检索与生成过程。

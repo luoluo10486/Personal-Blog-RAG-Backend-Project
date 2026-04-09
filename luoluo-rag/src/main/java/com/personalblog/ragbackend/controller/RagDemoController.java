@@ -6,7 +6,10 @@ import com.personalblog.ragbackend.dto.rag.RagDemoChatResponse;
 import com.personalblog.ragbackend.dto.rag.RagDemoHealthResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchRequest;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
+import com.personalblog.ragbackend.dto.rag.RagGenerationRequest;
+import com.personalblog.ragbackend.dto.rag.RagGenerationResponse;
 import com.personalblog.ragbackend.rag.config.RagProperties;
+import com.personalblog.ragbackend.service.RagGenerationDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
 import jakarta.validation.Valid;
@@ -20,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * RAG 演示接口集合：健康检查、对话、检索（包含混合检索与可选重排序）。
+ * RAG 演示接口集合：健康检查、检索、生成、对话。
  */
 @RestController
 @RequestMapping("/luoluo/rag/demo")
@@ -28,6 +31,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class RagDemoController {
     private final SiliconFlowChatDemoService siliconFlowChatDemoService;
     private final SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
+    private final RagGenerationDemoService ragGenerationDemoService;
     private final RagProperties ragProperties;
 
     @GetMapping("/health")
@@ -55,6 +59,11 @@ public class RagDemoController {
     @PostMapping("/embedding/search")
     public R<RagEmbeddingSearchResponse> embeddingSearch(@Valid @RequestBody RagEmbeddingSearchRequest request) {
         return R.ok("检索完成", siliconFlowEmbeddingDemoService.search(request));
+    }
+
+    @PostMapping("/generate")
+    public R<RagGenerationResponse> generate(@Valid @RequestBody RagGenerationRequest request) {
+        return R.ok("RAG 生成完成", ragGenerationDemoService.generate(request));
     }
 
     @PostMapping(path = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

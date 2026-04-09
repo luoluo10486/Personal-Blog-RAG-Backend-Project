@@ -3,6 +3,9 @@ package com.personalblog.ragbackend;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResult;
+import com.personalblog.ragbackend.dto.rag.RagGenerationCitation;
+import com.personalblog.ragbackend.dto.rag.RagGenerationResponse;
+import com.personalblog.ragbackend.service.RagGenerationDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,9 @@ class RagDemoControllerTest {
 
     @MockBean
     private SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
+
+    @MockBean
+    private RagGenerationDemoService ragGenerationDemoService;
 
     @Test
     void healthEndpointShouldReturnOk() throws Exception {
@@ -110,5 +116,50 @@ class RagDemoControllerTest {
         mockMvc.perform(asyncDispatch(result))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+    }
+
+    @Test
+    void generateEndpointShouldReturnAnswerAndCitations() throws Exception {
+        doReturn(new RagGenerationResponse(
+                "订单号 2026012345 的物流状态",
+                "订单已发出，当前运输中。[1]",
+                "chatcmpl-123",
+                "Qwen/Qwen3-32B",
+                "stop",
+                128,
+                32,
+                160,
+                "demo-hash-embedding-v1",
+                3,
+                "HYBRID",
+                true,
+                "demo",
+                "heuristic-rerank-v1",
+                java.util.List.of(
+                        new RagGenerationCitation(
+                                1,
+                                "物流状态（logistics_002）",
+                                "logistics_002",
+                                "物流状态",
+                                "logistics",
+                                "",
+                                "订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出，承运商顺丰，当前状态运输中。"
+                        )
+                )
+        )).when(ragGenerationDemoService).generate(any());
+
+        mockMvc.perform(post("/luoluo/rag/demo/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "订单号 2026012345 的物流状态",
+                                  "topK": 3
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("RAG 生成完成"))
+                .andExpect(jsonPath("$.data.query").value("订单号 2026012345 的物流状态"))
+                .andExpect(jsonPath("$.data.answer").value("订单已发出，当前运输中。[1]"))
+                .andExpect(jsonPath("$.data.citations[0].docId").value("logistics_002"));
     }
 }
