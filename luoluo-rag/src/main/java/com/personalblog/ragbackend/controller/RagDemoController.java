@@ -10,6 +10,7 @@ import com.personalblog.ragbackend.rag.config.RagProperties;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,20 +24,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @RestController
 @RequestMapping("/luoluo/rag/demo")
+@RequiredArgsConstructor
 public class RagDemoController {
     private final SiliconFlowChatDemoService siliconFlowChatDemoService;
     private final SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
     private final RagProperties ragProperties;
-
-    public RagDemoController(
-            SiliconFlowChatDemoService siliconFlowChatDemoService,
-            SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService,
-            RagProperties ragProperties
-    ) {
-        this.siliconFlowChatDemoService = siliconFlowChatDemoService;
-        this.siliconFlowEmbeddingDemoService = siliconFlowEmbeddingDemoService;
-        this.ragProperties = ragProperties;
-    }
 
     @GetMapping("/health")
     public R<RagDemoHealthResponse> health() {
