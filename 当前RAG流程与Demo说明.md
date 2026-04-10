@@ -940,11 +940,16 @@ app.rag.embedding-provider: siliconflow
 
 这是当前项目里真正把“检索结果送进生成链路”的 demo 接口。
 
+当前它已经支持一个最小可用的 function call 流程：
+
+- 第一轮：模型先看到“已召回资料目录”与工具列表
+- 第二轮：如果模型发起 tool call，后端执行本地工具，再把工具结果回传给模型生成最终答案
+
 它内部会完成下面 4 步：
 
 1. 复用 `embedding/search` 的检索逻辑，拿到 Top-K chunk
-2. 把 Top-K chunk 组装成带编号的“参考资料”上下文
-3. 拼接 System Prompt + 上下文 + 用户问题，调用 Chat API 生成答案
+2. 第一轮先把 Top-K chunk 转成“资料目录”，并把本地工具定义发给模型
+3. 如果模型发起 tool call，就执行本地工具并进入第二轮生成
 4. 解析回答中的 `[1]`、`[2]` 等引用编号，并回填来源信息
 
 请求方式：
@@ -977,12 +982,35 @@ Content-Type: application/json
 1. `RagDemoController.generate(...)`
 2. `RagGenerationDemoService.generate(...)`
 3. 调 `SiliconFlowEmbeddingDemoService.search(...)`
-4. 把检索结果转成 `【参考资料】`
-5. 调 `SiliconFlowChatDemoService.chat(...)`
-6. 解析回答中的引用编号
-7. 返回答案 + 检索摘要 + 引用列表
+4. 把检索结果转成 `【已召回资料目录】`
+5. 第一轮调 `SiliconFlowChatDemoService.chatWithTools(...)`
+6. 可选：执行本地 function call 工具
+7. 第二轮调 `SiliconFlowChatDemoService.completeToolChat(...)`
+8. 解析回答中的引用编号
+9. 返回答案 + 检索摘要 + 引用列表
 
-当前生成阶段使用的上下文格式大致如下：
+当前第一轮给模型的“资料目录”大致如下：
+
+```text
+【已召回资料目录】
+
+[1] 标题：物流状态 | 文档ID：logistics_002 | 分类：logistics | 摘要：订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出...
+[2] 标题：物流说明 | 文档ID：logistics_001 | 分类：logistics | 摘要：订单发货后 24 小时内会更新物流信息，用户可在订单详情页查看配送进度。
+
+【用户问题】
+订单号 2026012345 的物流状态
+```
+
+当前可调用的本地工具有两个：
+
+- `listRetrievedChunks`
+  - 返回本次已召回资料的目录、标题、分类和摘要
+- `getRetrievedChunkByIndex`
+  - 按编号返回某条资料的完整内容，供模型二次确认细节
+
+如果模型没有发起 tool call，则会回退到普通 RAG 生成路径，直接使用完整 `【参考资料】` 上下文生成答案。
+
+回退时使用的完整上下文格式大致如下：
 
 ```text
 【参考资料】
@@ -1018,6 +1046,10 @@ Content-Type: application/json
     "rerankApplied": true,
     "rerankProvider": "demo",
     "rerankModel": "heuristic-rerank-v1",
+    "functionCallApplied": true,
+    "calledTools": [
+      "getRetrievedChunkByIndex"
+    ],
     "citations": [
       {
         "index": 1,
@@ -1036,8 +1068,17 @@ Content-Type: application/json
 这个接口当前已经能演示“检索增强生成 + 引用解析”的完整过程，但要注意：
 
 - 它依赖的仍然是内置 demo chunks，不是用户上传文档
+- 当前 function call 调用的是后端本地工具，不是外部业务系统接口
+- 如果模型没有调用工具，服务会回退到普通 RAG 生成流程
 - 如果模型没有按要求输出 `[1]` 这类编号，`citations` 可能为空
 - 它复用的是普通 `chat` 接口，不是 SSE 流式生成
+
+新增字段含义：
+
+- `functionCallApplied`
+  - 本次生成是否真的发生了 tool call
+- `calledTools`
+  - 本次被模型调用过的工具名列表
 
 ---
 
@@ -1584,3 +1625,88 @@ document/parse -> chunk -> 向量入库 -> generate
 但从严格意义上说，当前仍然不是“完整真实知识库 RAG 问答闭环”，因为最关键的一步还没做完：
 
 - 用户上传文档的解析/分块结果还没有真正进入检索与生成过程。
+---
+
+## 15. Function Call 触发与日志观察
+
+### 15.1 为什么有时不会触发
+
+当前 `/luoluo/rag/demo/generate` 的 function call 是一个“两轮模式”：
+
+1. 第一轮先把“已召回资料目录 + 工具列表”发给模型
+2. 如果模型返回 `tool_calls`，则本地执行工具，再进入第二轮生成
+3. 如果模型没有返回 `tool_calls`，则回退到普通 RAG 生成路径
+
+因此你在接口返回中看到：
+
+- `functionCallApplied = false`
+- `calledTools = []`
+
+就表示这一次模型判断“不需要调工具也能回答”，所以直接回退到了普通生成。
+
+### 15.2 什么样的问题更容易触发
+
+更容易触发 function call 的问题，通常具备下面这些特点：
+
+- 问题中带有明确编号，例如订单号、单号、规则编号
+- 问题中带有需要核验的细节，例如时间、金额、天数、状态、条件
+- 问题要求“先核对原文再回答”
+- 问题要求“说明依据哪条资料”
+
+### 15.3 建议你在 Apifox 里直接测的示例
+
+这些 query 比较容易触发：
+
+```json
+{
+  "query": "请先调用工具核对原文，再告诉我订单号 2026012345 当前的物流状态和发货时间，并标注引用编号",
+  "topK": 3
+}
+```
+
+```json
+{
+  "query": "不要只看资料目录摘要。请先读取相关资料原文，再回答订单号 2026012345 的物流状态、承运商和更新时间",
+  "topK": 3
+}
+```
+
+```json
+{
+  "query": "这个订单的物流状态我需要精确答案。请必须先调用 getRetrievedChunkByIndex 核验原文后再回答",
+  "topK": 3
+}
+```
+
+```json
+{
+  "query": "请分别核验与物流相关的资料，再总结订单号 2026012345 的物流状态和后续查询方式",
+  "topK": 3
+}
+```
+
+### 15.4 当前已补充的日志
+
+现在服务端已经增加了 function call 过程日志，主要包括：
+
+- 第一轮目录预览
+- 第一轮模型返回结果
+- `tool_calls` 内容
+- 本地工具执行参数与结果
+- 第二轮回传工具结果
+- 如果未触发 function call，也会打印“已回退普通 RAG 生成”
+
+### 15.5 典型日志示例
+
+实际日志大致会类似下面这样：
+
+```text
+RAG 生成开始: query=订单号 2026012345 的物流状态, retrievedChunkCount=3, recallMode=HYBRID, rerankApplied=true
+RAG function call 第一轮目录预览: query=订单号 2026012345 的物流状态, chunkCatalog=【已召回资料目录】...
+SiliconFlow function call 第一轮完成: requestId=xxx, model=Qwen/Qwen3-32B, toolCallCount=1, toolCalls=[{"id":"call_xxx","type":"function","function":{"name":"getRetrievedChunkByIndex","arguments":"{\"index\":1}"}}], assistantContent=<empty>
+RAG function call 第一轮结果: query=订单号 2026012345 的物流状态, functionCallApplied=true, calledTools=[getRetrievedChunkByIndex], assistantContent=<empty>, toolCalls=[getRetrievedChunkByIndex(arguments={"index":1})]
+RAG function call 执行工具: toolName=getRetrievedChunkByIndex, arguments={"index":1}, result={"index":1,"title":"物流状态","docId":"logistics_002","category":"logistics","sourceUrl":"","content":"订单号 2026012345 的物流状态：已于 2026-02-18 14:21 从杭州仓发出，承运商顺丰，当前状态运输中。"}
+RAG function call 本地工具执行完成: query=订单号 2026012345 的物流状态, toolResults=[getRetrievedChunkByIndex(content={"index":1,...})]
+SiliconFlow function call 第二轮开始: toolCallCount=1, toolResults=[getRetrievedChunkByIndex={"index":1,...}]
+SiliconFlow function call 第二轮完成: requestId=xxx, finishReason=stop, answerPreview=订单号 2026012345 的物流状态...
+```

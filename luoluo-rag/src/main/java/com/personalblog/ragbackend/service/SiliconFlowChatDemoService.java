@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatResponse;
 import com.personalblog.ragbackend.rag.config.RagProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -25,6 +27,8 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -34,6 +38,8 @@ import java.util.function.Consumer;
  */
 @Service
 public class SiliconFlowChatDemoService {
+    private static final Logger log = LoggerFactory.getLogger(SiliconFlowChatDemoService.class);
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final RagProperties ragProperties;
@@ -49,17 +55,104 @@ public class SiliconFlowChatDemoService {
      */
     public RagDemoChatResponse chat(RagDemoChatRequest request) {
         validateAvailability();
-        HttpRequest httpRequest = buildHttpRequest(request, false);
 
         try {
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_GATEWAY,
-                        "SiliconFlow 请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + response.body()
-                );
-            }
-            return parseResponse(response.body());
+            JsonNode response = sendChatRequest(buildSimpleRequestBody(
+                    normalizeSystemPrompt(request.systemPrompt()),
+                    request.message().trim(),
+                    false
+            ));
+            return parseResponse(response);
+        } catch (HttpConnectTimeoutException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "SiliconFlow 连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
+                    exception
+            );
+        } catch (HttpTimeoutException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "SiliconFlow 请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
+                    exception
+            );
+        } catch (IOException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求失败：" + exception.getMessage(), exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求被中断", exception);
+        }
+    }
+
+    /**
+     * 第一轮工具调用：把工具列表和用户问题交给模型，由模型决定是否发起 tool call。
+     */
+    public ToolChatRoundResponse chatWithTools(String systemPrompt, String userMessage, ArrayNode tools) {
+        validateAvailability();
+
+        try {
+            JsonNode response = sendChatRequest(buildToolRequestBody(systemPrompt, userMessage, tools));
+            JsonNode message = response.path("choices").path(0).path("message");
+            ToolChatRoundResponse roundResponse = new ToolChatRoundResponse(
+                    response.path("id").asText(null),
+                    response.path("model").asText(ragProperties.getModel()),
+                    asNullableText(message.path("content")),
+                    parseToolCalls(message.path("tool_calls"))
+            );
+            log.info(
+                    "SiliconFlow function call 第一轮完成: requestId={}, model={}, toolCallCount={}, toolCalls={}, assistantContent={}",
+                    roundResponse.requestId(),
+                    roundResponse.model(),
+                    roundResponse.toolCalls().size(),
+                    toJsonSafely(message.path("tool_calls")),
+                    abbreviate(roundResponse.content())
+            );
+            return roundResponse;
+        } catch (HttpConnectTimeoutException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "SiliconFlow 连接超时（" + ragProperties.getConnectTimeoutSeconds() + " 秒）",
+                    exception
+            );
+        } catch (HttpTimeoutException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "SiliconFlow 请求超时（" + ragProperties.getReadTimeoutSeconds() + " 秒）",
+                    exception
+            );
+        } catch (IOException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求失败：" + exception.getMessage(), exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 请求被中断", exception);
+        }
+    }
+
+    /**
+     * 第二轮工具调用：将第一轮 tool_calls 和本地工具执行结果回传给模型，获取最终答案。
+     */
+    public RagDemoChatResponse completeToolChat(
+            String systemPrompt,
+            String userMessage,
+            List<ToolCall> toolCalls,
+            List<ToolResult> toolResults
+    ) {
+        validateAvailability();
+
+        try {
+            log.info(
+                    "SiliconFlow function call 第二轮开始: toolCallCount={}, toolResults={}",
+                    toolCalls.size(),
+                    summarizeToolResults(toolResults)
+            );
+            JsonNode response = sendChatRequest(buildToolCompletionRequestBody(systemPrompt, userMessage, toolCalls, toolResults));
+            RagDemoChatResponse chatResponse = parseResponse(response);
+            log.info(
+                    "SiliconFlow function call 第二轮完成: requestId={}, finishReason={}, answerPreview={}",
+                    chatResponse.requestId(),
+                    chatResponse.finishReason(),
+                    abbreviate(chatResponse.answer())
+            );
+            return chatResponse;
         } catch (HttpConnectTimeoutException exception) {
             throw new ResponseStatusException(
                     HttpStatus.GATEWAY_TIMEOUT,
@@ -227,7 +320,7 @@ public class SiliconFlowChatDemoService {
      */
     private HttpRequest buildHttpRequest(RagDemoChatRequest request, boolean stream) {
         String systemPrompt = normalizeSystemPrompt(request.systemPrompt());
-        String requestJson = buildRequestJson(systemPrompt, request.message().trim(), stream);
+        String requestJson = buildRequestJson(buildSimpleRequestBody(systemPrompt, request.message().trim(), stream));
 
         return HttpRequest.newBuilder()
                 .uri(URI.create(ragProperties.getApiUrl()))
@@ -241,14 +334,71 @@ public class SiliconFlowChatDemoService {
     /**
      * 序列化生成 SiliconFlow 所需的 JSON 请求体。
      */
-    private String buildRequestJson(String systemPrompt, String userMessage, boolean stream) {
+    private ObjectNode buildSimpleRequestBody(String systemPrompt, String userMessage, boolean stream) {
+        ObjectNode requestBody = buildBaseRequestBody(stream);
+        ArrayNode messages = requestBody.putArray("messages");
+        appendSystemAndUserMessages(messages, systemPrompt, userMessage);
+        return requestBody;
+    }
+
+    /**
+     * 构造带工具列表的第一轮请求体。
+     */
+    private ObjectNode buildToolRequestBody(String systemPrompt, String userMessage, ArrayNode tools) {
+        ObjectNode requestBody = buildBaseRequestBody(false);
+        ArrayNode messages = requestBody.putArray("messages");
+        appendSystemAndUserMessages(messages, systemPrompt, userMessage);
+        requestBody.set("tools", tools);
+        requestBody.put("tool_choice", "auto");
+        return requestBody;
+    }
+
+    /**
+     * 构造回传 tool_calls 和工具结果的第二轮请求体。
+     */
+    private ObjectNode buildToolCompletionRequestBody(
+            String systemPrompt,
+            String userMessage,
+            List<ToolCall> toolCalls,
+            List<ToolResult> toolResults
+    ) {
+        ObjectNode requestBody = buildBaseRequestBody(false);
+        ArrayNode messages = requestBody.putArray("messages");
+        appendSystemAndUserMessages(messages, systemPrompt, userMessage);
+
+        ObjectNode assistantMessage = messages.addObject();
+        assistantMessage.put("role", "assistant");
+        assistantMessage.putNull("content");
+        ArrayNode toolCallArray = assistantMessage.putArray("tool_calls");
+        for (ToolCall toolCall : toolCalls) {
+            toolCallArray.add(toolCall.rawToolCall().deepCopy());
+        }
+
+        for (ToolResult toolResult : toolResults) {
+            ObjectNode toolMessage = messages.addObject();
+            toolMessage.put("role", "tool");
+            toolMessage.put("tool_call_id", toolResult.toolCallId());
+            toolMessage.put("content", toolResult.content());
+        }
+        return requestBody;
+    }
+
+    /**
+     * 统一构建基础请求参数。
+     */
+    private ObjectNode buildBaseRequestBody(boolean stream) {
         ObjectNode requestBody = objectMapper.createObjectNode();
         requestBody.put("model", ragProperties.getModel());
         requestBody.put("temperature", ragProperties.getTemperature());
         requestBody.put("max_tokens", ragProperties.getMaxTokens());
         requestBody.put("stream", stream);
+        return requestBody;
+    }
 
-        ArrayNode messages = requestBody.putArray("messages");
+    /**
+     * 追加 system/user 两条基础消息。
+     */
+    private void appendSystemAndUserMessages(ArrayNode messages, String systemPrompt, String userMessage) {
         ObjectNode systemMessage = messages.addObject();
         systemMessage.put("role", "system");
         systemMessage.put("content", systemPrompt);
@@ -256,7 +406,12 @@ public class SiliconFlowChatDemoService {
         ObjectNode userMessageNode = messages.addObject();
         userMessageNode.put("role", "user");
         userMessageNode.put("content", userMessage);
+    }
 
+    /**
+     * 将请求体序列化为 JSON。
+     */
+    private String buildRequestJson(ObjectNode requestBody) {
         try {
             return objectMapper.writeValueAsString(requestBody);
         } catch (IOException exception) {
@@ -265,10 +420,39 @@ public class SiliconFlowChatDemoService {
     }
 
     /**
+     * 发送非流式聊天请求并返回解析后的 JSON。
+     */
+    private JsonNode sendChatRequest(ObjectNode requestBody) throws IOException, InterruptedException {
+        HttpRequest httpRequest = HttpRequest.newBuilder()
+                .uri(URI.create(ragProperties.getApiUrl()))
+                .timeout(Duration.ofSeconds(ragProperties.getReadTimeoutSeconds()))
+                .header("Authorization", "Bearer " + ragProperties.getApiKey().trim())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(buildRequestJson(requestBody)))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "SiliconFlow 请求失败：HTTP 状态码=" + response.statusCode() + "，响应体=" + response.body()
+            );
+        }
+        return objectMapper.readTree(response.body());
+    }
+
+    /**
      * 解析非流式模型响应，提取答案和 token 统计信息。
      */
     private RagDemoChatResponse parseResponse(String responseBody) throws IOException {
         JsonNode root = objectMapper.readTree(responseBody);
+        return parseResponse(root);
+    }
+
+    /**
+     * 解析非流式模型响应，提取答案和 token 统计信息。
+     */
+    private RagDemoChatResponse parseResponse(JsonNode root) {
         JsonNode choice = root.path("choices").path(0);
         String answer = choice.path("message").path("content").asText(null);
         if (answer == null || answer.isBlank()) {
@@ -285,6 +469,27 @@ public class SiliconFlowChatDemoService {
                 usage.path("completion_tokens").asInt(0),
                 usage.path("total_tokens").asInt(0)
         );
+    }
+
+    /**
+     * 解析第一轮响应中的 tool_calls。
+     */
+    private List<ToolCall> parseToolCalls(JsonNode toolCallsNode) {
+        if (!toolCallsNode.isArray() || toolCallsNode.isEmpty()) {
+            return List.of();
+        }
+
+        List<ToolCall> toolCalls = new ArrayList<>();
+        for (JsonNode toolCallNode : toolCallsNode) {
+            JsonNode functionNode = toolCallNode.path("function");
+            toolCalls.add(new ToolCall(
+                    toolCallNode.path("id").asText(null),
+                    functionNode.path("name").asText(""),
+                    functionNode.path("arguments").asText("{}"),
+                    toolCallNode.deepCopy()
+            ));
+        }
+        return toolCalls;
     }
 
     /**
@@ -337,5 +542,57 @@ public class SiliconFlowChatDemoService {
      */
     private String firstNonBlank(String preferred, String fallback) {
         return preferred != null ? preferred : fallback;
+    }
+
+    /**
+     * 模型在第一轮返回的单条工具调用信息。
+     */
+    private String summarizeToolResults(List<ToolResult> toolResults) {
+        if (toolResults == null || toolResults.isEmpty()) {
+            return "[]";
+        }
+
+        List<String> summaries = new ArrayList<>(toolResults.size());
+        for (ToolResult toolResult : toolResults) {
+            summaries.add(toolResult.toolName() + "=" + abbreviate(toolResult.content()));
+        }
+        return summaries.toString();
+    }
+
+    private String toJsonSafely(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return "null";
+        }
+        try {
+            return objectMapper.writeValueAsString(node);
+        } catch (IOException exception) {
+            return node.toString();
+        }
+    }
+
+    private String abbreviate(String text) {
+        if (text == null || text.isBlank()) {
+            return "<empty>";
+        }
+        String normalized = text.replace('\n', ' ').replace('\r', ' ').trim();
+        if (normalized.length() <= 240) {
+            return normalized;
+        }
+        return normalized.substring(0, 240) + "...";
+    }
+
+    public record ToolCall(String id, String name, String arguments, JsonNode rawToolCall) {
+    }
+
+    /**
+     * 第一轮工具调用的模型响应。
+     */
+    public record ToolChatRoundResponse(String requestId, String model, String content, List<ToolCall> toolCalls) {
+    }
+
+    /**
+     * 本地工具执行结果，供第二轮回传给模型。
+     */
+    public record ToolResult(String toolCallId, String toolName, String content) {
     }
 }

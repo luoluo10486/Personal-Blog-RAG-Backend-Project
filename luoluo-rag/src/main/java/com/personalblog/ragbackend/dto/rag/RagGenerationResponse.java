@@ -20,6 +20,8 @@ public record RagGenerationResponse(
         boolean rerankApplied,
         String rerankProvider,
         String rerankModel,
+        boolean functionCallApplied,
+        List<String> calledTools,
         List<RagGenerationCitation> citations
 ) {
 }

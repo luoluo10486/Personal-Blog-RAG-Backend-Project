@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchRequest;
@@ -24,7 +25,7 @@ class RagGenerationDemoServicePromptTest {
     void generateShouldPassContextAndQueryIntoChatService() {
         SiliconFlowEmbeddingDemoService embeddingService = mock(SiliconFlowEmbeddingDemoService.class);
         SiliconFlowChatDemoService chatService = mock(SiliconFlowChatDemoService.class);
-        RagGenerationDemoService service = new RagGenerationDemoService(embeddingService, chatService);
+        RagGenerationDemoService service = new RagGenerationDemoService(new ObjectMapper(), embeddingService, chatService);
 
         when(embeddingService.search(any(RagEmbeddingSearchRequest.class))).thenReturn(new RagEmbeddingSearchResponse(
                 "七天内还能退货吗",
@@ -42,6 +43,12 @@ class RagGenerationDemoServicePromptTest {
                         "签收后 7 天内，未使用且不影响二次销售的商品支持无理由退货。",
                         Map.of("doc_id", "policy_001", "title", "退货政策", "category", "return_policy")
                 ))
+        ));
+        when(chatService.chatWithTools(any(), any(), any())).thenReturn(new SiliconFlowChatDemoService.ToolChatRoundResponse(
+                "chatcmpl-first",
+                "Qwen/Qwen3-32B",
+                "我已经看过目录，将直接回答。",
+                List.of()
         ));
         when(chatService.chat(any(RagDemoChatRequest.class))).thenReturn(new RagDemoChatResponse(
                 "chatcmpl-002", "Qwen/Qwen3-32B", "支持 7 天无理由退货。[1]", "stop", 80, 25, 105

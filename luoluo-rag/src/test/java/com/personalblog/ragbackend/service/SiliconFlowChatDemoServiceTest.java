@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -97,6 +98,56 @@ class SiliconFlowChatDemoServiceTest {
         assertEquals(12, response.promptTokens());
         assertEquals(8, response.completionTokens());
         assertEquals(20, response.totalTokens());
+    }
+
+    @Test
+    void chatWithToolsShouldParseReturnedToolCalls() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<String> toolResponse = mock(HttpResponse.class);
+        when(toolResponse.statusCode()).thenReturn(200);
+        when(toolResponse.body()).thenReturn("""
+                {
+                  "id": "chatcmpl-tool-1",
+                  "model": "Qwen/Qwen3-32B",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [
+                          {
+                            "id": "call_001",
+                            "type": "function",
+                            "function": {
+                              "name": "getRetrievedChunkByIndex",
+                              "arguments": "{\\\"index\\\":1}"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+                """);
+        when(httpClient.send(any(), any(HttpResponse.BodyHandler.class))).thenReturn(toolResponse);
+
+        SiliconFlowChatDemoService service = new SiliconFlowChatDemoService(
+                httpClient,
+                new ObjectMapper(),
+                buildRagProperties()
+        );
+
+        var tools = new ObjectMapper().createArrayNode();
+        SiliconFlowChatDemoService.ToolChatRoundResponse response = service.chatWithTools(
+                "请先按需调用工具",
+                "用户问题",
+                tools
+        );
+
+        assertEquals("chatcmpl-tool-1", response.requestId());
+        assertEquals(1, response.toolCalls().size());
+        assertEquals("getRetrievedChunkByIndex", response.toolCalls().get(0).name());
+        assertFalse(response.toolCalls().get(0).arguments().isBlank());
     }
 
     private RagProperties buildRagProperties() {

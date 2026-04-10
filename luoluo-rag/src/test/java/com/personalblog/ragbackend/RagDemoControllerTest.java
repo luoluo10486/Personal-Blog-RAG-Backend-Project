@@ -135,6 +135,8 @@ class RagDemoControllerTest {
                 true,
                 "demo",
                 "heuristic-rerank-v1",
+                true,
+                java.util.List.of("getRetrievedChunkByIndex"),
                 java.util.List.of(
                         new RagGenerationCitation(
                                 1,
@@ -160,6 +162,8 @@ class RagDemoControllerTest {
                 .andExpect(jsonPath("$.message").value("RAG 生成完成"))
                 .andExpect(jsonPath("$.data.query").value("订单号 2026012345 的物流状态"))
                 .andExpect(jsonPath("$.data.answer").value("订单已发出，当前运输中。[1]"))
+                .andExpect(jsonPath("$.data.functionCallApplied").value(true))
+                .andExpect(jsonPath("$.data.calledTools[0]").value("getRetrievedChunkByIndex"))
                 .andExpect(jsonPath("$.data.citations[0].docId").value("logistics_002"));
     }
 }

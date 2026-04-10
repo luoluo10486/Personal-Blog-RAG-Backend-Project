@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
 import com.personalblog.ragbackend.dto.rag.RagDemoChatResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchRequest;
@@ -22,7 +23,7 @@ class RagGenerationDemoServiceTest {
     void generateShouldBuildAnswerAndCitationsFromRetrievedChunks() {
         SiliconFlowEmbeddingDemoService embeddingService = mock(SiliconFlowEmbeddingDemoService.class);
         SiliconFlowChatDemoService chatService = mock(SiliconFlowChatDemoService.class);
-        RagGenerationDemoService service = new RagGenerationDemoService(embeddingService, chatService);
+        RagGenerationDemoService service = new RagGenerationDemoService(new ObjectMapper(), embeddingService, chatService);
 
         when(embeddingService.search(any(RagEmbeddingSearchRequest.class))).thenReturn(new RagEmbeddingSearchResponse(
                 "订单号 2026012345 的物流状态",
@@ -49,7 +50,23 @@ class RagGenerationDemoServiceTest {
                         )
                 )
         ));
-        when(chatService.chat(any(RagDemoChatRequest.class))).thenReturn(new RagDemoChatResponse(
+        when(chatService.chatWithTools(any(), any(), any())).thenReturn(new SiliconFlowChatDemoService.ToolChatRoundResponse(
+                "chatcmpl-first",
+                "Qwen/Qwen3-32B",
+                null,
+                List.of(new SiliconFlowChatDemoService.ToolCall(
+                        "call_001",
+                        "getRetrievedChunkByIndex",
+                        "{\"index\":1}",
+                        new ObjectMapper().createObjectNode()
+                                .put("id", "call_001")
+                                .put("type", "function")
+                                .set("function", new ObjectMapper().createObjectNode()
+                                        .put("name", "getRetrievedChunkByIndex")
+                                        .put("arguments", "{\"index\":1}"))
+                ))
+        ));
+        when(chatService.completeToolChat(any(), any(), any(), any())).thenReturn(new RagDemoChatResponse(
                 "chatcmpl-001",
                 "Qwen/Qwen3-32B",
                 "订单已从杭州仓发出，承运商为顺丰，当前状态为运输中。[1] 发货后 24 小时内会更新物流信息，可在订单详情页查看配送进度。[2]",
@@ -67,6 +84,8 @@ class RagGenerationDemoServiceTest {
         assertEquals("Qwen/Qwen3-32B", response.model());
         assertEquals("HYBRID", response.recallMode());
         assertEquals(2, response.retrievedChunkCount());
+        assertEquals(true, response.functionCallApplied());
+        assertEquals(List.of("getRetrievedChunkByIndex"), response.calledTools());
         assertEquals(2, response.citations().size());
         assertEquals(1, response.citations().get(0).index());
         assertEquals("物流状态", response.citations().get(0).title());
