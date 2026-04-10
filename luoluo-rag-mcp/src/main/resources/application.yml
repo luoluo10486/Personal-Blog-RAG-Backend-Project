@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: luoluo-rag-mcp
+  ai:
+    mcp:
+      server:
+        name: luoluo-rag-mcp
+        version: 1.0.0
+        type: SYNC
+        stdio: true
+        instructions: Luoluo standalone MCP server that exposes RAG retrieval, answer generation, and text chunking tools.
+  main:
+    web-application-type: none
+    banner-mode: off
+
+logging:
+  file:
+    name: ./logs/luoluo-rag-mcp.log
+  level:
+    root: OFF
+
+app:
+  rag:
+    enabled: true
+    embedding-provider: demo
+    api-url: https://api.siliconflow.cn/v1/chat/completions
+    embedding-api-url: https://api.siliconflow.cn/v1/embeddings
+    api-key: ${SILICONFLOW_API_KEY:}
+    model: Qwen/Qwen3-32B
+    embedding-model: Qwen/Qwen3-Embedding-8B
+    temperature: 0
+    max-tokens: 1024
+    connect-timeout-seconds: 30
+    read-timeout-seconds: 60
+    demo-embedding-dimension: 64
+    system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
+    retrieval:
+      mode: HYBRID
+      dense-recall-top-k: 12
+      sparse-recall-top-k: 12
+      nprobe: 16
+      drop-ratio-search: 0.2
+      rrf-k: 60
+      consistency-level: BOUNDED
+    rerank:
+      enabled: true
+      provider: demo
+      api-url: https://api.siliconflow.cn/v1/rerank
+      model: BAAI/bge-reranker-v2-m3
+    milvus:
+      enabled: true
+      uri: http://127.0.0.1:19530
+      token: ""
+      database-name: ""
+      collection-name: rag_demo_chunks

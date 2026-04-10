@@ -56,6 +56,28 @@ public class DocumentChunkService {
         );
     }
 
+    public DocumentChunkResponse chunkText(String content) {
+        if (content == null || content.isBlank()) {
+            return DocumentChunkResponse.failure("文本内容不能为空");
+        }
+
+        List<ContentBlock> blocks = extractBlocks(content);
+        if (blocks.isEmpty()) {
+            blocks = List.of(new ContentBlock(null, content.trim()));
+        }
+
+        List<DocumentChunk> chunks = buildChunks(blocks);
+        return DocumentChunkResponse.success(
+                "text/plain",
+                java.util.Map.of(),
+                content.length(),
+                TARGET_CHUNK_SIZE,
+                MAX_CHUNK_SIZE,
+                OVERLAP_SIZE,
+                chunks
+        );
+    }
+
     List<DocumentChunk> buildChunks(List<ContentBlock> blocks) {
         List<DocumentChunk> chunks = new ArrayList<>();
         StringBuilder current = new StringBuilder();
