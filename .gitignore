@@ -5,3 +5,7 @@ java-backend/target/
 member-backend/target/
 .idea/
 docker/milvus/volumes/
+
+# Local / generated directory not meant to be committed
+cde-base/
+cde-base
