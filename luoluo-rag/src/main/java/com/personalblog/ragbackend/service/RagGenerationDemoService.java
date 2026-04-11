@@ -14,6 +14,7 @@ import com.personalblog.ragbackend.dto.rag.RagGenerationRequest;
 import com.personalblog.ragbackend.dto.rag.RagGenerationResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -34,6 +35,8 @@ public class RagGenerationDemoService {
     private static final Logger log = LoggerFactory.getLogger(RagGenerationDemoService.class);
 
     private static final String FALLBACK_ANSWER = "根据现有资料，暂时无法回答该问题。建议您联系人工客服获取更多帮助。";
+    private static final String CLARIFICATION_ANSWER = "我还不能确定您的具体需求，请补充更明确的信息，例如商品名称、订单号，或您想了解的是退货、物流、保修还是会员权益。";
+    private static final String TOOL_ROUTE_ANSWER = "这个问题更适合走工具调用链路，因为它涉及个人数据、实时状态或执行操作。当前这个 /generate 演示接口主要用于知识库问答；如果要处理订单状态、个人数据或业务操作，建议接入 MCP / Function Call 工具链路。";
     private static final Pattern CITATION_PATTERN = Pattern.compile("\\[(\\d+)]");
     private static final int CHUNK_PREVIEW_LENGTH = 60;
     private static final int LOG_PREVIEW_LENGTH = 400;
@@ -60,6 +63,12 @@ public class RagGenerationDemoService {
             - 用简洁、友好的中文回答。
             - 先直接回答用户问题，再补充必要注意事项。
             """;
+    private static final String CHITCHAT_SYSTEM_PROMPT = """
+            你是一名友好的电商客服助手。
+            - 对打招呼、感谢、轻量闲聊做自然、简洁的回应。
+            - 不要编造任何订单、物流、售后事实。
+            - 如果用户开始询问业务问题，可以自然引导对方继续补充具体需求。
+            """;
     private static final String FUNCTION_CALL_APPEND_PROMPT = """
 
             【工具使用说明】
@@ -83,19 +92,103 @@ public class RagGenerationDemoService {
     private final ObjectMapper objectMapper;
     private final SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
     private final SiliconFlowChatDemoService siliconFlowChatDemoService;
+    private final IntentClassifierService intentClassifierService;
 
+    @Autowired
     public RagGenerationDemoService(
             ObjectMapper objectMapper,
             SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService,
-            SiliconFlowChatDemoService siliconFlowChatDemoService
+            SiliconFlowChatDemoService siliconFlowChatDemoService,
+            IntentClassifierService intentClassifierService
     ) {
         this.objectMapper = objectMapper;
         this.siliconFlowEmbeddingDemoService = siliconFlowEmbeddingDemoService;
         this.siliconFlowChatDemoService = siliconFlowChatDemoService;
+        this.intentClassifierService = intentClassifierService;
+    }
+
+    RagGenerationDemoService(
+            ObjectMapper objectMapper,
+            SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService,
+            SiliconFlowChatDemoService siliconFlowChatDemoService
+    ) {
+        this(objectMapper, siliconFlowEmbeddingDemoService, siliconFlowChatDemoService, null);
     }
 
     public RagGenerationResponse generate(RagGenerationRequest request) {
         String query = request.query().trim();
+        IntentClassifierService.IntentResult intentResult = classifyIntent(request, query);
+        log.info(
+                "RAG 意图分类完成: query={}, intent={}, confidence={}, source={}",
+                query,
+                intentResult.intent(),
+                intentResult.confidence(),
+                intentResult.source()
+        );
+
+        return switch (intentResult.intent()) {
+            case "chitchat" -> generateChitchatResponse(query);
+            case "clarification" -> buildRoutedResponse(query, CLARIFICATION_ANSWER);
+            case "tool" -> buildRoutedResponse(query, TOOL_ROUTE_ANSWER);
+            default -> generateKnowledgeResponse(request, query);
+        };
+    }
+
+    private IntentClassifierService.IntentResult classifyIntent(RagGenerationRequest request, String query) {
+        if (intentClassifierService == null) {
+            return IntentClassifierService.IntentResult.knowledgeFallback("disabled");
+        }
+        return intentClassifierService.classify(request.history(), query);
+    }
+
+    private RagGenerationResponse generateChitchatResponse(String query) {
+        RagDemoChatResponse chatResponse = siliconFlowChatDemoService.chat(
+                new RagDemoChatRequest(CHITCHAT_SYSTEM_PROMPT, query)
+        );
+        return new RagGenerationResponse(
+                query,
+                normalizeAnswer(chatResponse.answer()),
+                chatResponse.requestId(),
+                chatResponse.model(),
+                chatResponse.finishReason(),
+                chatResponse.promptTokens(),
+                chatResponse.completionTokens(),
+                chatResponse.totalTokens(),
+                "",
+                0,
+                "SKIPPED",
+                false,
+                "",
+                "",
+                false,
+                List.of(),
+                List.of()
+        );
+    }
+
+    private RagGenerationResponse buildRoutedResponse(String query, String answer) {
+        return new RagGenerationResponse(
+                query,
+                answer,
+                null,
+                "intent-router",
+                "intent_route",
+                0,
+                0,
+                0,
+                "",
+                0,
+                "SKIPPED",
+                false,
+                "",
+                "",
+                false,
+                List.of(),
+                List.of()
+        );
+    }
+
+    private RagGenerationResponse generateKnowledgeResponse(RagGenerationRequest request, String query) {
         RagEmbeddingSearchResponse retrieval = siliconFlowEmbeddingDemoService.search(
                 new RagEmbeddingSearchRequest(query, request.topK())
         );

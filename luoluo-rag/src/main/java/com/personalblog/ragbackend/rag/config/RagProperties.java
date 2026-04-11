@@ -51,6 +51,8 @@ public class RagProperties {
     private final RetrievalProperties retrieval = new RetrievalProperties();
     @Valid
     private final RerankProperties rerank = new RerankProperties();
+    @Valid
+    private final IntentProperties intent = new IntentProperties();
 
     public boolean isEnabled() {
         return enabled;
@@ -166,6 +168,10 @@ public class RagProperties {
 
     public RerankProperties getRerank() {
         return rerank;
+    }
+
+    public IntentProperties getIntent() {
+        return intent;
     }
 
     public enum SearchMode {
@@ -340,6 +346,49 @@ public class RagProperties {
 
         public void setModel(String model) {
             this.model = model;
+        }
+    }
+
+    public static class IntentProperties {
+        private boolean enabled = true;
+        @NotBlank
+        private String model = "Qwen/Qwen2.5-7B-Instruct";
+        @DecimalMin("0.0")
+        @DecimalMax("2.0")
+        private double temperature = 0.1;
+        @Min(1)
+        private int maxTokens = 128;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public double getTemperature() {
+            return temperature;
+        }
+
+        public void setTemperature(double temperature) {
+            this.temperature = temperature;
+        }
+
+        public int getMaxTokens() {
+            return maxTokens;
+        }
+
+        public void setMaxTokens(int maxTokens) {
+            this.maxTokens = maxTokens;
         }
     }
 }
