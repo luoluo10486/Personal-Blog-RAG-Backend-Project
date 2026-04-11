@@ -6,9 +6,12 @@ import com.personalblog.ragbackend.dto.rag.RagDemoChatResponse;
 import com.personalblog.ragbackend.dto.rag.RagDemoHealthResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchRequest;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
+import com.personalblog.ragbackend.dto.rag.RagEvaluationRequest;
+import com.personalblog.ragbackend.dto.rag.RagEvaluationResponse;
 import com.personalblog.ragbackend.dto.rag.RagGenerationRequest;
 import com.personalblog.ragbackend.dto.rag.RagGenerationResponse;
 import com.personalblog.ragbackend.rag.config.RagProperties;
+import com.personalblog.ragbackend.service.RagEvaluationService;
 import com.personalblog.ragbackend.service.RagGenerationDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
@@ -32,6 +35,7 @@ public class RagDemoController {
     private final SiliconFlowChatDemoService siliconFlowChatDemoService;
     private final SiliconFlowEmbeddingDemoService siliconFlowEmbeddingDemoService;
     private final RagGenerationDemoService ragGenerationDemoService;
+    private final RagEvaluationService ragEvaluationService;
     private final RagProperties ragProperties;
 
     @GetMapping("/health")
@@ -64,6 +68,14 @@ public class RagDemoController {
     @PostMapping("/generate")
     public R<RagGenerationResponse> generate(@Valid @RequestBody RagGenerationRequest request) {
         return R.ok("RAG 生成完成", ragGenerationDemoService.generate(request));
+    }
+
+    @PostMapping("/evaluate")
+    public R<RagEvaluationResponse> evaluate(@RequestBody(required = false) RagEvaluationRequest request) {
+        RagEvaluationRequest actualRequest = request == null
+                ? new RagEvaluationRequest(null, false, 3)
+                : request;
+        return R.ok("RAG 评测完成", ragEvaluationService.evaluate(actualRequest));
     }
 
     @PostMapping(path = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

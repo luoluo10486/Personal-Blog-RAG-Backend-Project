@@ -53,6 +53,8 @@ public class RagProperties {
     private final RerankProperties rerank = new RerankProperties();
     @Valid
     private final IntentProperties intent = new IntentProperties();
+    @Valid
+    private final EvaluationProperties evaluation = new EvaluationProperties();
 
     public boolean isEnabled() {
         return enabled;
@@ -172,6 +174,10 @@ public class RagProperties {
 
     public IntentProperties getIntent() {
         return intent;
+    }
+
+    public EvaluationProperties getEvaluation() {
+        return evaluation;
     }
 
     public enum SearchMode {
@@ -389,6 +395,40 @@ public class RagProperties {
 
         public void setMaxTokens(int maxTokens) {
             this.maxTokens = maxTokens;
+        }
+    }
+
+    public static class EvaluationProperties {
+        @NotBlank
+        private String judgeModel = "deepseek-ai/DeepSeek-V3";
+        @DecimalMin("0.0")
+        @DecimalMax("2.0")
+        private double judgeTemperature = 0.1;
+        @Min(1)
+        private int judgeMaxTokens = 256;
+
+        public String getJudgeModel() {
+            return judgeModel;
+        }
+
+        public void setJudgeModel(String judgeModel) {
+            this.judgeModel = judgeModel;
+        }
+
+        public double getJudgeTemperature() {
+            return judgeTemperature;
+        }
+
+        public void setJudgeTemperature(double judgeTemperature) {
+            this.judgeTemperature = judgeTemperature;
+        }
+
+        public int getJudgeMaxTokens() {
+            return judgeMaxTokens;
+        }
+
+        public void setJudgeMaxTokens(int judgeMaxTokens) {
+            this.judgeMaxTokens = judgeMaxTokens;
         }
     }
 }

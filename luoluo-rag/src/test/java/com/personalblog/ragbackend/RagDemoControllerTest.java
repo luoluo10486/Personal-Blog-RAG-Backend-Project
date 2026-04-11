@@ -4,7 +4,11 @@ import com.personalblog.ragbackend.dto.rag.RagDemoChatRequest;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResponse;
 import com.personalblog.ragbackend.dto.rag.RagEmbeddingSearchResult;
 import com.personalblog.ragbackend.dto.rag.RagGenerationCitation;
+import com.personalblog.ragbackend.dto.rag.RagEvaluationCaseResult;
+import com.personalblog.ragbackend.dto.rag.RagEvaluationResponse;
+import com.personalblog.ragbackend.dto.rag.RagEvaluationSummary;
 import com.personalblog.ragbackend.dto.rag.RagGenerationResponse;
+import com.personalblog.ragbackend.service.RagEvaluationService;
 import com.personalblog.ragbackend.service.RagGenerationDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowChatDemoService;
 import com.personalblog.ragbackend.service.SiliconFlowEmbeddingDemoService;
@@ -42,6 +46,9 @@ class RagDemoControllerTest {
 
     @MockBean
     private RagGenerationDemoService ragGenerationDemoService;
+
+    @MockBean
+    private RagEvaluationService ragEvaluationService;
 
     @Test
     void healthEndpointShouldReturnOk() throws Exception {
@@ -165,5 +172,43 @@ class RagDemoControllerTest {
                 .andExpect(jsonPath("$.data.functionCallApplied").value(true))
                 .andExpect(jsonPath("$.data.calledTools[0]").value("getRetrievedChunkByIndex"))
                 .andExpect(jsonPath("$.data.citations[0].docId").value("logistics_002"));
+    }
+
+    @Test
+    void evaluateEndpointShouldReturnSummary() throws Exception {
+        doReturn(new RagEvaluationResponse(
+                new RagEvaluationSummary(2, 1.0, 0.5, 0.5, 4.5, 4.0, 4.0, 0.5, 0.0, 0.0),
+                java.util.List.of(
+                        new RagEvaluationCaseResult(
+                                "退货政策是什么？",
+                                "knowledge",
+                                "knowledge",
+                                true,
+                                java.util.List.of("policy_001"),
+                                true,
+                                1.0,
+                                "支持 7 天无理由退货。",
+                                false,
+                                java.util.List.of(),
+                                null,
+                                null,
+                                null,
+                                "无明显问题"
+                        )
+                )
+        )).when(ragEvaluationService).evaluate(any());
+
+        mockMvc.perform(post("/luoluo/rag/demo/evaluate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "runJudge": false,
+                                  "topK": 3
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("RAG 评测完成"))
+                .andExpect(jsonPath("$.data.summary.totalCases").value(2))
+                .andExpect(jsonPath("$.data.caseResults[0].predictedIntent").value("knowledge"));
     }
 }
