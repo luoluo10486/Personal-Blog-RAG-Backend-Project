@@ -149,39 +149,67 @@
 
 返回一个 SSE 连接，服务端持续推送事件给前端，以实现“模型逐 chunk 输出”的体验。
 
-### 6.2 调用链（真实执行顺序）
+### 6.2 输入与输出（审查时先对齐“契约”）
 
-1. `RagDemoController.streamChat()` 返回 `SseEmitter`
-2. `SiliconFlowChatDemoService.streamChat()` 创建 emitter，并异步执行 `streamChatInternal()`
-3. `streamChatInternal()` 向 SiliconFlow 发起 stream=true 的请求，拿到 `InputStream`
-4. `parseStreamingResponse()` 按 SSE 事件块解析上游输出，并通过回调把增量内容/usage 透传到 emitter
-5. 最后发送 `complete` 事件并 `emitter.complete()`
+- 请求体：`RagDemoChatRequest`
+- 关键字段：`systemPrompt`（可选）、`message`（必填）
+- 响应：`text/event-stream`，由后端创建并返回 `SseEmitter`
 
-### 6.3 你前端实际会收到哪些 SSE 事件
+### 6.3 事件协议（后端对前端的固定协议）
 
-为了便于前端处理，服务端推送的事件类型是固定的：
+后端不会把 SiliconFlow 的原始 SSE 事件原样透传给前端，而是统一成 4 种事件，便于前端按固定结构消费：
 
-- `event: delta`
-  - `data: <string>`：增量文本（每个 chunk 可能多次）
-- `event: usage`
-  - `data: { promptTokens, completionTokens, totalTokens }`：token 统计（不保证每次都有，取决于平台返回）
-- `event: complete`
-  - `data: RagDemoChatResponse`：最终汇总（答案 + usage + finishReason）
-- `event: error`
-  - `data: { message }`：统一错误结构，方便前端弹出或中断展示
+| event | data 结构 | 什么时候发 |
+| --- | --- | --- |
+| `delta` | `string` | 解析到上游 `choices[0].delta.content` 的增量文本时 |
+| `usage` | `{ promptTokens, completionTokens, totalTokens }` | 上游 chunk 内包含 `usage` 时（不保证每次都有） |
+| `complete` | `RagDemoChatResponse` | 整条流解析结束后，汇总答案与 token 消耗 |
+| `error` | `{ message }` | 上游 HTTP 非 2xx、超时、IO 异常等 |
 
-### 6.4 这条链路做了哪些“生产级容错”
+### 6.4 调用链（逐步，对照真实代码）
 
-相比“只 readLine 然后 print”的最简实现，这里已经补齐了几类关键点：
+1. `RagDemoController.streamChat(request)`
+2. `SiliconFlowChatDemoService.streamChat(request)`
+3. `validateAvailability()`：检查 `app.rag.enabled/apiKey` 等关键配置，避免“没配好还硬调模型”
+4. `new SseEmitter(timeoutMs)`：超时时间 = `readTimeoutSeconds + 5s`
+5. 注册 emitter 生命周期回调
+6. `CompletableFuture.runAsync(() -> streamChatInternal(request, emitter))`：异步执行真正的流式请求（Controller 线程立刻返回 emitter）
+7. `streamChatInternal(request, emitter)`
+8. `buildHttpRequest(request, true)`：构造对 SiliconFlow 的 HTTP 请求，关键点是 `stream=true`
+9. `httpClient.send(..., BodyHandlers.ofInputStream())`：得到上游 `InputStream`
+10. 上游状态码非 2xx：读取 error body 文本，`sendErrorEvent()`，然后 `emitter.complete()`
+11. 上游状态码 2xx：进入 `parseStreamingResponse(responseBody, listener)`
+12. `parseStreamingResponse()` 负责做两件事
+13. 解析 SSE 事件块（空行分隔），把每个事件块的 `data:` 行收集成 `dataLines`
+14. `parseSseEvent(dataLines)`：把 `dataLines` 合并成一段 JSON 文本后解析成 `ParsedChunk`
+15. 把 `ParsedChunk.content` 通过 `listener.onDelta()` 推给 `sendDeltaEvent()`，同时累加到 `fullContent`
+16. 把 `ParsedChunk.usage` 通过 `listener.onUsage()` 推给 `sendUsageEvent()`，同时更新 token 统计
+17. 收到上游 `[DONE]`（done marker）后结束循环，组装最终 `RagDemoChatResponse`
+18. `streamChatInternal()` 收到最终响应后发送 `event=complete`，最后 `emitter.complete()`
 
-- `SseEmitter` 生命周期：`onTimeout/onError/onCompletion` 处理，超时会返回统一错误事件
-- SSE 解析按“事件块”而不是“单行 data”假设，兼容多行 data 与空行分隔
-- 注释行 `:` 会被忽略
-- 单个坏 chunk（JSON 解析失败）不会炸整条流：记录 warning 并跳过继续读
-- `usage` 以结构化事件推给前端，而不是只在服务端内部统计
-- `delta.content` 同时兼容 string 与 array 形式（部分平台会返回数组化结构）
+### 6.5 上游 SSE 解析细节（为什么它“真的能流”）
 
-### 6.5 常见“看起来不流”的原因（审查时要记住）
+`parseStreamingResponse()` 的读取逻辑是“事件块级别”的，而不是“见到一行 data 就当成一个 JSON”：
+
+1. 逐行 `readLine()`
+2. `line.isBlank()` 视为一个 SSE 事件块结束，触发一次 `parseSseEvent(dataLines)`
+3. `line.startsWith(":")` 视为注释行，忽略
+4. `line.startsWith("data:")` 才加入 `dataLines`
+
+`parseSseEvent()` 的容错点：
+
+1. `data == "[DONE]"` 返回 `ParsedChunk.doneMarker()`，告诉上层结束
+2. 单个 chunk JSON 解析失败：只打 `warn` 并返回 null，上层会跳过，不会炸整条流
+3. `delta.content` 同时兼容 `string` 与 `array` 两种格式（用 `extractDeltaContent()` 统一抽取）
+
+### 6.6 这条链路做了哪些“生产级容错”
+
+1. `SseEmitter` 生命周期处理：`onTimeout/onError/onCompletion`
+2. 超时会走 `completeStreamWithError()`：先发送 `event=error`（统一结构），再 `complete()`
+3. 上游 HTTP 非 2xx：把响应体读出来回给前端，避免“前端只看到断流但不知道原因”
+4. `sendDeltaEvent/sendUsageEvent/sendErrorEvent` 发送失败会抛 `UncheckedIOException`，由上层捕获并结束连接
+
+### 6.7 常见“看起来不流”的原因（审查时要记住）
 
 即使后端 SSE 正确，如果链路中间代理启用了响应缓冲（Nginx/CDN/网关），前端可能看到“攒一会儿一次性吐出来”。
 
@@ -220,6 +248,19 @@
 - `systemPrompt`：可选（覆盖默认 systemPrompt）
 - `history`：可选（用于意图分类；目前还未进入 query rewrite）
 
+### 8.2 返回结构（审查时重点看哪些字段）
+
+`RagGenerationResponse` 里这些字段最关键：
+
+| 字段 | 你用它确认什么 |
+| --- | --- |
+| `recallMode` | 是否真的进入检索（`SKIPPED` 表示没进检索） |
+| `retrievedChunkCount` | 召回了几条 chunk（0 代表无资料或跳过） |
+| `rerankApplied/rerankProvider/rerankModel` | 是否走了二阶段重排 |
+| `functionCallApplied/calledTools` | 是否触发了 function call 核验，以及调用了哪些工具 |
+| `citations` | 是否解析到 `[1][2]...` 并能回填引用内容 |
+| `model/requestId/finishReason/usage` | 生成模型与 token 消耗，用于对齐“你看到的答案来自哪次调用” |
+
 ### 8.2 为什么要先做意图分类
 
 因为现在系统不再假设“所有输入都是知识问答”。入口会先判断：
@@ -229,32 +270,52 @@
 - `clarification`：先澄清
 - `tool`：应走工具链路（当前仅提示，尚未真正调用 MCP）
 
-### 8.3 调用链（真实顺序）
+### 8.3 调用链（真实顺序，逐步）
 
-1. `RagDemoController.generate()`
-2. `RagGenerationDemoService.generate()`
-3. `IntentClassifierService.classify(history, query)`
-4. 路由分支：
-   - `knowledge` -> 进入“检索 + 生成”主链路
-   - `chitchat` -> `SiliconFlowChatDemoService.chat()`（recallMode=SKIPPED）
-   - `clarification` -> 直接返回澄清话术（recallMode=SKIPPED）
-   - `tool` -> 直接返回工具链路提示（recallMode=SKIPPED）
+1. `RagDemoController.generate(request)`
+2. `RagGenerationDemoService.generate(request)`
+3. `query = request.query().trim()`
+4. `classifyIntent(request, query)`
+5. `IntentClassifierService.classify(request.history(), query)`：规则优先，未命中再走小模型兜底
+6. `switch(intent)` 路由到不同分支（下面用“分支对照表”讲清楚）
+
+分支对照表（你审查返回时直接按这张表对齐）：
+
+| intent | 实际执行的方法 | 是否检索 | 返回特征 |
+| --- | --- | --- | --- |
+| `knowledge` | `generateKnowledgeResponse()` | 是 | `recallMode != SKIPPED` 且 `retrievedChunkCount > 0`（一般） |
+| `chitchat` | `generateChitchatResponse()` | 否 | `recallMode=SKIPPED`、`citations=[]` |
+| `clarification` | `buildRoutedResponse(CLARIFICATION_ANSWER)` | 否 | `model=intent-router`、`recallMode=SKIPPED` |
+| `tool` | `buildRoutedResponse(TOOL_ROUTE_ANSWER)` | 否 | `model=intent-router`、`recallMode=SKIPPED` |
 
 ### 8.4 knowledge 分支内部：检索 +（可选）function call + 引用回答
 
 knowledge 才会进入 RAG 主链路：
 
-1. 调用 `SiliconFlowEmbeddingDemoService.search(query, topK)` 获取召回 chunks
-2. 将 chunks 组装成：
-   - “目录摘要”（供模型判断是否要核验）
-   - “完整参考资料”（供回退直答）
-3. 第一轮：`chatWithTools()` 把工具列表 + 目录交给模型，让模型决定是否发起 tool call
-4. 如果模型发起 tool call：
-   - 本地执行 `listRetrievedChunks/getRetrievedChunkByIndex`
-   - 第二轮：`completeToolChat()` 回传工具结果让模型生成最终答案
-5. 如果模型未发起 tool call：
-   - 回退普通 RAG 生成：把完整参考资料拼进 prompt 后 `chat()`
-6. 最后解析引用编号 `[1][2]...`，输出 `citations`
+1. `retrieval = SiliconFlowEmbeddingDemoService.search(new RagEmbeddingSearchRequest(query, topK))`
+2. `chunks = toRetrievedChunks(retrieval.results())`：把 `metadata.doc_id/title/category/source_url` 转成内部 `RetrievedChunk`
+3. `chunks.isEmpty()` 时直接返回兜底答案 `FALLBACK_ANSWER`（此时 `citations=[]`，`retrievedChunkCount=0`）
+4. 组装 prompt 与工具入参（关键中间产物）
+5. `systemPrompt = resolveSystemPrompt(request.systemPrompt())`
+6. `functionCallPrompt = buildFunctionCallPrompt(systemPrompt)`：在 systemPrompt 后追加“工具使用说明 + 强约束提示”
+7. `chunkCatalog = buildChunkCatalog(chunks)`：只包含“标题/分类/摘要”的目录，避免第一轮就塞满内容
+8. `toolUserMessage = buildToolUserMessage(chunkCatalog, query)`
+9. `tools = buildFunctionTools()`：注册两个本地函数工具 `listRetrievedChunks/getRetrievedChunkByIndex`
+10. 第一轮 `firstRound = siliconFlowChatDemoService.chatWithTools(functionCallPrompt, toolUserMessage, tools)`
+11. `functionCallApplied = !firstRound.toolCalls().isEmpty()`，`calledTools` 取 toolCalls 的 name 去重列表
+12. 若触发 function call：执行与回填
+13. `toolResults = executeToolCalls(firstRound.toolCalls(), chunks)`：在服务端本地把 toolCalls 变成结构化 JSON 结果
+14. `chatResponse = siliconFlowChatDemoService.completeToolChat(functionCallPrompt, toolUserMessage, toolCalls, toolResults)`
+15. 若未触发 function call：回退“普通 RAG 直答”
+16. `context = buildContext(chunks)`：把完整 chunk 内容拼成【参考资料】块（带编号）
+17. `chatResponse = siliconFlowChatDemoService.chat(new RagDemoChatRequest(systemPrompt, buildUserMessage(context, query)))`
+18. `citations = parseCitations(chatResponse.answer(), chunks)`：用正则从答案里抓 `[1][2]...` 并回填 chunk 原文
+19. 组装并返回 `RagGenerationResponse`（包含 recall/rerank/function-call/citations 等审查字段）
+
+重要审查点（非常容易被误解）：
+
+1. `citations` 不是“检索到了就一定有”，而是“模型答案里写了 `[n]` 才能解析出来”
+2. 当前 `history` 只用于意图分类，不参与检索；knowledge 检索的 query 就是用户原始 `query`
 
 ### 8.5 非 knowledge 分支返回长什么样（便于你审查）
 
@@ -295,15 +356,36 @@ knowledge 才会进入 RAG 主链路：
 
 ### 9.3 调用链（核心顺序）
 
-1. `RagDemoController.evaluate()`
-2. `RagEvaluationService.evaluate()`
-3. 对每条 case：
-   - 意图分类 -> routeMatched
-   - 若 predictedIntent=knowledge：先跑检索拿 retrievedDocIds -> Hit/MRR
-   - 再跑 generate 拿实际 answer 与 functionCall 信息
-   - runJudge=true 时：调用 judge 模型输出三维评分
-   - rootCause 归因（路由/检索/生成/知识库）
-4. 汇总 summary 并返回 caseResults
+1. `RagDemoController.evaluate(request)`：如果 request 为空会用默认 `runJudge=false/topK=3`
+2. `RagEvaluationService.evaluate(request)`
+3. 选择数据集：`request.cases()` 为空则 `buildDefaultDataset()`，否则用传入 cases
+4. 逐条执行 `evaluateCase(evalCase, topK, runJudge)` 并收集 `caseResults`
+5. 汇总 `buildSummary(caseResults)` 输出 summary
+
+`evaluateCase()` 的真实顺序（每一步做什么）：
+
+1. `query = safeText(evalCase.query())`
+2. `intentClassifierService.classify(List.of(), query)`：注意这里评测用的是“空 history”
+3. `predictedIntent = intentResult.intent()`，`routeMatched = expectedIntent.equalsIgnoreCase(predictedIntent)`
+4. 若 `predictedIntent == knowledge` 才执行检索评估
+5. `retrieval = embeddingDemoService.search(new RagEmbeddingSearchRequest(query, topK))`
+6. `retrievedDocIds = retrieval.results().map(metadata.doc_id)`：注意依赖 `metadata.doc_id` 字段
+7. `hit = calculateHit(retrievedDocIds, relevantDocIds)`（Top-K 是否命中）
+8. `reciprocalRank = calculateReciprocalRank(...)`（第 1 个命中的倒数排名）
+9. 无论 predictedIntent 是什么，都会再跑一次真实生成
+10. `generation = ragGenerationDemoService.generate(new RagGenerationRequest(query, topK, null))`
+11. `runJudge=true` 时触发 LLM-as-Judge（走你配置的 `evaluation.judgeModel`）
+12. `faithfulness` 只在 `predictedIntent==knowledge` 时评分（避免对非检索分支做“基于 chunk 的忠实度”）
+13. `relevancy/correctness` 对所有 case 都会评分（它们不依赖 chunks）
+14. `rootCause = determineRootCause(routeMatched, hit, faithfulness, correctness)`：用启发式把 bad case 归因到路由/检索/生成/知识库
+
+`determineRootCause()` 的归因规则（按优先级）：
+
+1. `routeMatched=false` -> `路由问题`
+2. `hit=false` -> `检索问题`
+3. `faithfulness.score <= 3` -> `生成问题`
+4. `correctness.score < 4` -> `知识库问题`
+5. 否则 -> `无明显问题`
 
 ### 9.4 返回结构
 
@@ -383,4 +465,3 @@ document/parse -> document/chunk -> embedding -> 入库（Milvus） -> generate 
 - SSE 看起来“不流”：优先排查网关/代理缓冲，而不是先怀疑模型没 stream
 - 兜底样本不要硬算 Hit/MRR：本来就没答案的 case 更适合评忠实度与兜底话术
 - tool 分支目前只是“识别并拦截”：想要真正查订单/查个人数据，需要接 MCP/业务工具执行
-
