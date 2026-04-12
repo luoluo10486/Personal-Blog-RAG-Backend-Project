@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -39,6 +40,7 @@ import java.util.function.Consumer;
 @Service
 public class SiliconFlowChatDemoService {
     private static final Logger log = LoggerFactory.getLogger(SiliconFlowChatDemoService.class);
+    private static final String SSE_DONE_MARKER = "[DONE]";
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -180,6 +182,13 @@ public class SiliconFlowChatDemoService {
         validateAvailability();
 
         SseEmitter emitter = new SseEmitter(Duration.ofSeconds(ragProperties.getReadTimeoutSeconds() + 5L).toMillis());
+        emitter.onTimeout(() -> completeStreamWithError(
+                emitter,
+                "SSE 推流超时，连接已关闭",
+                new TimeoutException("SSE emitter timeout")
+        ));
+        emitter.onError(throwable -> log.warn("SSE 推流连接出现异常: {}", throwable.getMessage()));
+        emitter.onCompletion(() -> log.debug("SSE 推流连接结束"));
         CompletableFuture.runAsync(() -> streamChatInternal(request, emitter));
         return emitter;
     }
@@ -188,6 +197,18 @@ public class SiliconFlowChatDemoService {
      * 解析 SiliconFlow 返回的 SSE 数据流，并在读取到增量文本时触发回调。
      */
     RagDemoChatResponse parseStreamingResponse(InputStream responseBody, Consumer<String> deltaConsumer) throws IOException {
+        return parseStreamingResponse(responseBody, new StreamEventListener() {
+            @Override
+            public void onDelta(String content) {
+                deltaConsumer.accept(content);
+            }
+        });
+    }
+
+    /**
+     * 解析 SiliconFlow 返回的 SSE 数据流，并通过结构化回调暴露增量内容、usage 与异常。
+     */
+    RagDemoChatResponse parseStreamingResponse(InputStream responseBody, StreamEventListener eventListener) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(responseBody, StandardCharsets.UTF_8))) {
             StringBuilder fullContent = new StringBuilder();
             String requestId = null;
@@ -196,40 +217,66 @@ public class SiliconFlowChatDemoService {
             int promptTokens = 0;
             int completionTokens = 0;
             int totalTokens = 0;
+            boolean doneReceived = false;
+
+            List<String> dataLines = new ArrayList<>();
 
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.isBlank() || !line.startsWith("data: ")) {
+                if (line.isBlank()) {
+                    ParsedChunk parsedChunk = parseSseEvent(dataLines);
+                    dataLines.clear();
+                    if (parsedChunk == null) {
+                        continue;
+                    }
+                    if (parsedChunk.streamEnded()) {
+                        doneReceived = true;
+                        break;
+                    }
+
+                    requestId = firstNonBlank(parsedChunk.requestId(), requestId);
+                    model = firstNonBlank(parsedChunk.model(), model);
+                    finishReason = firstNonBlank(parsedChunk.finishReason(), finishReason);
+
+                    if (parsedChunk.content() != null && !parsedChunk.content().isEmpty()) {
+                        eventListener.onDelta(parsedChunk.content());
+                        fullContent.append(parsedChunk.content());
+                    }
+
+                    if (parsedChunk.usage() != null) {
+                        promptTokens = parsedChunk.usage().promptTokens();
+                        completionTokens = parsedChunk.usage().completionTokens();
+                        totalTokens = parsedChunk.usage().totalTokens();
+                        eventListener.onUsage(parsedChunk.usage());
+                    }
                     continue;
                 }
 
-                String data = line.substring(6).trim();
-                if ("[DONE]".equals(data)) {
-                    break;
+                if (line.startsWith(":")) {
+                    continue;
                 }
 
-                JsonNode chunk = objectMapper.readTree(data);
-                requestId = firstNonBlank(asNullableText(chunk.path("id")), requestId);
-                model = firstNonBlank(asNullableText(chunk.path("model")), model);
+                if (line.startsWith("data:")) {
+                    dataLines.add(line.substring(5).trim());
+                }
+            }
 
-                JsonNode choice = chunk.path("choices").path(0);
-                JsonNode delta = choice.path("delta");
-                JsonNode contentNode = delta.get("content");
-                if (contentNode != null && !contentNode.isNull()) {
-                    String content = contentNode.asText();
-                    if (!content.isEmpty()) {
-                        deltaConsumer.accept(content);
-                        fullContent.append(content);
+            if (!dataLines.isEmpty() && !doneReceived) {
+                ParsedChunk parsedChunk = parseSseEvent(dataLines);
+                if (parsedChunk != null) {
+                    requestId = firstNonBlank(parsedChunk.requestId(), requestId);
+                    model = firstNonBlank(parsedChunk.model(), model);
+                    finishReason = firstNonBlank(parsedChunk.finishReason(), finishReason);
+                    if (parsedChunk.content() != null && !parsedChunk.content().isEmpty()) {
+                        eventListener.onDelta(parsedChunk.content());
+                        fullContent.append(parsedChunk.content());
                     }
-                }
-
-                finishReason = firstNonBlank(asNullableText(choice.path("finish_reason")), finishReason);
-
-                JsonNode usage = chunk.path("usage");
-                if (!usage.isMissingNode()) {
-                    promptTokens = usage.path("prompt_tokens").asInt(promptTokens);
-                    completionTokens = usage.path("completion_tokens").asInt(completionTokens);
-                    totalTokens = usage.path("total_tokens").asInt(totalTokens);
+                    if (parsedChunk.usage() != null) {
+                        promptTokens = parsedChunk.usage().promptTokens();
+                        completionTokens = parsedChunk.usage().completionTokens();
+                        totalTokens = parsedChunk.usage().totalTokens();
+                        eventListener.onUsage(parsedChunk.usage());
+                    }
                 }
             }
 
@@ -237,7 +284,7 @@ public class SiliconFlowChatDemoService {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "SiliconFlow 流式响应中不包含有效答案内容");
             }
 
-            return new RagDemoChatResponse(
+            RagDemoChatResponse finalResponse = new RagDemoChatResponse(
                     requestId,
                     model,
                     fullContent.toString(),
@@ -246,6 +293,8 @@ public class SiliconFlowChatDemoService {
                     completionTokens,
                     totalTokens
             );
+            eventListener.onComplete(finalResponse);
+            return finalResponse;
         }
     }
 
@@ -267,7 +316,17 @@ public class SiliconFlowChatDemoService {
             }
 
             try (InputStream responseBody = response.body()) {
-                RagDemoChatResponse finalResponse = parseStreamingResponse(responseBody, content -> sendDeltaEvent(emitter, content));
+                RagDemoChatResponse finalResponse = parseStreamingResponse(responseBody, new StreamEventListener() {
+                    @Override
+                    public void onDelta(String content) {
+                        sendDeltaEvent(emitter, content);
+                    }
+
+                    @Override
+                    public void onUsage(StreamingUsage usage) {
+                        sendUsageEvent(emitter, usage);
+                    }
+                });
                 emitter.send(SseEmitter.event().name("complete").data(finalResponse));
                 emitter.complete();
             }
@@ -514,6 +573,18 @@ public class SiliconFlowChatDemoService {
         }
     }
 
+    private void sendUsageEvent(SseEmitter emitter, StreamingUsage usage) {
+        try {
+            emitter.send(SseEmitter.event().name("usage").data(Map.of(
+                    "promptTokens", usage.promptTokens(),
+                    "completionTokens", usage.completionTokens(),
+                    "totalTokens", usage.totalTokens()
+            )));
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
     /**
      * 在流式过程中发送错误信息并结束 SSE 连接。
      */
@@ -581,6 +652,75 @@ public class SiliconFlowChatDemoService {
         return normalized.substring(0, 240) + "...";
     }
 
+    private ParsedChunk parseSseEvent(List<String> dataLines) {
+        if (dataLines == null || dataLines.isEmpty()) {
+            return null;
+        }
+
+        String data = String.join("\n", dataLines).trim();
+        if (data.isEmpty()) {
+            return null;
+        }
+        if (SSE_DONE_MARKER.equals(data)) {
+            return ParsedChunk.doneMarker();
+        }
+
+        try {
+            JsonNode chunk = objectMapper.readTree(data);
+            String requestId = asNullableText(chunk.path("id"));
+            String model = asNullableText(chunk.path("model"));
+
+            JsonNode choice = chunk.path("choices").path(0);
+            JsonNode delta = choice.path("delta");
+            String content = extractDeltaContent(delta);
+            String finishReason = asNullableText(choice.path("finish_reason"));
+
+            StreamingUsage usage = null;
+            JsonNode usageNode = chunk.path("usage");
+            if (!usageNode.isMissingNode() && !usageNode.isNull()) {
+                usage = new StreamingUsage(
+                        usageNode.path("prompt_tokens").asInt(0),
+                        usageNode.path("completion_tokens").asInt(0),
+                        usageNode.path("total_tokens").asInt(0)
+                );
+            }
+            return new ParsedChunk(false, requestId, model, finishReason, content, usage);
+        } catch (Exception exception) {
+            log.warn("忽略无法解析的 SSE chunk: data={}, reason={}", abbreviate(data), exception.getMessage());
+            return null;
+        }
+    }
+
+    private String extractDeltaContent(JsonNode delta) {
+        if (delta == null || delta.isMissingNode() || delta.isNull()) {
+            return null;
+        }
+
+        JsonNode contentNode = delta.get("content");
+        if (contentNode == null || contentNode.isNull()) {
+            return null;
+        }
+        if (contentNode.isTextual()) {
+            String content = contentNode.asText();
+            return content.isEmpty() ? null : content;
+        }
+        if (contentNode.isArray()) {
+            StringBuilder builder = new StringBuilder();
+            for (JsonNode item : contentNode) {
+                if (item.isTextual()) {
+                    builder.append(item.asText());
+                    continue;
+                }
+                String text = asNullableText(item.path("text"));
+                if (text != null) {
+                    builder.append(text);
+                }
+            }
+            return builder.isEmpty() ? null : builder.toString();
+        }
+        return null;
+    }
+
     public record ToolCall(String id, String name, String arguments, JsonNode rawToolCall) {
     }
 
@@ -594,5 +734,32 @@ public class SiliconFlowChatDemoService {
      * 本地工具执行结果，供第二轮回传给模型。
      */
     public record ToolResult(String toolCallId, String toolName, String content) {
+    }
+
+    interface StreamEventListener {
+        default void onDelta(String content) {
+        }
+
+        default void onUsage(StreamingUsage usage) {
+        }
+
+        default void onComplete(RagDemoChatResponse response) {
+        }
+    }
+
+    record StreamingUsage(int promptTokens, int completionTokens, int totalTokens) {
+    }
+
+    private record ParsedChunk(
+            boolean streamEnded,
+            String requestId,
+            String model,
+            String finishReason,
+            String content,
+            StreamingUsage usage
+    ) {
+        private static ParsedChunk doneMarker() {
+            return new ParsedChunk(true, null, null, null, null, null);
+        }
     }
 }

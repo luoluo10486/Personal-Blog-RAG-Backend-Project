@@ -16,6 +16,7 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -98,6 +99,54 @@ class SiliconFlowChatDemoServiceTest {
         assertEquals(12, response.promptTokens());
         assertEquals(8, response.completionTokens());
         assertEquals(20, response.totalTokens());
+    }
+
+    @Test
+    void parseStreamingResponseShouldIgnoreMalformedChunksAndExposeUsageCallback() throws Exception {
+        SiliconFlowChatDemoService service = new SiliconFlowChatDemoService(
+                mock(HttpClient.class),
+                new ObjectMapper(),
+                buildRagProperties()
+        );
+        List<String> deltas = new ArrayList<>();
+        AtomicReference<SiliconFlowChatDemoService.StreamingUsage> usageRef = new AtomicReference<>();
+        String streamBody = """
+                : keep-alive
+
+                data: {"id":"chatcmpl-456","model":"Qwen/Qwen3-32B","choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}
+
+                event: message
+                data: {bad json
+
+                data: {"choices":[{"delta":{"content":[" there",{"text":"!"}]},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3,"total_tokens":12}}
+
+                data: [DONE]
+
+                """;
+
+        RagDemoChatResponse response = service.parseStreamingResponse(
+                new ByteArrayInputStream(streamBody.getBytes(StandardCharsets.UTF_8)),
+                new SiliconFlowChatDemoService.StreamEventListener() {
+                    @Override
+                    public void onDelta(String content) {
+                        deltas.add(content);
+                    }
+
+                    @Override
+                    public void onUsage(SiliconFlowChatDemoService.StreamingUsage usage) {
+                        usageRef.set(usage);
+                    }
+                }
+        );
+
+        assertEquals(List.of("Hi", " there!"), deltas);
+        assertEquals("chatcmpl-456", response.requestId());
+        assertEquals("Hi there!", response.answer());
+        assertEquals("stop", response.finishReason());
+        assertEquals(12, response.totalTokens());
+        assertEquals(9, usageRef.get().promptTokens());
+        assertEquals(3, usageRef.get().completionTokens());
+        assertEquals(12, usageRef.get().totalTokens());
     }
 
     @Test
