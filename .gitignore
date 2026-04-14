@@ -9,3 +9,5 @@ docker/milvus/volumes/
 # Local / generated directory not meant to be committed
 cde-base/
 cde-base
+ragent/
+ragent
