@@ -57,9 +57,40 @@ class PublicMemberAuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("login success"))
                 .andExpect(jsonPath("$.data.token").value("token-123"))
                 .andExpect(jsonPath("$.data.user.email").value("demo@example.com"));
 
         verify(publicMemberAuthApplicationService).login(any(), eq("203.0.113.8"));
+    }
+
+    @Test
+    void publicRegisterShouldReturnDelegatedResponse() throws Exception {
+        when(publicMemberAuthApplicationService.register(any(), anyString())).thenReturn(new MemberLoginResponse(
+                "token-register",
+                "Bearer",
+                86400,
+                "sms",
+                new MemberUserSummary(3L, "13800000001", "Phone User", "13800000001", null, "USER")
+        ));
+
+        mockMvc.perform(post("/luoluo/system/public/member/auth/register")
+                        .header("X-Forwarded-For", "198.51.100.66, 10.0.0.1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "grantType": "sms",
+                                  "phone": "13800000001",
+                                  "smsCode": "123456",
+                                  "password": "123456"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("register success"))
+                .andExpect(jsonPath("$.data.token").value("token-register"))
+                .andExpect(jsonPath("$.data.user.phone").value("13800000001"));
+
+        verify(publicMemberAuthApplicationService).register(any(), eq("198.51.100.66"));
     }
 }

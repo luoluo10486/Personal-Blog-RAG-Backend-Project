@@ -5,6 +5,7 @@ import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.member.application.MemberAuthApplicationService;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
+import com.personalblog.ragbackend.member.dto.auth.MemberRegisterRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,9 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 会员认证控制器。
- */
 @RestController
 @RequestMapping("/luoluo/member/auth")
 public class MemberAuthController {
@@ -26,30 +24,26 @@ public class MemberAuthController {
         this.memberAuthApplicationService = memberAuthApplicationService;
     }
 
-    /**
-     * 会员登录接口。
-     */
     @PostMapping("/login")
     public R<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest request, HttpServletRequest servletRequest) {
-        return R.ok("登录成功", memberAuthApplicationService.login(request, resolveClientIp(servletRequest)));
+        return R.ok("login success", memberAuthApplicationService.login(request, resolveClientIp(servletRequest)));
     }
 
-    /**
-     * 会员退出登录接口。
-     */
+    @PostMapping("/register")
+    public R<MemberLoginResponse> register(@Valid @RequestBody MemberRegisterRequest request, HttpServletRequest servletRequest) {
+        return R.ok("register success", memberAuthApplicationService.register(request, resolveClientIp(servletRequest)));
+    }
+
     @PostMapping("/logout")
     @MemberLoginRequired
     public R<Void> logout() {
         memberAuthApplicationService.logout();
-        return R.ok("退出成功");
+        return R.ok("logout success");
     }
 
-    /**
-     * 发送会员登录验证码。
-     */
     @PostMapping("/send-code")
     public R<MemberSendVerifyCodeResponse> sendCode(@Valid @RequestBody MemberSendVerifyCodeRequest request) {
-        return R.ok("验证码发送成功", memberAuthApplicationService.sendCode(request));
+        return R.ok("send code success", memberAuthApplicationService.sendCode(request));
     }
 
     private String resolveClientIp(HttpServletRequest request) {

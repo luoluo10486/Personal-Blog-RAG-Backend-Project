@@ -69,7 +69,7 @@ public class EmailSendCodeStrategy implements MemberSendCodeStrategy {
         }
 
         memberVerifyCodeService.recordAndCache(
-                "LOGIN",
+                request.getBizType(),
                 null,
                 null,
                 "email",

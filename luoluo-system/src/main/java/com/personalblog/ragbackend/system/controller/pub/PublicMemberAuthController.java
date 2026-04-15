@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaIgnore;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
+import com.personalblog.ragbackend.member.dto.auth.MemberRegisterRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeResponse;
 import com.personalblog.ragbackend.system.application.PublicMemberAuthApplicationService;
@@ -26,12 +27,17 @@ public class PublicMemberAuthController {
 
     @PostMapping("/login")
     public R<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest request, HttpServletRequest servletRequest) {
-        return R.ok("登录成功", publicMemberAuthApplicationService.login(request, resolveClientIp(servletRequest)));
+        return R.ok("login success", publicMemberAuthApplicationService.login(request, resolveClientIp(servletRequest)));
+    }
+
+    @PostMapping("/register")
+    public R<MemberLoginResponse> register(@Valid @RequestBody MemberRegisterRequest request, HttpServletRequest servletRequest) {
+        return R.ok("register success", publicMemberAuthApplicationService.register(request, resolveClientIp(servletRequest)));
     }
 
     @PostMapping("/code/send")
     public R<MemberSendVerifyCodeResponse> sendCode(@Valid @RequestBody MemberSendVerifyCodeRequest request) {
-        return R.ok("验证码发送成功", publicMemberAuthApplicationService.sendCode(request));
+        return R.ok("send code success", publicMemberAuthApplicationService.sendCode(request));
     }
 
     private String resolveClientIp(HttpServletRequest request) {

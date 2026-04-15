@@ -6,6 +6,7 @@ import com.personalblog.ragbackend.member.application.MemberAuthApplicationServi
 import com.personalblog.ragbackend.member.config.MemberProperties;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
+import com.personalblog.ragbackend.member.dto.auth.MemberRegisterRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeRequest;
 import com.personalblog.ragbackend.member.dto.code.MemberSendVerifyCodeResponse;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,10 @@ public class PublicMemberAuthApplicationService {
 
     public MemberLoginResponse login(MemberLoginRequest request, String clientIp) {
         return memberAuthApplicationService.login(request, clientIp);
+    }
+
+    public MemberLoginResponse register(MemberRegisterRequest request, String clientIp) {
+        return memberAuthApplicationService.register(request, clientIp);
     }
 
     public MemberSendVerifyCodeResponse sendCode(MemberSendVerifyCodeRequest request) {

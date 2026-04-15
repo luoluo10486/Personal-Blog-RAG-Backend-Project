@@ -9,6 +9,7 @@ public class MemberSendVerifyCodeRequest {
     @NotBlank(message = "grantType 不能为空")
     private String grantType;
 
+    private String bizType;
     private String captchaKey;
     private String captchaCode;
     private String phone;
@@ -20,6 +21,14 @@ public class MemberSendVerifyCodeRequest {
 
     public void setGrantType(String grantType) {
         this.grantType = grantType;
+    }
+
+    public String getBizType() {
+        return bizType;
+    }
+
+    public void setBizType(String bizType) {
+        this.bizType = bizType;
     }
 
     public String getPhone() {

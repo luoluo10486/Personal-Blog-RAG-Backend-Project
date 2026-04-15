@@ -7,15 +7,18 @@ import com.personalblog.ragbackend.member.config.MemberProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-/**
- * 会员验证码服务。
- */
+import java.util.Locale;
+
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+
 @Service
 public class MemberVerifyCodeService {
     private static final Logger log = LoggerFactory.getLogger(MemberVerifyCodeService.class);
     private static final String VERIFY_CODE_NAMESPACE = "member_auth";
     private static final String LOGIN_BIZ_TYPE = "LOGIN";
+    private static final String REGISTER_BIZ_TYPE = "REGISTER";
     private static final String SUBJECT_TYPE = "SYS_USER";
 
     private final VerifyCodeService verifyCodeService;
@@ -26,13 +29,14 @@ public class MemberVerifyCodeService {
         this.memberProperties = memberProperties;
     }
 
-    /**
-     * 校验验证码并在成功后消费掉。
-     */
     public boolean verifyAndConsume(String targetType, String targetValue, String inputCode) {
+        return verifyAndConsume(LOGIN_BIZ_TYPE, targetType, targetValue, inputCode);
+    }
+
+    public boolean verifyAndConsume(String bizType, String targetType, String targetValue, String inputCode) {
         boolean passed = verifyCodeService.verifyAndConsume(new VerifyCodeVerifyCommand(
                 VERIFY_CODE_NAMESPACE,
-                LOGIN_BIZ_TYPE,
+                resolveBizType(bizType),
                 targetType,
                 targetValue,
                 inputCode,
@@ -43,9 +47,11 @@ public class MemberVerifyCodeService {
         return passed;
     }
 
-    /**
-     * 记录验证码发送流水并写入缓存。
-     */
+    public boolean verifyRegisterOrLoginCodeAndConsume(String targetType, String targetValue, String inputCode) {
+        return verifyAndConsume(REGISTER_BIZ_TYPE, targetType, targetValue, inputCode)
+                || verifyAndConsume(LOGIN_BIZ_TYPE, targetType, targetValue, inputCode);
+    }
+
     public void recordAndCache(
             String bizType,
             String bizId,
@@ -61,7 +67,7 @@ public class MemberVerifyCodeService {
     ) {
         verifyCodeService.issue(new VerifyCodeIssueCommand(
                 VERIFY_CODE_NAMESPACE,
-                bizType,
+                resolveBizType(bizType),
                 bizId,
                 SUBJECT_TYPE,
                 null,
@@ -77,9 +83,18 @@ public class MemberVerifyCodeService {
         ));
     }
 
-    /**
-     * 根据配置决定是否输出明文验证码校验日志。
-     */
+    private String resolveBizType(String bizType) {
+        if (bizType == null || bizType.isBlank()) {
+            return LOGIN_BIZ_TYPE;
+        }
+
+        String normalized = bizType.trim().toUpperCase(Locale.ROOT);
+        if (LOGIN_BIZ_TYPE.equals(normalized) || REGISTER_BIZ_TYPE.equals(normalized)) {
+            return normalized;
+        }
+        throw new ResponseStatusException(BAD_REQUEST, "unsupported bizType: " + bizType);
+    }
+
     private void logPlaintextVerify(String targetType, String targetValue, String inputCode, boolean passed) {
         if (!memberProperties.getMember().getAuth().isPlainVerifyCodeLogEnabled()) {
             return;

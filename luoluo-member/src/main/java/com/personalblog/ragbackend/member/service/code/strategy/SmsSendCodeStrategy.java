@@ -65,7 +65,7 @@ public class SmsSendCodeStrategy implements MemberSendCodeStrategy {
         }
 
         memberVerifyCodeService.recordAndCache(
-                "LOGIN",
+                request.getBizType(),
                 null,
                 null,
                 "sms",

@@ -19,9 +19,6 @@ import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
-/**
- * 会员认证领域服务，负责根据登录方式完成认证并签发会话。
- */
 @Service
 public class MemberAuthService {
     private final Map<String, MemberLoginStrategy> strategyMap;
@@ -39,14 +36,19 @@ public class MemberAuthService {
         String grantType = normalizeGrantType(request.getGrantType());
         MemberLoginStrategy strategy = strategyMap.get(grantType);
         if (strategy == null) {
-            throw new ResponseStatusException(BAD_REQUEST, "不支持的 grantType：" + grantType);
+            throw new ResponseStatusException(BAD_REQUEST, "unsupported grantType: " + grantType);
         }
 
         MemberUser user = strategy.authenticate(request);
+        return createLoginResponse(user, grantType, request.getDeviceType(), clientIp);
+    }
+
+    public MemberLoginResponse createLoginResponse(MemberUser user, String grantType, String deviceType, String clientIp) {
+        String normalizedGrantType = normalizeGrantType(grantType);
         AuthSessionResult session = memberSessionService.createSession(
                 user.getUserId(),
-                grantType,
-                normalizeNullable(request.getDeviceType()),
+                normalizedGrantType,
+                normalizeNullable(deviceType),
                 normalizeNullable(clientIp)
         );
         long expiresIn = Duration.between(LocalDateTime.now(), session.expiresAt()).toSeconds();
@@ -55,7 +57,7 @@ public class MemberAuthService {
                 session.token(),
                 "Bearer",
                 Math.max(expiresIn, 0),
-                grantType,
+                normalizedGrantType,
                 new MemberUserSummary(
                         user.getUserId(),
                         user.getUsername(),
@@ -73,7 +75,7 @@ public class MemberAuthService {
 
     private String normalizeGrantType(String grantType) {
         if (grantType == null || grantType.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "grantType 不能为空");
+            throw new ResponseStatusException(BAD_REQUEST, "grantType must not be blank");
         }
         return grantType.trim().toLowerCase(Locale.ROOT);
     }

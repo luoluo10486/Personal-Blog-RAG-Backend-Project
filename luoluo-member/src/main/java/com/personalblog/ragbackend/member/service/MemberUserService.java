@@ -64,4 +64,33 @@ public class MemberUserService {
                 .eq(MemberUser::getStatus, ACTIVE)
                 .last("limit 1"));
     }
+
+    public boolean existsByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return false;
+        }
+        return memberUserMapper.selectCount(Wrappers.<MemberUser>lambdaQuery()
+                .eq(MemberUser::getUsername, username.trim())) > 0;
+    }
+
+    public boolean existsByPhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return false;
+        }
+        return memberUserMapper.selectCount(Wrappers.<MemberUser>lambdaQuery()
+                .eq(MemberUser::getPhone, phone.trim())) > 0;
+    }
+
+    public boolean existsByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return memberUserMapper.selectCount(Wrappers.<MemberUser>lambdaQuery()
+                .eq(MemberUser::getEmail, email.trim().toLowerCase(Locale.ROOT))) > 0;
+    }
+
+    public MemberUser create(MemberUser user) {
+        memberUserMapper.insert(user);
+        return user;
+    }
 }

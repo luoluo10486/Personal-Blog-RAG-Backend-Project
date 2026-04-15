@@ -59,10 +59,43 @@ class MemberAuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("login success"))
                 .andExpect(jsonPath("$.data.token").value("token-123"))
                 .andExpect(jsonPath("$.data.user.email").value("demo@example.com"));
 
         verify(memberAuthApplicationService).login(any(), eq("198.51.100.10"));
+    }
+
+    @Test
+    void registerShouldReturnDelegatedResponse() throws Exception {
+        when(memberAuthApplicationService.register(any(), anyString())).thenReturn(new MemberLoginResponse(
+                "token-register",
+                "Bearer",
+                86400,
+                "email",
+                new MemberUserSummary(2L, "new_user", "New User", null, "new@example.com", "USER")
+        ));
+
+        mockMvc.perform(post("/luoluo/member/auth/register")
+                        .header("X-Real-IP", "203.0.113.18")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "grantType": "email",
+                                  "email": "new@example.com",
+                                  "emailCode": "123456",
+                                  "password": "123456",
+                                  "confirmPassword": "123456",
+                                  "displayName": "New User"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("register success"))
+                .andExpect(jsonPath("$.data.token").value("token-register"))
+                .andExpect(jsonPath("$.data.user.username").value("new_user"));
+
+        verify(memberAuthApplicationService).register(any(), eq("203.0.113.18"));
     }
 
     @Test
@@ -72,7 +105,7 @@ class MemberAuthControllerTest {
         mockMvc.perform(post("/luoluo/member/auth/logout"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.message").value("退出成功"));
+                .andExpect(jsonPath("$.message").value("logout success"));
 
         verify(memberAuthApplicationService).logout();
     }
@@ -97,6 +130,7 @@ class MemberAuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("send code success"))
                 .andExpect(jsonPath("$.data.requestId").value("req-1"))
                 .andExpect(jsonPath("$.data.grantType").value("email"));
     }
