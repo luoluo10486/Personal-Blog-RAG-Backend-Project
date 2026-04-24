@@ -34,6 +34,7 @@
     <modules>
         <module>luoluo-admin</module>
         <module>luoluo-rag</module>
+        <module>luoluo-knowledge</module>
         <module>luoluo-rag-mcp</module>
         <module>luoluo-common</module>
         <module>luoluo-member</module>
@@ -50,6 +51,11 @@
             <dependency>
                 <groupId>com.personalblog</groupId>
                 <artifactId>luoluo-rag</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.personalblog</groupId>
+                <artifactId>luoluo-knowledge</artifactId>
                 <version>${revision}</version>
             </dependency>
             <dependency>

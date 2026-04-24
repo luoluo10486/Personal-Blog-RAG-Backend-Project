@@ -23,6 +23,7 @@ import java.util.Enumeration;
 @SpringBootApplication(scanBasePackages = "com.personalblog.ragbackend")
 @ConfigurationPropertiesScan(basePackages = {
         "com.personalblog.ragbackend.rag.config",
+        "com.personalblog.ragbackend.knowledge.config",
         "com.personalblog.ragbackend.member.config"
 })
 @MapperScan({

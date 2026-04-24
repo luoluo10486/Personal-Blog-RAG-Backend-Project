@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: 8080
 
 spring:
@@ -97,6 +97,69 @@ app:
       token: ""
       database-name: ""
       collection-name: rag_demo_chunks
+  knowledge:
+    # 独立知识库配置；app.rag 保留给现有 demo 接口使用
+    enabled: true
+    default-base-code: default
+    vector:
+      # 可选：milvus / pg，当前项目默认先使用 Milvus，与 demo collection 隔离
+      type: milvus
+      milvus:
+        enabled: true
+        uri: http://127.0.0.1:19530
+        token: ""
+        database-name: ""
+        collection-prefix: kb_
+        consistency-level: BOUNDED
+        nprobe: 16
+      pg:
+        enabled: false
+        schema: public
+        table-name: knowledge_chunk_vector
+    defaults:
+      collection-name: knowledge_default_store
+      dimension: 1536
+      metric-type: COSINE
+      embedding-model: Qwen/Qwen3-Embedding-8B
+      chat-model: Qwen/Qwen3-32B
+      rerank-model: BAAI/bge-reranker-v2-m3
+    chunking:
+      strategy: structure-aware
+      chunk-size: 800
+      chunk-overlap: 120
+      max-chunk-count: 1000
+    schedule:
+      scan-delay-ms: 10000
+      lock-seconds: 900
+      batch-size: 20
+      min-interval-seconds: 60
+    search:
+      top-k: 8
+      top-k-multiplier: 3
+      confidence-threshold: 0.6
+      rrf-k: 60
+      rerank:
+        enabled: true
+        provider: demo
+    trace:
+      enabled: true
+      max-error-length: 1000
+    providers:
+      - id: siliconflow
+        type: siliconflow
+        base-url: https://api.siliconflow.cn
+        api-key: ${SILICONFLOW_API_KEY:}
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /v1/embeddings
+          rerank: /v1/rerank
+      - id: ollama
+        type: ollama
+        base-url: http://localhost:11434
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /api/embed
+          rerank: /v1/rerank
   member:
     auth:
       session-ttl-seconds: 86400
