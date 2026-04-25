@@ -13,7 +13,7 @@
 
     <groupId>com.personalblog</groupId>
     <artifactId>luoluo-parent</artifactId>
-    <version>${revision}</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>luoluo-parent</name>
@@ -33,6 +33,7 @@
 
     <modules>
         <module>luoluo-admin</module>
+        <module>luoluo-infra-ai</module>
         <module>luoluo-rag</module>
         <module>luoluo-knowledge</module>
         <module>luoluo-rag-mcp</module>
@@ -46,6 +47,11 @@
             <dependency>
                 <groupId>com.personalblog</groupId>
                 <artifactId>luoluo-admin</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.personalblog</groupId>
+                <artifactId>luoluo-infra-ai</artifactId>
                 <version>${revision}</version>
             </dependency>
             <dependency>
