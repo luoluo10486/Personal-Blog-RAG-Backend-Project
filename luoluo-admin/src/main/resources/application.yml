@@ -61,6 +61,73 @@ mybatis-plus:
 app:
   api-prefix: /api/v1
   blog-title: My Personal Blog
+  ai:
+    enabled: true
+    connect-timeout-seconds: 30
+    read-timeout-seconds: 60
+    providers:
+      siliconflow:
+        type: siliconflow
+        base-url: https://api.siliconflow.cn
+        api-key: ${SILICONFLOW_API_KEY:}
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /v1/embeddings
+          rerank: /v1/rerank
+      ollama:
+        type: ollama
+        base-url: http://localhost:11434
+        api-key: ""
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /api/embed
+          rerank: /v1/rerank
+    chat:
+      default-model: siliconflow-chat
+      deep-thinking-model: siliconflow-chat
+      candidates:
+        - id: siliconflow-chat
+          provider: siliconflow
+          model: Qwen/Qwen3-32B
+          priority: 10
+          supports-thinking: true
+        - id: ollama-chat
+          provider: ollama
+          model: qwen3:8b
+          priority: 50
+          enabled: false
+    embedding:
+      default-model: siliconflow-embedding
+      candidates:
+        - id: siliconflow-embedding
+          provider: siliconflow
+          model: Qwen/Qwen3-Embedding-8B
+          dimension: 1536
+          priority: 10
+        - id: ollama-embedding
+          provider: ollama
+          model: nomic-embed-text
+          dimension: 768
+          priority: 50
+          enabled: false
+    rerank:
+      default-model: noop-rerank
+      candidates:
+        - id: noop-rerank
+          provider: noop
+          model: noop
+          priority: 100
+        - id: siliconflow-rerank
+          provider: siliconflow
+          model: BAAI/bge-reranker-v2-m3
+          priority: 10
+          enabled: false
+    selection:
+      failure-threshold: 2
+      open-duration-ms: 30000
+    stream:
+      message-chunk-size: 5
+      executor-threads: 4
   rag:
     # 是否启用 RAG 功能
     enabled: true
