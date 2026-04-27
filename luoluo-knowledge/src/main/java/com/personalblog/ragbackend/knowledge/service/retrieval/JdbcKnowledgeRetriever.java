@@ -4,7 +4,7 @@ import com.personalblog.ragbackend.infra.ai.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.ai.rerank.RerankService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
-import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeCollectionNameResolver;
+import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,16 +32,16 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever {
 
     private final JdbcTemplate jdbcTemplate;
     private final KnowledgeProperties knowledgeProperties;
-    private final KnowledgeCollectionNameResolver collectionNameResolver;
+    private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final ObjectProvider<RerankService> rerankServiceProvider;
 
     public JdbcKnowledgeRetriever(JdbcTemplate jdbcTemplate,
                                   KnowledgeProperties knowledgeProperties,
-                                  KnowledgeCollectionNameResolver collectionNameResolver,
+                                  KnowledgeVectorSpaceResolver vectorSpaceResolver,
                                   ObjectProvider<RerankService> rerankServiceProvider) {
         this.jdbcTemplate = jdbcTemplate;
         this.knowledgeProperties = knowledgeProperties;
-        this.collectionNameResolver = collectionNameResolver;
+        this.vectorSpaceResolver = vectorSpaceResolver;
         this.rerankServiceProvider = rerankServiceProvider;
     }
 
@@ -111,7 +111,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever {
 
     private void appendBaseFilter(StringBuilder sql, List<Object> params, String baseCode) {
         String normalizedBaseCode = normalizeBaseCode(baseCode);
-        String collectionName = collectionNameResolver.resolve(normalizedBaseCode);
+        String collectionName = vectorSpaceResolver.resolve(normalizedBaseCode).collectionName();
         sql.append(" and (kb.collection_name = ? or kb.name = ?");
         params.add(collectionName);
         params.add(normalizedBaseCode);

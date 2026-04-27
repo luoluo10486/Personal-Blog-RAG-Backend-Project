@@ -228,7 +228,7 @@ public class SiliconFlowChatDemoService {
                     dataLines.clear();
                     if (parsedChunk == null) {
                         continue;
-                    }
+                
                     if (parsedChunk.streamEnded()) {
                         doneReceived = true;
                         break;

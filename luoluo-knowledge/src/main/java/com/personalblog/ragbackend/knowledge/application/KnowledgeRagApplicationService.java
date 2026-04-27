@@ -9,9 +9,10 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetriever;
-import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeCollectionNameResolver;
-import org.springframework.util.StopWatch;
+import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
+import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StopWatch;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,29 +20,30 @@ import java.util.List;
 @Service
 public class KnowledgeRagApplicationService {
     private final KnowledgeProperties knowledgeProperties;
-    private final KnowledgeCollectionNameResolver collectionNameResolver;
+    private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final KnowledgeRetriever knowledgeRetriever;
     private final KnowledgeAnswerGenerator answerGenerator;
 
     public KnowledgeRagApplicationService(
             KnowledgeProperties knowledgeProperties,
-            KnowledgeCollectionNameResolver collectionNameResolver,
+            KnowledgeVectorSpaceResolver vectorSpaceResolver,
             KnowledgeRetriever knowledgeRetriever,
             KnowledgeAnswerGenerator answerGenerator
     ) {
         this.knowledgeProperties = knowledgeProperties;
-        this.collectionNameResolver = collectionNameResolver;
+        this.vectorSpaceResolver = vectorSpaceResolver;
         this.knowledgeRetriever = knowledgeRetriever;
         this.answerGenerator = answerGenerator;
     }
 
     public KnowledgeHealthResponse health() {
+        KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(knowledgeProperties.getDefaultBaseCode());
         return new KnowledgeHealthResponse(
                 knowledgeProperties.isEnabled(),
                 knowledgeProperties.getDefaultBaseCode(),
-                knowledgeProperties.getVector().getType(),
-                knowledgeProperties.getDefaults().getCollectionName(),
-                knowledgeProperties.getDefaults().getEmbeddingModel(),
+                vectorSpace.vectorType(),
+                vectorSpace.collectionName(),
+                vectorSpace.embeddingModel(),
                 knowledgeProperties.getDefaults().getChatModel()
         );
     }
@@ -52,7 +54,7 @@ public class KnowledgeRagApplicationService {
         String baseCode = normalizeBaseCode(request.baseCode());
         steps.add("normalize-request");
         int topK = normalizeTopK(request.topK());
-        String collectionName = collectionNameResolver.resolve(baseCode);
+        KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(baseCode);
         steps.add("resolve-collection");
         stopWatch.start("retrieve");
         List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(baseCode, request.question(), topK);
@@ -74,8 +76,8 @@ public class KnowledgeRagApplicationService {
                 .toList();
         KnowledgeTrace trace = new KnowledgeTrace(
                 "knowledge-rag",
-                knowledgeProperties.getVector().getType(),
-                collectionName,
+                vectorSpace.vectorType(),
+                vectorSpace.collectionName(),
                 topK,
                 steps
         );

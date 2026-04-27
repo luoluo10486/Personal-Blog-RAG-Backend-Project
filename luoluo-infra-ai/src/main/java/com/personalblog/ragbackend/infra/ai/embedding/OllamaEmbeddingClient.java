@@ -2,41 +2,24 @@ package com.personalblog.ragbackend.infra.ai.embedding;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.personalblog.ragbackend.infra.ai.config.AIModelProperties;
-import com.personalblog.ragbackend.infra.ai.enums.ModelCapability;
 import com.personalblog.ragbackend.infra.ai.enums.ModelProvider;
-import com.personalblog.ragbackend.infra.ai.http.HttpResponseHelper;
 import com.personalblog.ragbackend.infra.ai.http.ModelClientErrorType;
 import com.personalblog.ragbackend.infra.ai.http.ModelClientException;
-import com.personalblog.ragbackend.infra.ai.http.ModelUrlResolver;
-import com.personalblog.ragbackend.infra.ai.model.ModelTarget;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 @Service
-public class OllamaEmbeddingClient implements EmbeddingClient {
-
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
-    private final AIModelProperties aiProperties;
+public class OllamaEmbeddingClient extends AbstractOpenAIStyleEmbeddingClient {
 
     public OllamaEmbeddingClient(@Qualifier("aiHttpClient") HttpClient httpClient,
                                  ObjectMapper objectMapper,
                                  AIModelProperties aiProperties) {
-        this.httpClient = httpClient;
-        this.objectMapper = objectMapper;
-        this.aiProperties = aiProperties;
+        super(httpClient, objectMapper, aiProperties);
     }
 
     @Override
@@ -45,69 +28,20 @@ public class OllamaEmbeddingClient implements EmbeddingClient {
     }
 
     @Override
-    public List<Float> embed(String text, ModelTarget target) {
-        return embedBatch(List.of(text), target).get(0);
+    protected boolean requiresApiKey() {
+        return false;
     }
 
     @Override
-    public List<List<Float>> embedBatch(List<String> texts, ModelTarget target) {
-        if (texts == null || texts.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        ObjectNode body = objectMapper.createObjectNode();
-        body.put("model", HttpResponseHelper.requireModel(target, provider()));
-        body.put("dimensions", target.candidate().getDimension());
-        ArrayNode input = body.putArray("input");
-        for (String text : texts) {
-            input.add(text);
-        }
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(ModelUrlResolver.resolveUrl(target.provider(), target.candidate(), ModelCapability.EMBEDDING)))
-                .timeout(Duration.ofSeconds(aiProperties.getReadTimeoutSeconds()))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(writeBody(body)))
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ModelClientException(
-                        provider() + " embedding 请求失败: HTTP " + response.statusCode(),
-                        ModelClientErrorType.fromHttpStatus(response.statusCode()),
-                        response.statusCode()
-                );
-            }
-            return parseEmbeddings(response.body(), texts.size());
-        } catch (ModelClientException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new ModelClientException(provider() + " embedding 请求失败: " + ex.getMessage(), ModelClientErrorType.NETWORK_ERROR, null, ex);
-        }
-    }
-
-    private List<List<Float>> parseEmbeddings(String body, int expectedSize) {
-        JsonNode embeddings = HttpResponseHelper.parseJson(body, provider()).path("embeddings");
+    protected List<List<Float>> parseEmbeddings(JsonNode response, int expectedSize) {
+        JsonNode embeddings = response.path("embeddings");
         if (!embeddings.isArray() || embeddings.isEmpty() || embeddings.size() != expectedSize) {
-            throw new ModelClientException(provider() + " embeddings 响应无效", ModelClientErrorType.INVALID_RESPONSE, null);
+            throw new ModelClientException(provider() + " embeddings response is invalid", ModelClientErrorType.INVALID_RESPONSE, null);
         }
         List<List<Float>> results = new ArrayList<>(embeddings.size());
         for (JsonNode embedding : embeddings) {
-            List<Float> vector = new ArrayList<>(embedding.size());
-            for (JsonNode value : embedding) {
-                vector.add((float) value.asDouble());
-            }
-            results.add(vector);
+            results.add(toVector(embedding));
         }
         return results;
-    }
-
-    private String writeBody(ObjectNode body) {
-        try {
-            return objectMapper.writeValueAsString(body);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Failed to serialize embedding request", ex);
-        }
     }
 }

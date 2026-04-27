@@ -5,6 +5,8 @@ java-backend/target/
 member-backend/target/
 .idea/
 docker/milvus/volumes/
+.m2/
+.m2-verify/
 
 # Local / generated directory not meant to be committed
 cde-base/
