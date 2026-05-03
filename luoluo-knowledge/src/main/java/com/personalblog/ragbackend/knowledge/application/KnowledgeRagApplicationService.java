@@ -8,7 +8,8 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
-import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetriever;
+import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetrievalEngine;
+import com.personalblog.ragbackend.knowledge.service.retrieval.RetrieveRequest;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import org.springframework.stereotype.Service;
@@ -21,18 +22,18 @@ import java.util.List;
 public class KnowledgeRagApplicationService {
     private final KnowledgeProperties knowledgeProperties;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
-    private final KnowledgeRetriever knowledgeRetriever;
+    private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
     private final KnowledgeAnswerGenerator answerGenerator;
 
     public KnowledgeRagApplicationService(
             KnowledgeProperties knowledgeProperties,
             KnowledgeVectorSpaceResolver vectorSpaceResolver,
-            KnowledgeRetriever knowledgeRetriever,
+            KnowledgeRetrievalEngine knowledgeRetrievalEngine,
             KnowledgeAnswerGenerator answerGenerator
     ) {
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
-        this.knowledgeRetriever = knowledgeRetriever;
+        this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
         this.answerGenerator = answerGenerator;
     }
 
@@ -57,7 +58,7 @@ public class KnowledgeRagApplicationService {
         KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(baseCode);
         steps.add("resolve-collection");
         stopWatch.start("retrieve");
-        List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(baseCode, request.question(), topK);
+        List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, request.question(), topK));
         stopWatch.stop();
         steps.add("retrieve:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
         stopWatch.start("generate");

@@ -1,52 +1,64 @@
 package com.personalblog.ragbackend.knowledge.service.retrieval;
 
-import com.personalblog.ragbackend.infra.ai.convention.RetrievedChunk;
-import com.personalblog.ragbackend.infra.ai.rerank.RerankService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 @Service
-@Primary
 @ConditionalOnBean(JdbcTemplate.class)
 @ConditionalOnProperty(prefix = "app.knowledge.jdbc", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class JdbcKnowledgeRetriever implements KnowledgeRetriever {
+public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCandidateRetriever {
     private static final Pattern TOKEN_SPLITTER = Pattern.compile("[^\\p{IsHan}a-zA-Z0-9]+");
     private static final int MAX_QUERY_TOKENS = 8;
 
     private final JdbcTemplate jdbcTemplate;
     private final KnowledgeProperties knowledgeProperties;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
-    private final ObjectProvider<RerankService> rerankServiceProvider;
 
     public JdbcKnowledgeRetriever(JdbcTemplate jdbcTemplate,
                                   KnowledgeProperties knowledgeProperties,
-                                  KnowledgeVectorSpaceResolver vectorSpaceResolver,
-                                  ObjectProvider<RerankService> rerankServiceProvider) {
+                                  KnowledgeVectorSpaceResolver vectorSpaceResolver) {
         this.jdbcTemplate = jdbcTemplate;
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
-        this.rerankServiceProvider = rerankServiceProvider;
+    }
+
+    @Override
+    public String getName() {
+        return "jdbc";
+    }
+
+    @Override
+    public int getOrder() {
+        return 10;
+    }
+
+    @Override
+    public boolean isEnabled(RetrieveRequest request) {
+        return knowledgeProperties.isEnabled();
     }
 
     @Override
     public List<KnowledgeChunk> retrieve(String baseCode, String question, int topK) {
+        return retrieveCandidates(new RetrieveRequest(baseCode, question, topK));
+    }
+
+    @Override
+    public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
+        String baseCode = request.baseCode();
+        String question = request.question();
+        int topK = request.topK();
         if (!knowledgeProperties.isEnabled() || question == null || question.isBlank()) {
             return List.of();
         }
@@ -58,17 +70,10 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever {
 
         try {
             List<KnowledgeChunk> candidates = queryCandidates(baseCode, tokens, topK);
-            List<KnowledgeChunk> scoredCandidates = candidates.stream()
+            return candidates.stream()
                     .map(chunk -> withScore(chunk, score(question, tokens, chunk)))
                     .sorted(Comparator.comparingDouble(KnowledgeChunk::score).reversed())
                     .toList();
-            List<KnowledgeChunk> scored = scoredCandidates.stream()
-                    .filter(chunk -> chunk.score() >= knowledgeProperties.getSearch().getConfidenceThreshold())
-                    .toList();
-            if (scored.isEmpty()) {
-                scored = scoredCandidates.stream().limit(topK).toList();
-            }
-            return rerank(question, scored, topK);
         } catch (DataAccessException ex) {
             return List.of();
         }
@@ -135,36 +140,6 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever {
             params.add(pattern);
         }
         sql.append(")");
-    }
-
-    private List<KnowledgeChunk> rerank(String question, List<KnowledgeChunk> chunks, int topK) {
-        if (chunks.isEmpty()) {
-            return chunks;
-        }
-        RerankService rerankService = rerankServiceProvider.getIfAvailable();
-        if (!knowledgeProperties.getSearch().getRerank().isEnabled() || rerankService == null) {
-            return chunks.stream().limit(topK).toList();
-        }
-        try {
-            Map<String, KnowledgeChunk> byId = new LinkedHashMap<>();
-            List<RetrievedChunk> retrievedChunks = chunks.stream()
-                    .peek(chunk -> byId.put(chunk.id(), chunk))
-                    .map(chunk -> new RetrievedChunk(chunk.id(), chunk.content(), (float) chunk.score()))
-                    .toList();
-            return rerankService.rerank(question, retrievedChunks, topK).stream()
-                    .map(result -> toRerankedChunk(byId.get(result.getId()), result.getScore()))
-                    .filter(Objects::nonNull)
-                    .toList();
-        } catch (RuntimeException ex) {
-            return chunks.stream().limit(topK).toList();
-        }
-    }
-
-    private KnowledgeChunk toRerankedChunk(KnowledgeChunk source, Float rerankScore) {
-        if (source == null) {
-            return null;
-        }
-        return withScore(source, rerankScore == null ? source.score() : rerankScore);
     }
 
     private KnowledgeChunk withScore(KnowledgeChunk chunk, double score) {
