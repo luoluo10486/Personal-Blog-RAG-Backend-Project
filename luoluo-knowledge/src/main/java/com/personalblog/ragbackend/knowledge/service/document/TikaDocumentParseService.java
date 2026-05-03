@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
+import com.personalblog.ragbackend.knowledge.core.parser.DocumentParser;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
@@ -21,9 +22,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class TikaDocumentParseService {
+public class TikaDocumentParseService implements DocumentParser {
     private static final Logger log = LoggerFactory.getLogger(TikaDocumentParseService.class);
     private static final int MAX_TEXT_LENGTH = 10 * 1024 * 1024;
+    public static final String PARSER_TYPE = "tika";
 
     private final Tika tika = new Tika();
     private final Parser parser = new AutoDetectParser();
@@ -36,15 +38,27 @@ public class TikaDocumentParseService {
         String originalFilename = file.getOriginalFilename();
         log.info("开始解析知识库文档: {}, size={} bytes", originalFilename, file.getSize());
 
+        try (InputStream parseStream = file.getInputStream()) {
+            return parse(parseStream, originalFilename, file.getContentType());
+        } catch (IOException ex) {
+            log.error("读取知识库文档失败: {}", originalFilename, ex);
+            return ParseResult.failure("读取文件失败: " + ex.getMessage());
+        }
+    }
+
+    @Override
+    public String getParserType() {
+        return PARSER_TYPE;
+    }
+
+    @Override
+    public ParseResult parse(InputStream stream, String fileName, String declaredMimeType) {
         try {
-            String mimeType = detectMimeType(file);
+            String mimeType = resolveMimeType(declaredMimeType, fileName);
             BodyContentHandler handler = new BodyContentHandler(MAX_TEXT_LENGTH);
             Metadata metadata = new Metadata();
-            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, originalFilename);
-
-            try (InputStream parseStream = file.getInputStream()) {
-                parser.parse(parseStream, handler, metadata, new ParseContext());
-            }
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, fileName);
+            parser.parse(stream, handler, metadata, new ParseContext());
 
             String content = cleanText(handler.toString());
             Map<String, String> metadataMap = extractMetadata(metadata);
@@ -53,17 +67,14 @@ public class TikaDocumentParseService {
             }
 
             return ParseResult.success(mimeType, content, metadataMap);
-        } catch (IOException ex) {
-            log.error("读取知识库文档失败: {}", originalFilename, ex);
-            return ParseResult.failure("读取文件失败: " + ex.getMessage());
         } catch (TikaException ex) {
-            log.error("Tika 解析知识库文档失败: {}", originalFilename, ex);
+            log.error("Tika 解析知识库文档失败: {}", fileName, ex);
             return ParseResult.failure("文档解析失败: " + ex.getMessage());
         } catch (SAXException ex) {
-            log.error("XML 结构解析失败: {}", originalFilename, ex);
+            log.error("XML 结构解析失败: {}", fileName, ex);
             return ParseResult.failure("文档结构解析失败: " + ex.getMessage());
         } catch (Exception ex) {
-            log.error("解析知识库文档时出现未知错误: {}", originalFilename, ex);
+            log.error("解析知识库文档时出现未知错误: {}", fileName, ex);
             return ParseResult.failure("解析过程中出现未知错误: " + ex.getMessage());
         }
     }
@@ -72,6 +83,11 @@ public class TikaDocumentParseService {
         try (InputStream inputStream = file.getInputStream()) {
             return tika.detect(inputStream, file.getOriginalFilename());
         }
+    }
+
+    @Override
+    public boolean supports(String mimeType, String fileName) {
+        return true;
     }
 
     private String cleanText(String text) {
@@ -96,5 +112,12 @@ public class TikaDocumentParseService {
             }
         }
         return result;
+    }
+
+    private String resolveMimeType(String declaredMimeType, String fileName) {
+        if (declaredMimeType != null && !declaredMimeType.isBlank()) {
+            return declaredMimeType.trim();
+        }
+        return tika.detect(fileName == null ? "" : fileName);
     }
 }

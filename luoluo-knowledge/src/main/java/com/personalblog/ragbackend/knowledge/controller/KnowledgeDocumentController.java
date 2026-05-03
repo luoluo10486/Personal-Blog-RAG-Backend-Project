@@ -1,9 +1,8 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
+import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
-import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
-import com.personalblog.ragbackend.knowledge.service.document.TikaDocumentParseService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,18 +14,15 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping({"/luoluo/knowledge/document", "/luoluo/rag/document"})
 public class KnowledgeDocumentController {
-    private final TikaDocumentParseService tikaDocumentParseService;
-    private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
+    private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
 
-    public KnowledgeDocumentController(TikaDocumentParseService tikaDocumentParseService,
-                                       KnowledgeDocumentChunkService knowledgeDocumentChunkService) {
-        this.tikaDocumentParseService = tikaDocumentParseService;
-        this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
+    public KnowledgeDocumentController(KnowledgeDocumentApplicationService knowledgeDocumentApplicationService) {
+        this.knowledgeDocumentApplicationService = knowledgeDocumentApplicationService;
     }
 
     @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ParseResult> parseDocument(@RequestPart("file") MultipartFile file) {
-        ParseResult result = tikaDocumentParseService.parseFile(file);
+        ParseResult result = knowledgeDocumentApplicationService.parseFile(file);
         if (result.success()) {
             return ResponseEntity.ok(result);
         }
@@ -35,7 +31,7 @@ public class KnowledgeDocumentController {
 
     @PostMapping(value = "/chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentChunkResponse> chunkDocument(@RequestPart("file") MultipartFile file) {
-        DocumentChunkResponse result = knowledgeDocumentChunkService.chunkFile(file);
+        DocumentChunkResponse result = knowledgeDocumentApplicationService.chunkFile(file);
         if (result.success()) {
             return ResponseEntity.ok(result);
         }

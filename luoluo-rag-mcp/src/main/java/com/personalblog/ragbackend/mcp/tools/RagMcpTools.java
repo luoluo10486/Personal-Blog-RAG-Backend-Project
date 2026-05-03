@@ -2,12 +2,12 @@ package com.personalblog.ragbackend.mcp.tools;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
-import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetriever;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
@@ -29,20 +29,20 @@ public class RagMcpTools {
     private final KnowledgeRagApplicationService knowledgeRagApplicationService;
     private final KnowledgeRetriever knowledgeRetriever;
     private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
-    private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
+    private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
 
     public RagMcpTools(ObjectMapper objectMapper,
                        KnowledgeProperties knowledgeProperties,
                        KnowledgeRagApplicationService knowledgeRagApplicationService,
                        KnowledgeRetriever knowledgeRetriever,
                        KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
-                       KnowledgeDocumentChunkService knowledgeDocumentChunkService) {
+                       KnowledgeDocumentApplicationService knowledgeDocumentApplicationService) {
         this.objectMapper = objectMapper;
         this.knowledgeProperties = knowledgeProperties;
         this.knowledgeRagApplicationService = knowledgeRagApplicationService;
         this.knowledgeRetriever = knowledgeRetriever;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
-        this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
+        this.knowledgeDocumentApplicationService = knowledgeDocumentApplicationService;
     }
 
     @Tool(description = "查看当前正式知识库 RAG 服务状态、默认知识库和向量空间配置。")
@@ -94,7 +94,7 @@ public class RagMcpTools {
     public String chunkPlainText(
             @ToolParam(description = "需要切块的原始文本内容") String content
     ) {
-        DocumentChunkResponse response = knowledgeDocumentChunkService.chunkText(content);
+        DocumentChunkResponse response = knowledgeDocumentApplicationService.chunkText(content);
         return toJson(response);
     }
 

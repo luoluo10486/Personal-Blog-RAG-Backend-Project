@@ -1,29 +1,33 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
+import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingStrategyFactory;
+import com.personalblog.ragbackend.knowledge.core.chunk.strategy.FixedSizeChunkingStrategy;
+import com.personalblog.ragbackend.knowledge.core.chunk.strategy.StructureAwareChunkingStrategy;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class KnowledgeDocumentChunkServiceTest {
 
     @Test
     void chunkFileShouldSplitByStructureAndKeepSectionTitle() {
-        TikaDocumentParseService parseService = mock(TikaDocumentParseService.class);
         KnowledgeProperties properties = new KnowledgeProperties();
         properties.getChunking().setChunkSize(700);
         properties.getChunking().setChunkOverlap(120);
-        KnowledgeDocumentChunkService service = new KnowledgeDocumentChunkService(parseService, properties);
+        KnowledgeDocumentChunkService service = new KnowledgeDocumentChunkService(
+                properties,
+                new ChunkingStrategyFactory(java.util.List.of(
+                        new StructureAwareChunkingStrategy(),
+                        new FixedSizeChunkingStrategy()
+                ))
+        );
 
         String content = """
                 # Order Policy
@@ -37,13 +41,11 @@ class KnowledgeDocumentChunkServiceTest {
                 Member points can offset cash at checkout. Every 100 points equal 1 unit of currency.
                 """;
 
-        when(parseService.parseFile(any())).thenReturn(ParseResult.success(
+        DocumentChunkResponse response = service.chunkParsedResult(ParseResult.success(
                 "text/markdown",
                 content,
                 Map.of("resourceName", "policy.md")
         ));
-
-        DocumentChunkResponse response = service.chunkFile(new MockMultipartFile("file", "policy.md", "text/markdown", content.getBytes()));
 
         assertTrue(response.success());
         assertEquals(2, response.chunkCount());
@@ -54,12 +56,15 @@ class KnowledgeDocumentChunkServiceTest {
 
     @Test
     void chunkFileShouldReturnFailureWhenParseFails() {
-        TikaDocumentParseService parseService = mock(TikaDocumentParseService.class);
-        KnowledgeDocumentChunkService service = new KnowledgeDocumentChunkService(parseService, new KnowledgeProperties());
+        KnowledgeDocumentChunkService service = new KnowledgeDocumentChunkService(
+                new KnowledgeProperties(),
+                new ChunkingStrategyFactory(java.util.List.of(
+                        new StructureAwareChunkingStrategy(),
+                        new FixedSizeChunkingStrategy()
+                ))
+        );
 
-        when(parseService.parseFile(any())).thenReturn(ParseResult.failure("parse failed"));
-
-        DocumentChunkResponse response = service.chunkFile(new MockMultipartFile("file", "bad.pdf", "application/pdf", new byte[0]));
+        DocumentChunkResponse response = service.chunkParsedResult(ParseResult.failure("parse failed"));
 
         assertFalse(response.success());
         assertEquals("parse failed", response.errorMessage());
