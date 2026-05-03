@@ -1,18 +1,18 @@
 package com.personalblog.ragbackend.knowledge.service.ingest;
 
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class KnowledgeIngestionService {
     private final KnowledgeProperties knowledgeProperties;
-    private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
+    private final KnowledgeIngestionEngine knowledgeIngestionEngine;
 
     public KnowledgeIngestionService(KnowledgeProperties knowledgeProperties,
-                                     KnowledgeVectorSpaceResolver vectorSpaceResolver) {
+                                     KnowledgeIngestionEngine knowledgeIngestionEngine) {
         this.knowledgeProperties = knowledgeProperties;
-        this.vectorSpaceResolver = vectorSpaceResolver;
+        this.knowledgeIngestionEngine = knowledgeIngestionEngine;
     }
 
     public boolean isReady() {
@@ -20,13 +20,10 @@ public class KnowledgeIngestionService {
     }
 
     public KnowledgeIngestionPlan plan(String baseCode) {
-        String normalizedBaseCode = vectorSpaceResolver.normalizeBaseCode(baseCode);
-        return new KnowledgeIngestionPlan(
-                normalizedBaseCode,
-                vectorSpaceResolver.resolve(normalizedBaseCode),
-                knowledgeProperties.getChunking().getChunkSize(),
-                knowledgeProperties.getChunking().getChunkOverlap(),
-                knowledgeProperties.getChunking().getMaxChunkCount()
-        );
+        return knowledgeIngestionEngine.execute(new KnowledgeIngestionRequest(baseCode, null)).plan();
+    }
+
+    public KnowledgeIngestionResult ingest(String baseCode, MultipartFile file) {
+        return knowledgeIngestionEngine.execute(new KnowledgeIngestionRequest(baseCode, file));
     }
 }
