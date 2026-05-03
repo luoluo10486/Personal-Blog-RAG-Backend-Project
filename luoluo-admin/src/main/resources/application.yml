@@ -129,6 +129,7 @@ app:
       message-chunk-size: 5
       executor-threads: 4
   rag:
+    # 该段配置保留给 luoluo-rag Demo 模块；当前正式链路请优先使用 app.knowledge.*
     # 是否启用 RAG 功能
     enabled: true
     # embedding 生成模式：demo / siliconflow
@@ -165,11 +166,14 @@ app:
       database-name: ""
       collection-name: rag_demo_chunks
   knowledge:
-    # 独立知识库配置；app.rag 保留给现有 demo 接口使用
+    # 正式知识库配置；当前 luoluo-admin 与 luoluo-rag-mcp 都走这套链路
     enabled: true
     default-base-code: default
+    jdbc:
+      # 当前正式检索默认先走 JDBC 检索器；关闭后会回退到空检索实现
+      enabled: true
     vector:
-      # 可选：milvus / pg，当前项目默认先使用 Milvus，与 demo collection 隔离
+      # 可选：milvus / pg，当前主要用于正式链路的向量空间命名与后续扩展
       type: milvus
       milvus:
         enabled: true

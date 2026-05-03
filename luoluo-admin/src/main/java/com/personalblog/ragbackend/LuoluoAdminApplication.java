@@ -22,7 +22,6 @@ import java.util.Enumeration;
  */
 @SpringBootApplication(scanBasePackages = "com.personalblog.ragbackend")
 @ConfigurationPropertiesScan(basePackages = {
-        "com.personalblog.ragbackend.rag.config",
         "com.personalblog.ragbackend.knowledge.config",
         "com.personalblog.ragbackend.member.config"
 })
@@ -59,8 +58,8 @@ public class LuoluoAdminApplication {
         String externalBaseUrl = "http://" + ip + ":" + port + accessPath;
         String startupDuration = formatDuration(System.currentTimeMillis() - startTime);
 
-        boolean milvusEnabled = env.getProperty("app.rag.milvus.enabled", Boolean.class, false);
-        String milvusUri = env.getProperty("app.rag.milvus.uri", "http://127.0.0.1:19530");
+        boolean milvusEnabled = env.getProperty("app.knowledge.vector.milvus.enabled", Boolean.class, false);
+        String milvusUri = env.getProperty("app.knowledge.vector.milvus.uri", "http://127.0.0.1:19530");
 
         log.info("\n\n" +
                         "======================================================================\n" +

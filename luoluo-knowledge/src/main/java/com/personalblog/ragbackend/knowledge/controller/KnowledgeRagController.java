@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/luoluo/knowledge")
+@RequestMapping({"/luoluo/knowledge", "/luoluo/rag"})
 public class KnowledgeRagController {
     private final KnowledgeRagApplicationService knowledgeRagApplicationService;
 
