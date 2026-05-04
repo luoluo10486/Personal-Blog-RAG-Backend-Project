@@ -16,14 +16,19 @@ public class KnowledgeIngestionEngine {
     }
 
     public KnowledgeIngestionResult execute(KnowledgeIngestionRequest request) {
-        KnowledgeIngestionContext context = new KnowledgeIngestionContext(request.baseCode(), request.file());
+        KnowledgeIngestionContext context = new KnowledgeIngestionContext(
+                request.baseCode(),
+                request.file(),
+                request.mode()
+        );
         for (KnowledgeIngestionNode node : nodes) {
             node.execute(context);
         }
         return new KnowledgeIngestionResult(
                 context.getPlan(),
                 context.getParseResult(),
-                context.getChunkResponse()
+                context.getChunkResponse(),
+                context.getIngestionSummary()
         );
     }
 }

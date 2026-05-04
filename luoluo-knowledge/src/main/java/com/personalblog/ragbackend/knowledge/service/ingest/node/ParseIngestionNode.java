@@ -33,9 +33,13 @@ public class ParseIngestionNode implements KnowledgeIngestionNode {
 
     @Override
     public void execute(KnowledgeIngestionContext context) {
+        if (context.isPlanOnly()) {
+            return;
+        }
+
         MultipartFile file = context.getFile();
         if (file == null || file.isEmpty()) {
-            context.setParseResult(ParseResult.failure("文件为空"));
+            context.setParseResult(ParseResult.failure("鏂囦欢涓虹┖"));
             return;
         }
 
@@ -46,7 +50,7 @@ public class ParseIngestionNode implements KnowledgeIngestionNode {
         try (InputStream inputStream = file.getInputStream()) {
             context.setParseResult(parser.parse(inputStream, fileName, declaredMimeType));
         } catch (IOException exception) {
-            context.setParseResult(ParseResult.failure("读取文件失败: " + exception.getMessage()));
+            context.setParseResult(ParseResult.failure("璇诲彇鏂囦欢澶辫触: " + exception.getMessage()));
         }
     }
 

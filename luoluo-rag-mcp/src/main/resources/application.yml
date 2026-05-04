@@ -20,36 +20,117 @@ logging:
     root: OFF
 
 app:
-  rag:
+  ai:
     enabled: true
-    embedding-provider: demo
-    api-url: https://api.siliconflow.cn/v1/chat/completions
-    embedding-api-url: https://api.siliconflow.cn/v1/embeddings
-    api-key: ${SILICONFLOW_API_KEY:}
-    model: Qwen/Qwen3-32B
-    embedding-model: Qwen/Qwen3-Embedding-8B
-    temperature: 0
-    max-tokens: 1024
     connect-timeout-seconds: 30
     read-timeout-seconds: 60
-    demo-embedding-dimension: 64
-    system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
-    retrieval:
-      mode: HYBRID
-      dense-recall-top-k: 12
-      sparse-recall-top-k: 12
-      nprobe: 16
-      drop-ratio-search: 0.2
-      rrf-k: 60
-      consistency-level: BOUNDED
+    providers:
+      siliconflow:
+        type: siliconflow
+        base-url: https://api.siliconflow.cn
+        api-key: ${SILICONFLOW_API_KEY:}
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /v1/embeddings
+          rerank: /v1/rerank
+      ollama:
+        type: ollama
+        base-url: http://localhost:11434
+        api-key: ""
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /api/embed
+          rerank: /v1/rerank
+    chat:
+      default-model: siliconflow-chat
+      deep-thinking-model: siliconflow-chat
+      candidates:
+        - id: siliconflow-chat
+          provider: siliconflow
+          model: Qwen/Qwen3-32B
+          priority: 10
+          supports-thinking: true
+    embedding:
+      default-model: siliconflow-embedding
+      candidates:
+        - id: siliconflow-embedding
+          provider: siliconflow
+          model: Qwen/Qwen3-Embedding-8B
+          dimension: 1536
+          priority: 10
     rerank:
+      default-model: noop-rerank
+      candidates:
+        - id: noop-rerank
+          provider: noop
+          model: noop
+          priority: 100
+        - id: siliconflow-rerank
+          provider: siliconflow
+          model: BAAI/bge-reranker-v2-m3
+          priority: 10
+          enabled: false
+    selection:
+      failure-threshold: 2
+      open-duration-ms: 30000
+    stream:
+      message-chunk-size: 5
+      executor-threads: 4
+  knowledge:
+    enabled: true
+    default-base-code: default
+    jdbc:
+      enabled: false
+    vector:
+      type: milvus
+      milvus:
+        enabled: true
+        uri: http://127.0.0.1:19530
+        token: ""
+        database-name: ""
+        collection-prefix: kb_
+        consistency-level: BOUNDED
+        nprobe: 16
+      pg:
+        enabled: false
+        schema: public
+        table-name: knowledge_chunk_vector
+    defaults:
+      collection-name: knowledge_default_store
+      dimension: 1536
+      metric-type: COSINE
+      embedding-model: Qwen/Qwen3-Embedding-8B
+      chat-model: Qwen/Qwen3-32B
+      rerank-model: BAAI/bge-reranker-v2-m3
+    chunking:
+      strategy: structure-aware
+      chunk-size: 800
+      chunk-overlap: 120
+      max-chunk-count: 1000
+    search:
+      top-k: 8
+      top-k-multiplier: 3
+      confidence-threshold: 0.6
+      rrf-k: 60
+      rerank:
+        enabled: true
+        provider: demo
+    trace:
       enabled: true
-      provider: demo
-      api-url: https://api.siliconflow.cn/v1/rerank
-      model: BAAI/bge-reranker-v2-m3
-    milvus:
-      enabled: true
-      uri: http://127.0.0.1:19530
-      token: ""
-      database-name: ""
-      collection-name: rag_demo_chunks
+      max-error-length: 1000
+    providers:
+      - id: siliconflow
+        type: siliconflow
+        base-url: https://api.siliconflow.cn
+        api-key: ${SILICONFLOW_API_KEY:}
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /v1/embeddings
+          rerank: /v1/rerank
+      - id: ollama
+        type: ollama
+        base-url: http://localhost:11434
+        endpoints:
+          chat: /v1/chat/completions
+          embedding: /api/embed
+          rerank: /v1/rerank

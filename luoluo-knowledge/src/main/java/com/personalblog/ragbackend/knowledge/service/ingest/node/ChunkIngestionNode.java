@@ -27,11 +27,16 @@ public class ChunkIngestionNode implements KnowledgeIngestionNode {
 
     @Override
     public void execute(KnowledgeIngestionContext context) {
-        ParseResult parseResult = context.getParseResult();
-        if (parseResult == null) {
-            context.setChunkResponse(DocumentChunkResponse.failure("解析结果不能为空"));
+        if (context.isPlanOnly()) {
             return;
         }
+
+        ParseResult parseResult = context.getParseResult();
+        if (parseResult == null) {
+            context.setChunkResponse(DocumentChunkResponse.failure("瑙ｆ瀽缁撴灉涓嶈兘涓虹┖"));
+            return;
+        }
+
         context.setChunkResponse(knowledgeDocumentChunkService.chunkParsedResult(parseResult));
     }
 }

@@ -27,7 +27,8 @@ import java.util.Enumeration;
 })
 @MapperScan({
         "com.personalblog.ragbackend.member.mapper",
-        "com.personalblog.ragbackend.common.auth.mapper"
+        "com.personalblog.ragbackend.common.auth.mapper",
+        "com.personalblog.ragbackend.knowledge.mapper"
 })
 public class LuoluoAdminApplication {
     private static final Logger log = LoggerFactory.getLogger(LuoluoAdminApplication.class);

@@ -20,10 +20,14 @@ public class KnowledgeIngestionService {
     }
 
     public KnowledgeIngestionPlan plan(String baseCode) {
-        return knowledgeIngestionEngine.execute(new KnowledgeIngestionRequest(baseCode, null)).plan();
+        return knowledgeIngestionEngine.execute(
+                new KnowledgeIngestionRequest(baseCode, null, KnowledgeIngestionMode.PLAN_ONLY)
+        ).plan();
     }
 
     public KnowledgeIngestionResult ingest(String baseCode, MultipartFile file) {
-        return knowledgeIngestionEngine.execute(new KnowledgeIngestionRequest(baseCode, file));
+        return knowledgeIngestionEngine.execute(
+                new KnowledgeIngestionRequest(baseCode, file, KnowledgeIngestionMode.INGEST)
+        );
     }
 }

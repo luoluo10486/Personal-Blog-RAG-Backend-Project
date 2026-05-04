@@ -1,9 +1,11 @@
 package com.personalblog.ragbackend.knowledge.application;
 
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
+import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
+import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRequest;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
 import org.springframework.stereotype.Service;
@@ -21,18 +23,30 @@ public class KnowledgeDocumentApplicationService {
     }
 
     public ParseResult parseFile(MultipartFile file) {
-        return runIngestion(file).parseResult();
+        return runPreview(file).parseResult();
     }
 
     public DocumentChunkResponse chunkFile(MultipartFile file) {
-        return runIngestion(file).chunkResponse();
+        return runPreview(file).chunkResponse();
     }
 
     public DocumentChunkResponse chunkText(String content) {
         return knowledgeDocumentChunkService.chunkText(content);
     }
 
-    private KnowledgeIngestionResult runIngestion(MultipartFile file) {
-        return knowledgeIngestionEngine.execute(new KnowledgeIngestionRequest(null, file));
+    public DocumentIngestionSummary ingestFile(String baseCode, MultipartFile file) {
+        KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
+                new KnowledgeIngestionRequest(baseCode, file, KnowledgeIngestionMode.INGEST)
+        );
+        if (result.ingestionSummary() != null) {
+            return result.ingestionSummary();
+        }
+        return DocumentIngestionSummary.failure(baseCode, "Ingestion did not produce a summary");
+    }
+
+    private KnowledgeIngestionResult runPreview(MultipartFile file) {
+        return knowledgeIngestionEngine.execute(
+                new KnowledgeIngestionRequest(null, file, KnowledgeIngestionMode.PREVIEW)
+        );
     }
 }
