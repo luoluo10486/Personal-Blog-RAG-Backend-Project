@@ -6,6 +6,10 @@ public record KnowledgeAskRequest(
         @NotBlank(message = "question 不能为空")
         String question,
         String baseCode,
-        Integer topK
+        Integer topK,
+        String conversationId
 ) {
+    public KnowledgeAskRequest(String question, String baseCode, Integer topK) {
+        this(question, baseCode, topK, null);
+    }
 }

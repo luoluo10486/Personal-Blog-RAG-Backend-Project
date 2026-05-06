@@ -3,6 +3,7 @@ package com.personalblog.ragbackend.knowledge.service.retrieval;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessException;
@@ -55,6 +56,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
     }
 
     @Override
+    @RagTraceNode(name = "jdbc-retriever", type = "RETRIEVE_CHANNEL")
     public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
         String baseCode = request.baseCode();
         String question = request.question();

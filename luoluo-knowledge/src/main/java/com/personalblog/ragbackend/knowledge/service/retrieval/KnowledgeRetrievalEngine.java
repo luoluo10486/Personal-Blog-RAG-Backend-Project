@@ -2,6 +2,7 @@ package com.personalblog.ragbackend.knowledge.service.retrieval;
 
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.retrieval.postprocessor.SearchResultPostProcessor;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class KnowledgeRetrievalEngine {
                 .toList();
     }
 
+    @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
     public List<KnowledgeChunk> retrieve(RetrieveRequest request) {
         List<KnowledgeChunk> processed = retrieveCandidates(request);
         for (SearchResultPostProcessor processor : postProcessors) {

@@ -9,6 +9,7 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionPe
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
 import com.personalblog.ragbackend.knowledge.service.vector.model.KnowledgeVectorDocument;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +42,7 @@ public class IndexIngestionNode implements KnowledgeIngestionNode {
     }
 
     @Override
+    @RagTraceNode(name = "index-ingestion", type = "INGEST_INDEX")
     public void execute(KnowledgeIngestionContext context) {
         if (!context.isIngestMode()) {
             return;

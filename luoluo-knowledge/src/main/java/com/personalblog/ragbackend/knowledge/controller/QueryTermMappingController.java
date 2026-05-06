@@ -39,14 +39,14 @@ public class QueryTermMappingController {
     @PostMapping("/mappings")
     public R<Long> create(@RequestBody QueryTermMappingEntity request) {
         return R.ok(queryTermMappingAdminService.create(
-                request.sourceTerm, request.targetTerm, request.matchType, request.priority,
+                request.domain, request.sourceTerm, request.targetTerm, request.matchType, request.priority,
                 request.enabled == null ? null : request.enabled == 1, request.remark));
     }
 
     @PutMapping("/mappings/{id}")
     public R<Void> update(@PathVariable Long id, @RequestBody QueryTermMappingEntity request) {
         queryTermMappingAdminService.update(
-                id, request.sourceTerm, request.targetTerm, request.matchType, request.priority,
+                id, request.domain, request.sourceTerm, request.targetTerm, request.matchType, request.priority,
                 request.enabled == null ? null : request.enabled == 1, request.remark);
         return R.ok();
     }

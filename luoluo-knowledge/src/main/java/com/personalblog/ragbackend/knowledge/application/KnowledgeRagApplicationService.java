@@ -6,12 +6,17 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
+import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
+import com.personalblog.ragbackend.knowledge.service.rag.RagConversationService;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetrievalEngine;
 import com.personalblog.ragbackend.knowledge.service.retrieval.RetrieveRequest;
+import com.personalblog.ragbackend.knowledge.service.rewrite.QueryTermRewriteService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceRoot;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StopWatch;
 
@@ -24,17 +29,23 @@ public class KnowledgeRagApplicationService {
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
     private final KnowledgeAnswerGenerator answerGenerator;
+    private final QueryTermRewriteService queryTermRewriteService;
+    private final RagConversationService ragConversationService;
 
     public KnowledgeRagApplicationService(
             KnowledgeProperties knowledgeProperties,
             KnowledgeVectorSpaceResolver vectorSpaceResolver,
             KnowledgeRetrievalEngine knowledgeRetrievalEngine,
-            KnowledgeAnswerGenerator answerGenerator
+            KnowledgeAnswerGenerator answerGenerator,
+            QueryTermRewriteService queryTermRewriteService,
+            RagConversationService ragConversationService
     ) {
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
         this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
         this.answerGenerator = answerGenerator;
+        this.queryTermRewriteService = queryTermRewriteService;
+        this.ragConversationService = ragConversationService;
     }
 
     public KnowledgeHealthResponse health() {
@@ -49,6 +60,7 @@ public class KnowledgeRagApplicationService {
         );
     }
 
+    @RagTraceRoot(name = "knowledge-ask")
     public KnowledgeAskResponse ask(KnowledgeAskRequest request) {
         StopWatch stopWatch = new StopWatch("knowledge-rag");
         List<String> steps = new ArrayList<>();
@@ -57,12 +69,16 @@ public class KnowledgeRagApplicationService {
         int topK = normalizeTopK(request.topK());
         KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(baseCode);
         steps.add("resolve-collection");
+        KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(request.question(), baseCode);
+        steps.add("rewrite:" + rewriteResult.appliedMappings().size());
         stopWatch.start("retrieve");
-        List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, request.question(), topK));
+        List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(
+                new RetrieveRequest(baseCode, rewriteResult.rewrittenQuestion(), topK)
+        );
         stopWatch.stop();
         steps.add("retrieve:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
         stopWatch.start("generate");
-        String answer = answerGenerator.generate(request.question(), chunks);
+        String answer = answerGenerator.generate(rewriteResult.rewrittenQuestion(), chunks);
         stopWatch.stop();
         steps.add("generate:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
         List<KnowledgeCitation> citations = chunks.stream()
@@ -75,11 +91,22 @@ public class KnowledgeRagApplicationService {
                         chunk.content()
                 ))
                 .toList();
+        ragConversationService.persistExchange(
+                request.conversationId(),
+                request.question(),
+                answer,
+                baseCode,
+                citations.size()
+        );
         KnowledgeTrace trace = new KnowledgeTrace(
+                RagTraceContext.getTraceId(),
+                request.conversationId(),
                 "knowledge-rag",
                 vectorSpace.vectorType(),
                 vectorSpace.collectionName(),
                 topK,
+                rewriteResult.originalQuestion(),
+                rewriteResult.rewrittenQuestion(),
                 steps
         );
         return new KnowledgeAskResponse(answer, baseCode, citations, trace);

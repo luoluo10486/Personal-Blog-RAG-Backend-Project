@@ -35,11 +35,18 @@ public class QueryTermMappingAdminService {
         return entity;
     }
 
-    public Long create(String sourceTerm, String targetTerm, Integer matchType, Integer priority, Boolean enabled, String remark) {
+    public Long create(String domain,
+                       String sourceTerm,
+                       String targetTerm,
+                       Integer matchType,
+                       Integer priority,
+                       Boolean enabled,
+                       String remark) {
         if (sourceTerm == null || sourceTerm.isBlank() || targetTerm == null || targetTerm.isBlank()) {
             throw new IllegalArgumentException("源词和目标词不能为空");
         }
         QueryTermMappingEntity entity = new QueryTermMappingEntity();
+        entity.domain = blankToNull(domain);
         entity.sourceTerm = sourceTerm.trim();
         entity.targetTerm = targetTerm.trim();
         entity.matchType = matchType == null ? 1 : matchType;
@@ -52,8 +59,18 @@ public class QueryTermMappingAdminService {
         return entity.id;
     }
 
-    public void update(Long id, String sourceTerm, String targetTerm, Integer matchType, Integer priority, Boolean enabled, String remark) {
+    public void update(Long id,
+                       String domain,
+                       String sourceTerm,
+                       String targetTerm,
+                       Integer matchType,
+                       Integer priority,
+                       Boolean enabled,
+                       String remark) {
         QueryTermMappingEntity entity = queryById(id);
+        if (domain != null) {
+            entity.domain = blankToNull(domain);
+        }
         if (sourceTerm != null) {
             entity.sourceTerm = sourceTerm.trim();
         }
@@ -78,5 +95,9 @@ public class QueryTermMappingAdminService {
 
     public void delete(Long id) {
         queryTermMappingMapper.deleteById(id);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

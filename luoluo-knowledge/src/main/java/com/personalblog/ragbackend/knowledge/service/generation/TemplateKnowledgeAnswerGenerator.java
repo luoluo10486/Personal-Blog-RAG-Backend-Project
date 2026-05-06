@@ -4,6 +4,7 @@ import com.personalblog.ragbackend.infra.ai.chat.LLMService;
 import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +23,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
     }
 
     @Override
+    @RagTraceNode(name = "answer-generate", type = "GENERATE")
     public String generate(String question, List<KnowledgeChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return "知识库没有检索到足够相关的内容，建议补充文档、检查知识库编码或降低检索阈值后再试。";

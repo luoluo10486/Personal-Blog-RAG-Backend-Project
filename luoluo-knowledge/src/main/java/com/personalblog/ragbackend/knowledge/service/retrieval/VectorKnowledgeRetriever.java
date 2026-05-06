@@ -10,6 +10,7 @@ import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
     }
 
     @Override
+    @RagTraceNode(name = "vector-retriever", type = "RETRIEVE_CHANNEL")
     public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
         EmbeddingService embeddingService = embeddingServiceProvider.getIfAvailable();
         VectorStoreService vectorStoreService = vectorStoreServiceProvider.getIfAvailable();

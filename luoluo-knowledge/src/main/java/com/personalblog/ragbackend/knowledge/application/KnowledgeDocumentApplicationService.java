@@ -35,8 +35,10 @@ public class KnowledgeDocumentApplicationService {
     }
 
     public DocumentIngestionSummary ingestFile(String baseCode, MultipartFile file) {
+        String sourceFileName = file == null ? null : file.getOriginalFilename();
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
-                new KnowledgeIngestionRequest(baseCode, file, KnowledgeIngestionMode.INGEST)
+                new KnowledgeIngestionRequest(baseCode, file, KnowledgeIngestionMode.INGEST,
+                        null, null, "file", sourceFileName, sourceFileName)
         );
         if (result.ingestionSummary() != null) {
             return result.ingestionSummary();
@@ -45,8 +47,10 @@ public class KnowledgeDocumentApplicationService {
     }
 
     private KnowledgeIngestionResult runPreview(MultipartFile file) {
+        String sourceFileName = file == null ? null : file.getOriginalFilename();
         return knowledgeIngestionEngine.execute(
-                new KnowledgeIngestionRequest(null, file, KnowledgeIngestionMode.PREVIEW)
+                new KnowledgeIngestionRequest(null, file, KnowledgeIngestionMode.PREVIEW,
+                        null, null, "file", sourceFileName, sourceFileName)
         );
     }
 }

@@ -6,6 +6,7 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionCo
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionPlan;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -30,6 +31,7 @@ public class PlanIngestionNode implements KnowledgeIngestionNode {
     }
 
     @Override
+    @RagTraceNode(name = "plan-ingestion", type = "INGEST_PLAN")
     public void execute(KnowledgeIngestionContext context) {
         String normalizedBaseCode = vectorSpaceResolver.normalizeBaseCode(context.getBaseCode());
         context.setPlan(new KnowledgeIngestionPlan(

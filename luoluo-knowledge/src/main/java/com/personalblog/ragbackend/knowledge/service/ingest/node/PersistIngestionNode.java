@@ -4,6 +4,7 @@ import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSumma
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionContext;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionPersistenceService;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,7 @@ public class PersistIngestionNode implements KnowledgeIngestionNode {
     }
 
     @Override
+    @RagTraceNode(name = "persist-ingestion", type = "INGEST_PERSIST")
     public void execute(KnowledgeIngestionContext context) {
         if (!context.isIngestMode()) {
             return;

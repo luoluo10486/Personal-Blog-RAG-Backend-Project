@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping({"/luoluo/knowledge", "/luoluo/rag"})
 public class KnowledgeRagController {
@@ -28,7 +30,14 @@ public class KnowledgeRagController {
 
     @PostMapping("/ask")
     public R<KnowledgeAskResponse> ask(@Valid @RequestBody KnowledgeAskRequest request) {
-        return R.ok(knowledgeRagApplicationService.ask(request));
+        KnowledgeAskRequest normalized = request.conversationId() == null || request.conversationId().isBlank()
+                ? new KnowledgeAskRequest(
+                        request.question(),
+                        request.baseCode(),
+                        request.topK(),
+                        UUID.randomUUID().toString().replace("-", ""))
+                : request;
+        return R.ok(knowledgeRagApplicationService.ask(normalized));
     }
 }
 

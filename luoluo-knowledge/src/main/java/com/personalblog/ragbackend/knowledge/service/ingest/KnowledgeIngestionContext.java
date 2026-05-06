@@ -14,6 +14,11 @@ public class KnowledgeIngestionContext {
     private final String baseCode;
     private final MultipartFile file;
     private final KnowledgeIngestionMode mode;
+    private final Long pipelineId;
+    private final String taskId;
+    private final String sourceType;
+    private final String sourceLocation;
+    private final String sourceFileName;
 
     private KnowledgeIngestionPlan plan;
     private ParseResult parseResult;
@@ -22,15 +27,32 @@ public class KnowledgeIngestionContext {
     private List<List<Float>> embeddings = List.of();
     private List<KnowledgeChunkEntity> persistedChunks = List.of();
     private List<String> staleVectorIds = List.of();
+    private List<KnowledgeIngestionNodeLog> nodeLogs = List.of();
     private Long knowledgeBaseId;
     private Long documentId;
     private boolean vectorIndexed;
     private DocumentIngestionSummary ingestionSummary;
 
     public KnowledgeIngestionContext(String baseCode, MultipartFile file, KnowledgeIngestionMode mode) {
+        this(baseCode, file, mode, null, null, null, null, null);
+    }
+
+    public KnowledgeIngestionContext(String baseCode,
+                                     MultipartFile file,
+                                     KnowledgeIngestionMode mode,
+                                     Long pipelineId,
+                                     String taskId,
+                                     String sourceType,
+                                     String sourceLocation,
+                                     String sourceFileName) {
         this.baseCode = baseCode;
         this.file = file;
         this.mode = mode == null ? KnowledgeIngestionMode.PREVIEW : mode;
+        this.pipelineId = pipelineId;
+        this.taskId = taskId;
+        this.sourceType = sourceType;
+        this.sourceLocation = sourceLocation;
+        this.sourceFileName = sourceFileName;
     }
 
     public String getBaseCode() {
@@ -55,6 +77,26 @@ public class KnowledgeIngestionContext {
 
     public boolean isIngestMode() {
         return mode == KnowledgeIngestionMode.INGEST;
+    }
+
+    public Long getPipelineId() {
+        return pipelineId;
+    }
+
+    public String getTaskId() {
+        return taskId;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public String getSourceLocation() {
+        return sourceLocation;
+    }
+
+    public String getSourceFileName() {
+        return sourceFileName;
     }
 
     public KnowledgeIngestionPlan getPlan() {
@@ -122,6 +164,23 @@ public class KnowledgeIngestionContext {
 
     public void setStaleVectorIds(List<String> staleVectorIds) {
         this.staleVectorIds = staleVectorIds == null ? List.of() : List.copyOf(staleVectorIds);
+    }
+
+    public List<KnowledgeIngestionNodeLog> getNodeLogs() {
+        return nodeLogs;
+    }
+
+    public void setNodeLogs(List<KnowledgeIngestionNodeLog> nodeLogs) {
+        this.nodeLogs = nodeLogs == null ? List.of() : List.copyOf(nodeLogs);
+    }
+
+    public void addNodeLog(KnowledgeIngestionNodeLog nodeLog) {
+        if (nodeLog == null) {
+            return;
+        }
+        List<KnowledgeIngestionNodeLog> current = new ArrayList<>(this.nodeLogs);
+        current.add(nodeLog);
+        this.nodeLogs = List.copyOf(current);
     }
 
     public Long getKnowledgeBaseId() {

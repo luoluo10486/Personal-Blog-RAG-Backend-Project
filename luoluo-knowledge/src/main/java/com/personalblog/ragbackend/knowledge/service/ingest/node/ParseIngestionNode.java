@@ -5,6 +5,7 @@ import com.personalblog.ragbackend.knowledge.core.parser.DocumentParserSelector;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionContext;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,6 +33,7 @@ public class ParseIngestionNode implements KnowledgeIngestionNode {
     }
 
     @Override
+    @RagTraceNode(name = "parse-ingestion", type = "INGEST_PARSE")
     public void execute(KnowledgeIngestionContext context) {
         if (context.isPlanOnly()) {
             return;

@@ -8,6 +8,13 @@ public record KnowledgeIngestionResult(
         KnowledgeIngestionPlan plan,
         ParseResult parseResult,
         DocumentChunkResponse chunkResponse,
-        DocumentIngestionSummary ingestionSummary
+        DocumentIngestionSummary ingestionSummary,
+        java.util.List<KnowledgeIngestionNodeLog> nodeLogs
 ) {
+    public KnowledgeIngestionResult(KnowledgeIngestionPlan plan,
+                                    ParseResult parseResult,
+                                    DocumentChunkResponse chunkResponse,
+                                    DocumentIngestionSummary ingestionSummary) {
+        this(plan, parseResult, chunkResponse, ingestionSummary, java.util.List.of());
+    }
 }

@@ -5,6 +5,7 @@ import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionContext;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,6 +27,7 @@ public class ChunkIngestionNode implements KnowledgeIngestionNode {
     }
 
     @Override
+    @RagTraceNode(name = "chunk-ingestion", type = "INGEST_CHUNK")
     public void execute(KnowledgeIngestionContext context) {
         if (context.isPlanOnly()) {
             return;
