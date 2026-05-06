@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeAdminApplicationService;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
@@ -117,5 +118,12 @@ public class KnowledgeDocumentController {
                           @RequestParam("value") boolean enabled) {
         knowledgeAdminApplicationService.enableDocument(docId, enabled);
         return R.ok();
+    }
+
+    @GetMapping("/knowledge-base/docs/{docId}/chunk-logs")
+    public R<IPage<KnowledgeDocumentChunkLogView>> getChunkLogs(@PathVariable Long docId,
+                                                                @RequestParam(value = "current", defaultValue = "1") long current,
+                                                                @RequestParam(value = "size", defaultValue = "10") long size) {
+        return R.ok(knowledgeAdminApplicationService.pageChunkLogs(docId, current, size));
     }
 }

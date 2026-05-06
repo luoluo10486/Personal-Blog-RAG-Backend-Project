@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
@@ -14,8 +16,10 @@ import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentChunkLogMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeVectorRefMapper;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRequest;
@@ -36,8 +40,10 @@ public class KnowledgeDocumentAdminService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final KnowledgeVectorRefMapper knowledgeVectorRefMapper;
+    private final KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper;
     private final KnowledgeIngestionEngine knowledgeIngestionEngine;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
+    private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final KnowledgeAdminSupport support;
     private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
 
@@ -45,49 +51,64 @@ public class KnowledgeDocumentAdminService {
                                          KnowledgeDocumentMapper knowledgeDocumentMapper,
                                          KnowledgeChunkMapper knowledgeChunkMapper,
                                          KnowledgeVectorRefMapper knowledgeVectorRefMapper,
+                                         KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper,
                                          KnowledgeIngestionEngine knowledgeIngestionEngine,
                                          KnowledgeVectorSpaceResolver vectorSpaceResolver,
+                                         KnowledgeFileStorageService knowledgeFileStorageService,
                                          KnowledgeAdminSupport support,
                                          ObjectProvider<VectorStoreService> vectorStoreServiceProvider) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeChunkMapper = knowledgeChunkMapper;
         this.knowledgeVectorRefMapper = knowledgeVectorRefMapper;
+        this.knowledgeDocumentChunkLogMapper = knowledgeDocumentChunkLogMapper;
         this.knowledgeIngestionEngine = knowledgeIngestionEngine;
         this.vectorSpaceResolver = vectorSpaceResolver;
+        this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.support = support;
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
     }
 
     @Transactional
-    public KnowledgeDocumentView upload(Long kbId,
-                                        KnowledgeDocumentUploadRequest request,
-                                        MultipartFile file) {
+    public KnowledgeDocumentView upload(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(kbId);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("上传文件不能为空");
         }
-        String baseCode = resolveBaseCode(knowledgeBase);
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
-                new KnowledgeIngestionRequest(baseCode, file, KnowledgeIngestionMode.INGEST)
+                new KnowledgeIngestionRequest(resolveBaseCode(knowledgeBase), file, KnowledgeIngestionMode.INGEST)
         );
         DocumentIngestionSummary summary = result.ingestionSummary();
-        if (summary == null) {
-            throw new IllegalArgumentException("文档入库失败");
-        }
-        if (!summary.success()) {
-            throw new IllegalArgumentException(summary.errorMessage());
+        if (summary == null || !summary.success()) {
+            throw new IllegalArgumentException(summary == null ? "文档入库失败" : summary.errorMessage());
         }
         KnowledgeDocumentEntity entity = requireDocument(summary.documentId());
-        applyUploadMetadata(entity, request);
+        applyUploadMetadata(entity, request, file);
         knowledgeDocumentMapper.updateById(entity);
         return support.toKnowledgeDocumentView(requireDocument(entity.getId()));
     }
 
     @Transactional
     public void startChunk(Long documentId) {
-        requireDocument(documentId);
-        throw new IllegalArgumentException("当前版本请重新上传文档以完成重新切块和向量重建");
+        KnowledgeDocumentEntity document = requireDocument(documentId);
+        if (!StringUtils.hasText(document.getFileUrl())) {
+            throw new IllegalArgumentException("文档没有可用的源文件路径，请重新上传");
+        }
+        MultipartFile file = knowledgeFileStorageService.restore(
+                document.getFileUrl(),
+                document.getDocName(),
+                document.getFileType()
+        );
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("文档源文件不存在");
+        }
+        KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
+                new KnowledgeIngestionRequest(resolveBaseCode(requireKnowledgeBase(document.getKbId())), file, KnowledgeIngestionMode.INGEST)
+        );
+        DocumentIngestionSummary summary = result.ingestionSummary();
+        if (summary == null || !summary.success()) {
+            throw new IllegalArgumentException(summary == null ? "重新分块失败" : summary.errorMessage());
+        }
     }
 
     @Transactional
@@ -169,6 +190,18 @@ public class KnowledgeDocumentAdminService {
                 .toList();
     }
 
+    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(Long documentId, long current, long size) {
+        requireDocument(documentId);
+        IPage<KnowledgeDocumentChunkLogEntity> page = knowledgeDocumentChunkLogMapper.selectPage(
+                support.newPage(current, size),
+                new LambdaQueryWrapper<KnowledgeDocumentChunkLogEntity>()
+                        .eq(KnowledgeDocumentChunkLogEntity::getDocId, documentId)
+                        .orderByDesc(KnowledgeDocumentChunkLogEntity::getStartedAt)
+                        .orderByDesc(KnowledgeDocumentChunkLogEntity::getId)
+        );
+        return support.mapPage(page, page.getRecords().stream().map(support::toKnowledgeDocumentChunkLogView).toList());
+    }
+
     @Transactional
     public void enable(Long documentId, boolean enabled) {
         KnowledgeDocumentEntity entity = requireDocument(documentId);
@@ -176,35 +209,34 @@ public class KnowledgeDocumentAdminService {
         knowledgeDocumentMapper.updateById(entity);
     }
 
-    private void applyUploadMetadata(KnowledgeDocumentEntity entity, KnowledgeDocumentUploadRequest request) {
-        if (request == null) {
-            return;
-        }
-        if (request.getSourceType() != null) {
-            entity.setSourceType(blankToNull(request.getSourceType()));
-        }
-        if (request.getSourceLocation() != null) {
-            entity.setSourceLocation(blankToNull(request.getSourceLocation()));
-        }
-        if (request.getScheduleEnabled() != null) {
-            entity.setScheduleEnabled(Boolean.TRUE.equals(request.getScheduleEnabled()) ? 1 : 0);
-        }
-        if (request.getScheduleCron() != null) {
-            entity.setScheduleCron(blankToNull(request.getScheduleCron()));
-        }
-        if (request.getProcessMode() != null) {
-            entity.setProcessMode(blankToNull(request.getProcessMode()));
-        }
-        if (request.getChunkStrategy() != null) {
-            entity.setChunkStrategy(StringUtils.hasText(request.getChunkStrategy())
-                    ? support.normalizeChunkStrategy(request.getChunkStrategy())
-                    : entity.getChunkStrategy());
-        }
-        if (request.getChunkConfig() != null) {
-            entity.setChunkConfig(blankToNull(request.getChunkConfig()));
-        }
-        if (request.getPipelineId() != null) {
-            entity.setPipelineId(request.getPipelineId());
+    private void applyUploadMetadata(KnowledgeDocumentEntity entity, KnowledgeDocumentUploadRequest request, MultipartFile file) {
+        if (request != null) {
+            if (request.getSourceType() != null) {
+                entity.setSourceType(blankToNull(request.getSourceType()));
+            }
+            if (request.getSourceLocation() != null) {
+                entity.setSourceLocation(blankToNull(request.getSourceLocation()));
+            }
+            if (request.getScheduleEnabled() != null) {
+                entity.setScheduleEnabled(Boolean.TRUE.equals(request.getScheduleEnabled()) ? 1 : 0);
+            }
+            if (request.getScheduleCron() != null) {
+                entity.setScheduleCron(blankToNull(request.getScheduleCron()));
+            }
+            if (request.getProcessMode() != null) {
+                entity.setProcessMode(blankToNull(request.getProcessMode()));
+            }
+            if (request.getChunkStrategy() != null) {
+                entity.setChunkStrategy(StringUtils.hasText(request.getChunkStrategy())
+                        ? support.normalizeChunkStrategy(request.getChunkStrategy())
+                        : entity.getChunkStrategy());
+            }
+            if (request.getChunkConfig() != null) {
+                entity.setChunkConfig(blankToNull(request.getChunkConfig()));
+            }
+            if (request.getPipelineId() != null) {
+                entity.setPipelineId(request.getPipelineId());
+            }
         }
     }
 
@@ -218,10 +250,7 @@ public class KnowledgeDocumentAdminService {
                     .filter(StringUtils::hasText)
                     .toList();
             if (!vectorIds.isEmpty()) {
-                vectorStoreService.deleteByIds(
-                        vectorSpaceResolver.resolve(String.valueOf(document.getKbId())),
-                        vectorIds
-                );
+                vectorStoreService.deleteByIds(vectorSpaceResolver.resolve(String.valueOf(document.getKbId())), vectorIds);
             }
         }
         knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
@@ -232,7 +261,7 @@ public class KnowledgeDocumentAdminService {
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
         if (kbId == null) {
-            throw new IllegalArgumentException("知识库 ID 不能为空");
+            throw new IllegalArgumentException("知识库ID 不能为空");
         }
         KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
@@ -254,10 +283,7 @@ public class KnowledgeDocumentAdminService {
 
     private String resolveBaseCode(KnowledgeBaseEntity knowledgeBase) {
         String normalized = support.normalizeCode(knowledgeBase.getName());
-        if (StringUtils.hasText(normalized)) {
-            return normalized;
-        }
-        return String.valueOf(knowledgeBase.getId());
+        return StringUtils.hasText(normalized) ? normalized : String.valueOf(knowledgeBase.getId());
     }
 
     private String blankToNull(String value) {

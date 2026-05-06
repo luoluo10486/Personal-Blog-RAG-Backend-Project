@@ -6,10 +6,12 @@ import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyOption;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
 import org.springframework.stereotype.Component;
@@ -91,6 +93,28 @@ public class KnowledgeAdminSupport {
                 entity.getStatus(),
                 entity.getEnabled(),
                 entity.getChunkCount()
+        );
+    }
+
+    public KnowledgeDocumentChunkLogView toKnowledgeDocumentChunkLogView(KnowledgeDocumentChunkLogEntity entity) {
+        return new KnowledgeDocumentChunkLogView(
+                entity.getId(),
+                entity.getDocId(),
+                entity.getStatus(),
+                entity.getProcessMode(),
+                entity.getChunkStrategy(),
+                entity.getPipelineId(),
+                entity.getExtractDuration(),
+                entity.getChunkDuration(),
+                entity.getEmbedDuration(),
+                entity.getPersistDuration(),
+                entity.getTotalDuration(),
+                entity.getChunkCount(),
+                entity.getErrorMessage(),
+                entity.getStartedAt(),
+                entity.getEndedAt(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt()
         );
     }
 

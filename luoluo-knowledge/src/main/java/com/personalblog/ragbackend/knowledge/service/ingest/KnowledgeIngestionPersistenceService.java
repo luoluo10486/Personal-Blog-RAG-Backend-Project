@@ -6,14 +6,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunk;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentChunkLogMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeVectorRefMapper;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,7 @@ import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +41,8 @@ public class KnowledgeIngestionPersistenceService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final KnowledgeVectorRefMapper knowledgeVectorRefMapper;
+    private final KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper;
+    private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final ObjectMapper objectMapper;
 
     public KnowledgeIngestionPersistenceService(KnowledgeProperties knowledgeProperties,
@@ -44,12 +50,16 @@ public class KnowledgeIngestionPersistenceService {
                                                 KnowledgeDocumentMapper knowledgeDocumentMapper,
                                                 KnowledgeChunkMapper knowledgeChunkMapper,
                                                 KnowledgeVectorRefMapper knowledgeVectorRefMapper,
+                                                KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper,
+                                                KnowledgeFileStorageService knowledgeFileStorageService,
                                                 ObjectMapper objectMapper) {
         this.knowledgeProperties = knowledgeProperties;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeChunkMapper = knowledgeChunkMapper;
         this.knowledgeVectorRefMapper = knowledgeVectorRefMapper;
+        this.knowledgeDocumentChunkLogMapper = knowledgeDocumentChunkLogMapper;
+        this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.objectMapper = objectMapper;
     }
 
@@ -58,12 +68,11 @@ public class KnowledgeIngestionPersistenceService {
         if (!context.isIngestMode()) {
             return;
         }
-
         if (context.getPlan() == null || context.getParseResult() == null || context.getChunkResponse() == null) {
             return;
         }
-
         if (!context.getParseResult().success() || !context.getChunkResponse().success()) {
+            writeChunkLog(context, "failed", "Document parsing or chunking failed");
             return;
         }
 
@@ -76,6 +85,7 @@ public class KnowledgeIngestionPersistenceService {
         context.setDocumentId(documentEntity.getId());
         context.setPersistedChunks(chunkEntities);
         context.setStaleVectorIds(staleVectorIds);
+        writeChunkLog(context, "success", null);
     }
 
     public void saveVectorRefs(KnowledgeIngestionContext context) {
@@ -220,7 +230,7 @@ public class KnowledgeIngestionPersistenceService {
         entity.setDocName(docName);
         entity.setEnabled(1);
         entity.setChunkCount(0);
-        entity.setFileUrl(null);
+        entity.setFileUrl(knowledgeFileStorageService.store(file, kbId, docName));
         entity.setFileType(file == null ? null : file.getContentType());
         entity.setFileSize(file == null ? null : file.getSize());
         entity.setProcessMode("pipeline");
@@ -233,6 +243,25 @@ public class KnowledgeIngestionPersistenceService {
         entity.setChunkStrategy(knowledgeProperties.getChunking().getStrategy());
         entity.setChunkConfig(buildChunkConfigJson());
         entity.setPipelineId(null);
+    }
+
+    private void writeChunkLog(KnowledgeIngestionContext context, String status, String errorMessage) {
+        if (context.getDocumentId() == null) {
+            return;
+        }
+        KnowledgeDocumentChunkLogEntity entity = new KnowledgeDocumentChunkLogEntity();
+        entity.setDocId(context.getDocumentId());
+        entity.setStatus(status);
+        entity.setProcessMode(context.getPlan() == null ? null : "pipeline");
+        entity.setChunkStrategy(context.getPlan() == null ? null : context.getPlan().chunkingOptions() == null ? null : knowledgeProperties.getChunking().getStrategy());
+        entity.setPipelineId(null);
+        entity.setChunkCount(context.getPersistedChunks().size());
+        entity.setErrorMessage(errorMessage);
+        entity.setStartedAt(LocalDateTime.now());
+        entity.setEndedAt(LocalDateTime.now());
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+        knowledgeDocumentChunkLogMapper.insert(entity);
     }
 
     private String buildChunkMetadata(DocumentChunk chunk, KnowledgeIngestionContext context) {

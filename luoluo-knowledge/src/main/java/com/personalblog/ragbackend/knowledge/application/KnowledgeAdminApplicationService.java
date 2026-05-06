@@ -11,6 +11,7 @@ import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkCreateReque
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
@@ -92,6 +93,10 @@ public class KnowledgeAdminApplicationService {
 
     public void enableDocument(Long documentId, boolean enabled) {
         knowledgeDocumentAdminService.enable(documentId, enabled);
+    }
+
+    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(Long documentId, long current, long size) {
+        return knowledgeDocumentAdminService.pageChunkLogs(documentId, current, size);
     }
 
     public IPage<KnowledgeChunkView> pageChunks(Long documentId, KnowledgeChunkPageRequest request) {
