@@ -3,6 +3,8 @@ package com.personalblog.ragbackend.knowledge.service.retrieval;
 import com.personalblog.ragbackend.infra.ai.embedding.EmbeddingService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceId;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
@@ -43,7 +45,9 @@ class VectorKnowledgeRetrieverTest {
                 properties,
                 new KnowledgeVectorSpaceResolver(properties),
                 fixedProvider(embeddingService),
-                fixedProvider(vectorStoreService)
+                fixedProvider(vectorStoreService),
+                fixedProvider((KnowledgeChunkMapper) null),
+                fixedProvider((KnowledgeDocumentMapper) null)
         );
 
         List<KnowledgeChunk> result = retriever.retrieveCandidates(new RetrieveRequest("Refund Center", "Can I refund?", 4));
@@ -77,7 +81,9 @@ class VectorKnowledgeRetrieverTest {
                 properties,
                 new KnowledgeVectorSpaceResolver(properties),
                 fixedProvider(embeddingService),
-                fixedProvider(vectorStoreService)
+                fixedProvider(vectorStoreService),
+                fixedProvider((KnowledgeChunkMapper) null),
+                fixedProvider((KnowledgeDocumentMapper) null)
         );
 
         List<KnowledgeChunk> result = retriever.retrieveCandidates(new RetrieveRequest("FAQ Center", "faq?", 2));
@@ -102,13 +108,17 @@ class VectorKnowledgeRetrieverTest {
                 properties,
                 new KnowledgeVectorSpaceResolver(properties),
                 fixedProvider((EmbeddingService) null),
-                fixedProvider(new RecordingVectorStoreService(List.of()))
+                fixedProvider(new RecordingVectorStoreService(List.of())),
+                fixedProvider((KnowledgeChunkMapper) null),
+                fixedProvider((KnowledgeDocumentMapper) null)
         );
         VectorKnowledgeRetriever blankQuestionRetriever = new VectorKnowledgeRetriever(
                 properties,
                 new KnowledgeVectorSpaceResolver(properties),
                 fixedProvider(new RecordingEmbeddingService(List.of(0.1f))),
-                fixedProvider(new RecordingVectorStoreService(List.of()))
+                fixedProvider(new RecordingVectorStoreService(List.of())),
+                fixedProvider((KnowledgeChunkMapper) null),
+                fixedProvider((KnowledgeDocumentMapper) null)
         );
 
         assertThat(missingEmbeddingRetriever.isEnabled(new RetrieveRequest("kb", "hi", 1))).isFalse();
@@ -123,7 +133,9 @@ class VectorKnowledgeRetrieverTest {
                 properties,
                 new KnowledgeVectorSpaceResolver(properties),
                 fixedProvider(new RecordingEmbeddingService(List.of(0.1f))),
-                fixedProvider(new ThrowingVectorStoreService())
+                fixedProvider(new ThrowingVectorStoreService()),
+                fixedProvider((KnowledgeChunkMapper) null),
+                fixedProvider((KnowledgeDocumentMapper) null)
         );
 
         List<KnowledgeChunk> result = retriever.retrieveCandidates(new RetrieveRequest("kb", "question", 3));

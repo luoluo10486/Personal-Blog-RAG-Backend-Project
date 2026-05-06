@@ -1,13 +1,17 @@
 package com.personalblog.ragbackend.knowledge.service.retrieval;
 
 import com.personalblog.ragbackend.infra.ai.embedding.EmbeddingService;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
-import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
 import org.springframework.beans.factory.ObjectProvider;
+import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,15 +23,21 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final ObjectProvider<EmbeddingService> embeddingServiceProvider;
     private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
+    private final ObjectProvider<KnowledgeChunkMapper> knowledgeChunkMapperProvider;
+    private final ObjectProvider<KnowledgeDocumentMapper> knowledgeDocumentMapperProvider;
 
     public VectorKnowledgeRetriever(KnowledgeProperties knowledgeProperties,
                                     KnowledgeVectorSpaceResolver vectorSpaceResolver,
                                     ObjectProvider<EmbeddingService> embeddingServiceProvider,
-                                    ObjectProvider<VectorStoreService> vectorStoreServiceProvider) {
+                                    ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
+                                    ObjectProvider<KnowledgeChunkMapper> knowledgeChunkMapperProvider,
+                                    ObjectProvider<KnowledgeDocumentMapper> knowledgeDocumentMapperProvider) {
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
         this.embeddingServiceProvider = embeddingServiceProvider;
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
+        this.knowledgeChunkMapperProvider = knowledgeChunkMapperProvider;
+        this.knowledgeDocumentMapperProvider = knowledgeDocumentMapperProvider;
     }
 
     @Override
@@ -66,6 +76,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
             List<Float> queryVector = embeddingService.embed(request.question());
             List<VectorSearchHit> hits = vectorStoreService.search(vectorSpace, queryVector, request.topK(), candidateLimit);
             return hits.stream()
+                    .filter(this::isHitEnabled)
                     .map(hit -> toKnowledgeChunk(request.baseCode(), hit))
                     .toList();
         } catch (RuntimeException exception) {
@@ -109,6 +120,36 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
             return Integer.parseInt(String.valueOf(value));
         } catch (NumberFormatException exception) {
             return 0;
+        }
+    }
+
+    private boolean isHitEnabled(VectorSearchHit hit) {
+        KnowledgeChunkMapper chunkMapper = knowledgeChunkMapperProvider.getIfAvailable();
+        KnowledgeDocumentMapper documentMapper = knowledgeDocumentMapperProvider.getIfAvailable();
+        if (chunkMapper == null || documentMapper == null) {
+            return true;
+        }
+        Map<String, Object> metadata = hit.metadata();
+        Long chunkId = parseLong(metadata.get("chunkId"));
+        if (chunkId == null) {
+            return true;
+        }
+        KnowledgeChunkEntity chunk = chunkMapper.selectById(chunkId);
+        if (chunk == null || chunk.getEnabled() == null || chunk.getEnabled() != 1) {
+            return false;
+        }
+        KnowledgeDocumentEntity document = documentMapper.selectById(chunk.getDocId());
+        return document != null && document.getEnabled() != null && document.getEnabled() == 1;
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException exception) {
+            return null;
         }
     }
 }
