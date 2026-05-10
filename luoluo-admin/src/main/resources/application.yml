@@ -128,43 +128,6 @@ app:
     stream:
       message-chunk-size: 5
       executor-threads: 4
-  rag:
-    # 该段配置保留给 luoluo-rag Demo 模块；当前正式链路请优先使用 app.knowledge.*
-    # 是否启用 RAG 功能
-    enabled: true
-    # embedding 生成模式：demo / siliconflow
-    embedding-provider: demo
-    api-url: https://api.siliconflow.cn/v1/chat/completions
-    embedding-api-url: https://api.siliconflow.cn/v1/embeddings
-    api-key: ${SILICONFLOW_API_KEY:}
-    model: Qwen/Qwen3-32B
-    embedding-model: Qwen/Qwen3-Embedding-8B
-    temperature: 0
-    max-tokens: 1024
-    connect-timeout-seconds: 30
-    read-timeout-seconds: 60
-    demo-embedding-dimension: 64
-    system-prompt: You are a professional ecommerce support assistant. Keep answers concise.
-    retrieval:
-      mode: HYBRID
-      dense-recall-top-k: 12
-      sparse-recall-top-k: 12
-      nprobe: 16
-      drop-ratio-search: 0.2
-      rrf-k: 60
-      consistency-level: BOUNDED
-    rerank:
-      enabled: true
-      # demo / siliconflow
-      provider: demo
-      api-url: https://api.siliconflow.cn/v1/rerank
-      model: BAAI/bge-reranker-v2-m3
-    milvus:
-      enabled: true
-      uri: http://127.0.0.1:19530
-      token: ""
-      database-name: ""
-      collection-name: rag_demo_chunks
   knowledge:
     # 正式知识库配置；当前 luoluo-admin 与 luoluo-rag-mcp 都走这套链路
     enabled: true

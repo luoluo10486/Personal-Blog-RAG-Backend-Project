@@ -42,12 +42,7 @@ http://127.0.0.1:9001
 
 ## 当前仓库里的 Milvus 定位
 
-当前仓库已经把正式 RAG 主链路放到了 `luoluo-knowledge`，而 `luoluo-rag` 只保留为 Demo 模块。
-
-因此这里需要区分两件事：
-
-- 正式链路：`luoluo-knowledge`
-- Demo / 实验链路：`luoluo-rag`
+当前仓库已经把正式 RAG 主链路放到了 `luoluo-knowledge`。这里主要关注正式链路里的向量配置、向量空间命名和 Milvus 连通性。
 
 ## 正式链路和 Milvus 的关系
 
@@ -78,16 +73,6 @@ app:
       collection-name: knowledge_default_store
 ```
 
-## 如果你还要继续跑旧 Demo
-
-`luoluo-rag` 目录仍然保留，可以继续作为 Milvus Demo 实验场使用，只是它已经不再是父工程聚合模块。
-
-如果你想单独跑旧 Demo 相关测试，需要显式指定该模块，例如：
-
-```powershell
-.\ragent\mvnw.cmd -f luoluo-rag\pom.xml -DMILVUS_IT_ENABLED=true -Dtest=MilvusEmbeddingSearchIntegrationTest test
-```
-
 ## 当前更推荐的验证方式
 
 如果你关注的是正式主链路，建议优先验证：
@@ -96,5 +81,3 @@ app:
 - `POST /luoluo/knowledge/ask`
 - `POST /luoluo/knowledge/document/parse`
 - `POST /luoluo/knowledge/document/chunk`
-
-如果你关注的是旧实验链路，再回到 `luoluo-rag` 模块单独处理。

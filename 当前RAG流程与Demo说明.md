@@ -1,10 +1,9 @@
-# 当前 RAG 流程与 Demo 说明
+# 当前 RAG 流程说明
 
 ## 结论
 
 - 正式 RAG 主链路在 `luoluo-knowledge`
 - `luoluo-admin` 和 `luoluo-rag-mcp` 都已对齐正式链路
-- `luoluo-rag` 只保留为 Demo / Playground，不再参与正式运行依赖
 
 ## 正式链路
 
@@ -70,11 +69,7 @@
 
 ## MCP
 
-`luoluo-rag-mcp` 现在直接依赖正式模块，并使用：
+`luoluo-rag-mcp` 直接依赖正式模块，并使用：
 
 - `app.ai.*`
 - `app.knowledge.*`
-
-## Demo
-
-`luoluo-rag` 只保留旧实验代码，不再作为正式链路入口。
