@@ -25,8 +25,14 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
     @Override
     @RagTraceNode(name = "answer-generate", type = "GENERATE")
     public String generate(String question, List<KnowledgeChunk> chunks) {
+        return generate(question, List.of(), chunks);
+    }
+
+    @Override
+    @RagTraceNode(name = "answer-generate", type = "GENERATE")
+    public String generate(String question, List<ChatMessage> memory, List<KnowledgeChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
-            return "知识库没有检索到足够相关的内容，建议补充文档、检查知识库编码或降低检索阈值后再试。";
+            return "No sufficiently relevant knowledge was retrieved. Add documents, verify the knowledge base, or adjust retrieval settings and try again.";
         }
 
         LLMService llmService = llmServiceProvider.getIfAvailable();
@@ -35,11 +41,15 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
         }
 
         try {
+            List<ChatMessage> messages = new ArrayList<>();
+            messages.add(ChatMessage.system("You are a rigorous knowledge-base assistant. Answer only from the provided evidence. If the evidence is insufficient, say so directly. Keep the answer concise and cite evidence numbers for key conclusions."));
+            if (memory != null && !memory.isEmpty()) {
+                messages.addAll(memory);
+            }
+            messages.add(ChatMessage.user(buildPrompt(question, chunks)));
+
             ChatRequest request = ChatRequest.builder()
-                    .messages(List.of(
-                            ChatMessage.system("你是一个严谨的知识库问答助手。只能依据给定资料回答；资料不足时直接说明不足。回答要简洁，并在关键结论后标注引用编号。"),
-                            ChatMessage.user(buildPrompt(question, chunks))
-                    ))
+                    .messages(messages)
                     .temperature(0D)
                     .maxTokens(1024)
                     .build();
@@ -51,8 +61,8 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
 
     private String buildPrompt(String question, List<KnowledgeChunk> chunks) {
         StringBuilder builder = new StringBuilder();
-        builder.append("问题：").append(question).append("\n\n");
-        builder.append("资料：\n");
+        builder.append("Question: ").append(question).append("\n\n");
+        builder.append("Evidence:\n");
         int usedChars = 0;
         for (int index = 0; index < chunks.size(); index++) {
             KnowledgeChunk chunk = chunks.get(index);
@@ -69,7 +79,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                     .append(content)
                     .append("\n\n");
         }
-        builder.append("请基于以上资料回答问题。");
+        builder.append("Answer the question using only the evidence above.");
         return builder.toString();
     }
 
@@ -79,7 +89,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
             KnowledgeChunk chunk = chunks.get(index);
             snippets.add("[" + (index + 1) + "] " + safeTruncate(chunk.content(), 180));
         }
-        return "已召回 " + chunks.size() + " 条知识片段，当前 AI 生成不可用，先返回最相关摘录：\n"
+        return "Retrieved " + chunks.size() + " knowledge chunks. AI generation is unavailable, so here are the most relevant excerpts:\n"
                 + snippets.stream().collect(Collectors.joining("\n"));
     }
 

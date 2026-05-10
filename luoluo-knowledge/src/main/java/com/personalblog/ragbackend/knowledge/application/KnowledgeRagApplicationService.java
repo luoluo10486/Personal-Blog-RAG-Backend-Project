@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.application;
 
+import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
@@ -71,16 +72,21 @@ public class KnowledgeRagApplicationService {
         steps.add("resolve-collection");
         KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(request.question(), baseCode);
         steps.add("rewrite:" + rewriteResult.appliedMappings().size());
+        List<ChatMessage> memory = ragConversationService.loadMemory(request.conversationId());
+        steps.add("memory:" + memory.size());
+
         stopWatch.start("retrieve");
         List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(
                 new RetrieveRequest(baseCode, rewriteResult.rewrittenQuestion(), topK)
         );
         stopWatch.stop();
         steps.add("retrieve:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
+
         stopWatch.start("generate");
-        String answer = answerGenerator.generate(rewriteResult.rewrittenQuestion(), chunks);
+        String answer = answerGenerator.generate(rewriteResult.rewrittenQuestion(), memory, chunks);
         stopWatch.stop();
         steps.add("generate:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
+
         List<KnowledgeCitation> citations = chunks.stream()
                 .map(chunk -> new KnowledgeCitation(
                         chunk.documentId(),
@@ -91,6 +97,7 @@ public class KnowledgeRagApplicationService {
                         chunk.content()
                 ))
                 .toList();
+
         ragConversationService.persistExchange(
                 request.conversationId(),
                 request.question(),
@@ -98,6 +105,7 @@ public class KnowledgeRagApplicationService {
                 baseCode,
                 citations.size()
         );
+
         KnowledgeTrace trace = new KnowledgeTrace(
                 RagTraceContext.getTraceId(),
                 request.conversationId(),
