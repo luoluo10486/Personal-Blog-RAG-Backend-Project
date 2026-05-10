@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.mcp.resources;
 
-import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -8,22 +7,21 @@ import java.util.List;
 @Component
 public class EnterpriseResources {
 
-    private static final String RETURN_POLICY_URI = "docs://return-policy";
-    private static final String ORDER_DETAIL_TEMPLATE_URI = "order://{orderId}";
-    private static final String ORDER_DETAIL_PREFIX = "order://";
+    public static final String RETURN_POLICY_URI = "docs://return-policy";
+    public static final String ORDER_DETAIL_TEMPLATE_URI = "order://{orderId}";
+    public static final String ORDER_DETAIL_PREFIX = "order://";
 
-    public McpSchema.Resource returnPolicyResource() {
-        return new McpSchema.Resource(
+    public ResourceDefinition returnPolicyResource() {
+        return new ResourceDefinition(
                 RETURN_POLICY_URI,
                 "退货政策",
                 "公司的退货政策文档，包含退货条件、时限、流程等信息",
-                "text/plain",
-                null
+                "text/plain"
         );
     }
 
-    public McpSchema.ReadResourceResult getReturnPolicy() {
-        String content = """
+    public String getReturnPolicy() {
+        return """
                 【退货政策】
 
                 1. 退货时限：自收货之日起 7 天内可申请无理由退货。
@@ -39,25 +37,20 @@ public class EnterpriseResources {
                 4. 退款方式：原路退回（支付宝/微信/银行卡）。
                 5. 运费说明：因质量问题退货，运费由公司承担；无理由退货，运费由用户承担。
                 """;
-
-        return new McpSchema.ReadResourceResult(List.of(
-                new McpSchema.TextResourceContents(RETURN_POLICY_URI, "text/plain", content)
-        ));
     }
 
-    public McpSchema.Resource orderDetailResource() {
-        return new McpSchema.Resource(
+    public ResourceDefinition orderDetailResource() {
+        return new ResourceDefinition(
                 ORDER_DETAIL_TEMPLATE_URI,
                 "订单详情",
                 "根据订单号查询订单详情。读取时请使用形如 order://ORD-12345 或 order://12345 的 URI。",
-                "application/json",
-                null
+                "application/json"
         );
     }
 
-    public McpSchema.ReadResourceResult getOrderDetail(String resourceUri) {
+    public String getOrderDetail(String resourceUri) {
         String orderId = extractOrderId(resourceUri);
-        String content = """
+        return """
                 {
                   "orderId": "%s",
                   "productName": "iPhone 16 Pro 256GB 沙漠钛金属",
@@ -69,10 +62,6 @@ public class EnterpriseResources {
                   "address": "北京市朝阳区xxx小区"
                 }
                 """.formatted(orderId);
-
-        return new McpSchema.ReadResourceResult(List.of(
-                new McpSchema.TextResourceContents(resourceUri, "application/json", content)
-        ));
     }
 
     public boolean isReturnPolicy(String resourceUri) {
@@ -83,11 +72,18 @@ public class EnterpriseResources {
         return resourceUri != null && !resourceUri.isBlank() && resourceUri.startsWith(ORDER_DETAIL_PREFIX);
     }
 
+    public List<ResourceDefinition> definitions() {
+        return List.of(returnPolicyResource(), orderDetailResource());
+    }
+
     private String extractOrderId(String resourceUri) {
         String orderId = resourceUri.substring(ORDER_DETAIL_PREFIX.length()).trim();
         if (orderId.isEmpty() || "{orderId}".equals(orderId)) {
             throw new IllegalArgumentException("orderId 不能为空，请使用形如 order://12345 的资源 URI");
         }
         return orderId;
+    }
+
+    public record ResourceDefinition(String uri, String name, String description, String mimeType) {
     }
 }

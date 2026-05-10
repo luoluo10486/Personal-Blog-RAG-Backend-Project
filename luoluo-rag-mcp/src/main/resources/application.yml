@@ -1,23 +1,18 @@
+server:
+  port: 9099
+
 spring:
   application:
     name: luoluo-rag-mcp
-  ai:
-    mcp:
-      server:
-        name: luoluo-rag-mcp
-        version: 1.0.0
-        type: SYNC
-        stdio: true
-        instructions: Luoluo standalone MCP server that exposes RAG retrieval, answer generation, and text chunking tools.
   main:
-    web-application-type: none
+    web-application-type: servlet
     banner-mode: off
 
 logging:
   file:
     name: ./logs/luoluo-rag-mcp.log
   level:
-    root: OFF
+    root: INFO
 
 app:
   ai:

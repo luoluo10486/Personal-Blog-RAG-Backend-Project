@@ -12,6 +12,7 @@ import com.personalblog.ragbackend.knowledge.service.ingest.node.FinalizeIngesti
 import com.personalblog.ragbackend.knowledge.service.ingest.node.ParseIngestionNode;
 import com.personalblog.ragbackend.knowledge.service.ingest.node.PlanIngestionNode;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -104,7 +105,7 @@ class KnowledgeIngestionEngineTest {
                 new ChunkIngestionNode(chunkService),
                 new ParseIngestionNode(new DocumentParserSelector(List.of(new TikaDocumentParseService()))),
                 new PlanIngestionNode(properties, vectorSpaceResolver)
-        ));
+        ), new ObjectMapper());
     }
 
     private KnowledgeIngestionEngine createIngestFinalizeEngine(KnowledgeProperties properties) {
@@ -121,7 +122,7 @@ class KnowledgeIngestionEngineTest {
                 new ChunkIngestionNode(chunkService),
                 new ParseIngestionNode(new DocumentParserSelector(List.of(new TikaDocumentParseService()))),
                 new PlanIngestionNode(properties, vectorSpaceResolver)
-        ));
+        ), new ObjectMapper());
     }
 
     private KnowledgeProperties createProperties() {

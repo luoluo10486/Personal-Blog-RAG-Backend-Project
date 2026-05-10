@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.mcp.prompts;
 
-import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -9,19 +8,18 @@ import java.util.Map;
 @Component
 public class EnterprisePrompts {
 
-    public McpSchema.Prompt knowledgeQaPromptDefinition() {
-        return new McpSchema.Prompt(
+    public PromptDefinition knowledgeQaPromptDefinition() {
+        return new PromptDefinition(
                 "knowledge-qa",
                 "知识库问答模板，基于检索到的知识片段回答用户问题，包含引用规则和兜底策略",
                 List.of(
-                        new McpSchema.PromptArgument("context", "检索到的知识片段，多个片段用换行分隔，每个片段带编号", true),
-                        new McpSchema.PromptArgument("question", "用户的原始问题", true)
+                        new PromptArgument("context", "检索到的知识片段，多个片段用换行分隔，每个片段带编号", true),
+                        new PromptArgument("question", "用户的原始问题", true)
                 )
         );
     }
 
-    public McpSchema.GetPromptResult knowledgeQaPrompt(McpSchema.GetPromptRequest request) {
-        Map<String, Object> arguments = request.arguments() == null ? Map.of() : request.arguments();
+    public PromptResult knowledgeQaPrompt(Map<String, Object> arguments) {
         String context = requiredArg(arguments, "context");
         String question = requiredArg(arguments, "question");
 
@@ -49,25 +47,24 @@ public class EnterprisePrompts {
                 问题：%s
                 """.formatted(context, question);
 
-        return new McpSchema.GetPromptResult(
+        return new PromptResult(
                 "知识库问答",
-                List.of(new McpSchema.PromptMessage(McpSchema.Role.USER, new McpSchema.TextContent(userMessage)))
+                List.of(new PromptMessage("user", userMessage))
         );
     }
 
-    public McpSchema.Prompt docSummaryPromptDefinition() {
-        return new McpSchema.Prompt(
+    public PromptDefinition docSummaryPromptDefinition() {
+        return new PromptDefinition(
                 "doc-summary",
                 "文档摘要生成模板，将长文档压缩为指定长度的结构化摘要",
                 List.of(
-                        new McpSchema.PromptArgument("document", "需要摘要的文档内容", true),
-                        new McpSchema.PromptArgument("maxLength", "摘要的最大字数，默认 200", false)
+                        new PromptArgument("document", "需要摘要的文档内容", true),
+                        new PromptArgument("maxLength", "摘要的最大字数，默认 200", false)
                 )
         );
     }
 
-    public McpSchema.GetPromptResult docSummaryPrompt(McpSchema.GetPromptRequest request) {
-        Map<String, Object> arguments = request.arguments() == null ? Map.of() : request.arguments();
+    public PromptResult docSummaryPrompt(Map<String, Object> arguments) {
         String document = requiredArg(arguments, "document");
         int length = optionalInt(arguments.get("maxLength"), 200);
 
@@ -88,14 +85,18 @@ public class EnterprisePrompts {
                 %s
                 """.formatted(length, document);
 
-        return new McpSchema.GetPromptResult(
+        return new PromptResult(
                 "文档摘要",
-                List.of(new McpSchema.PromptMessage(McpSchema.Role.USER, new McpSchema.TextContent(userMessage)))
+                List.of(new PromptMessage("user", userMessage))
         );
     }
 
+    public List<PromptDefinition> definitions() {
+        return List.of(knowledgeQaPromptDefinition(), docSummaryPromptDefinition());
+    }
+
     private String requiredArg(Map<String, Object> arguments, String name) {
-        Object value = arguments.get(name);
+        Object value = arguments == null ? null : arguments.get(name);
         if (value == null || String.valueOf(value).isBlank()) {
             throw new IllegalArgumentException("缺少必填参数: " + name);
         }
@@ -111,5 +112,17 @@ public class EnterprisePrompts {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    public record PromptDefinition(String name, String description, List<PromptArgument> arguments) {
+    }
+
+    public record PromptArgument(String name, String description, boolean required) {
+    }
+
+    public record PromptMessage(String role, String content) {
+    }
+
+    public record PromptResult(String description, List<PromptMessage> messages) {
     }
 }

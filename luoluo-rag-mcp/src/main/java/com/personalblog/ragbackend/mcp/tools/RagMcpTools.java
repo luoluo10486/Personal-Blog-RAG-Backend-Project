@@ -12,8 +12,6 @@ import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetriever;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -49,7 +47,6 @@ public class RagMcpTools {
         this.mcpCapabilityCatalog = mcpCapabilityCatalog;
     }
 
-    @Tool(description = "查看当前正式知识库 RAG 服务状态、默认知识库和向量空间配置。")
     public String getRagStatus() {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("health", knowledgeRagApplicationService.health());
@@ -64,12 +61,12 @@ public class RagMcpTools {
         return toJson(payload);
     }
 
-    @Tool(description = "在正式知识库链路中执行检索，返回命中的知识片段和向量空间信息。")
     public String searchKnowledgeBase(
-            @ToolParam(description = "检索问题，例如：会员积分可以提现吗") String query,
-            @ToolParam(description = "返回结果数量，范围 1 到 20，留空时默认 5") Integer topK,
-            @ToolParam(description = "可选知识库编码，留空时使用默认知识库") String baseCode
+            String query,
+            Integer topK,
+            String baseCode
     ) {
+        requireText(query, "检索问题");
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
         List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
@@ -83,31 +80,31 @@ public class RagMcpTools {
         return toJson(payload);
     }
 
-    @Tool(description = "基于正式知识库链路生成最终回答，返回答案、引用和执行轨迹。")
     public String generateKnowledgeAnswer(
-            @ToolParam(description = "用户问题，例如：订单发货后多久能看到物流信息") String query,
-            @ToolParam(description = "检索并参与生成的候选片段数，范围 1 到 20，留空时默认 5") Integer topK,
-            @ToolParam(description = "可选知识库编码，留空时使用默认知识库") String baseCode
+            String query,
+            Integer topK,
+            String baseCode
     ) {
+        requireText(query, "用户问题");
         return toJson(knowledgeRagApplicationService.ask(
                 new KnowledgeAskRequest(query, normalizeBaseCode(baseCode), normalizeTopK(topK))
         ));
     }
 
-    @Tool(description = "按正式知识库切块规则对纯文本进行切块，适合在入库前预览 chunk 效果。")
     public String chunkPlainText(
-            @ToolParam(description = "需要切块的原始文本内容") String content
+            String content
     ) {
+        requireText(content, "需要切块的原始文本内容");
         DocumentChunkResponse response = knowledgeDocumentApplicationService.chunkText(content);
         return toJson(response);
     }
 
-    @Tool(description = "查看正式知识库链路中当前问题的候选片段预览，便于人工核对召回质量。")
     public String previewKnowledgeCitations(
-            @ToolParam(description = "检索问题") String query,
-            @ToolParam(description = "候选数量，范围 1 到 20，留空时默认 5") Integer topK,
-            @ToolParam(description = "可选知识库编码，留空时使用默认知识库") String baseCode
+            String query,
+            Integer topK,
+            String baseCode
     ) {
+        requireText(query, "检索问题");
         List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(normalizeBaseCode(baseCode), query, normalizeTopK(topK));
         List<Map<String, Object>> payload = new ArrayList<>();
         for (KnowledgeChunk chunk : chunks) {
@@ -122,7 +119,6 @@ public class RagMcpTools {
         return toJson(payload);
     }
 
-    @Tool(description = "列出当前 MCP 服务的 tools、resources 和 prompts 元数据，便于和其他实现对齐。")
     public String describeMcpCapabilities() {
         return toJson(mcpCapabilityCatalog.snapshot());
     }
@@ -146,6 +142,12 @@ public class RagMcpTools {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize MCP tool response", exception);
+        }
+    }
+
+    private void requireText(String value, String label) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(label + "不能为空");
         }
     }
 }
