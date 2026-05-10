@@ -2,6 +2,7 @@ package com.personalblog.ragbackend.mcp.tools;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.personalblog.ragbackend.mcp.catalog.McpCapabilityCatalog;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
@@ -30,19 +31,22 @@ public class RagMcpTools {
     private final KnowledgeRetriever knowledgeRetriever;
     private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
     private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
+    private final McpCapabilityCatalog mcpCapabilityCatalog;
 
     public RagMcpTools(ObjectMapper objectMapper,
                        KnowledgeProperties knowledgeProperties,
                        KnowledgeRagApplicationService knowledgeRagApplicationService,
                        KnowledgeRetriever knowledgeRetriever,
                        KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
-                       KnowledgeDocumentApplicationService knowledgeDocumentApplicationService) {
+                       KnowledgeDocumentApplicationService knowledgeDocumentApplicationService,
+                       McpCapabilityCatalog mcpCapabilityCatalog) {
         this.objectMapper = objectMapper;
         this.knowledgeProperties = knowledgeProperties;
         this.knowledgeRagApplicationService = knowledgeRagApplicationService;
         this.knowledgeRetriever = knowledgeRetriever;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
         this.knowledgeDocumentApplicationService = knowledgeDocumentApplicationService;
+        this.mcpCapabilityCatalog = mcpCapabilityCatalog;
     }
 
     @Tool(description = "查看当前正式知识库 RAG 服务状态、默认知识库和向量空间配置。")
@@ -116,6 +120,11 @@ public class RagMcpTools {
             payload.add(item);
         }
         return toJson(payload);
+    }
+
+    @Tool(description = "列出当前 MCP 服务的 tools、resources 和 prompts 元数据，便于和其他实现对齐。")
+    public String describeMcpCapabilities() {
+        return toJson(mcpCapabilityCatalog.snapshot());
     }
 
     private String normalizeBaseCode(String baseCode) {
