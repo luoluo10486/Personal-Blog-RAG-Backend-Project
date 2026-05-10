@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineUpdateRequest;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class IngestionPipelineController {
     private final IngestionPipelineService ingestionPipelineService;
 

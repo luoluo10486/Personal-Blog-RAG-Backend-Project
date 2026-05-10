@@ -26,6 +26,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <mybatis-plus.version>3.5.14</mybatis-plus.version>
         <sa-token.version>1.44.0</sa-token.version>
+        <transmittable-thread-local.version>2.14.5</transmittable-thread-local.version>
         <aliyun-java-sdk-core.version>4.6.0</aliyun-java-sdk-core.version>
         <aliyun-dysmsapi.version>2.2.1</aliyun-dysmsapi.version>
         <hutool-all.version>5.8.37</hutool-all.version>
@@ -109,6 +110,11 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-all</artifactId>
                 <version>${hutool-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>transmittable-thread-local</artifactId>
+                <version>${transmittable-thread-local.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

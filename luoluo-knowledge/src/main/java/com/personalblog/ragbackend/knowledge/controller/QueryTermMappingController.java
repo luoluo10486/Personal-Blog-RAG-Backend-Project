@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dao.entity.QueryTermMappingEntity;
 import com.personalblog.ragbackend.knowledge.service.admin.QueryTermMappingAdminService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class QueryTermMappingController {
     private final QueryTermMappingAdminService queryTermMappingAdminService;
 

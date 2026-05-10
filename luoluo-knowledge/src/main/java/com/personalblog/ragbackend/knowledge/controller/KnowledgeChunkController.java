@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeAdminApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkBatchRequest;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 @RequestMapping("/luoluo/knowledge")
+@MemberLoginRequired
 public class KnowledgeChunkController {
     private final KnowledgeAdminApplicationService knowledgeAdminApplicationService;
 

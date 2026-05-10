@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskNodeView;
@@ -21,6 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class IngestionTaskController {
     private final IngestionTaskService ingestionTaskService;
 

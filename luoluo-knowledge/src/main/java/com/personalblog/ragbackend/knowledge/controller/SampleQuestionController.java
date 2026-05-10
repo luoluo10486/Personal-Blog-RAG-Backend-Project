@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dao.entity.SampleQuestionEntity;
 import com.personalblog.ragbackend.knowledge.service.admin.SampleQuestionAdminService;
@@ -18,6 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class SampleQuestionController {
     private final SampleQuestionAdminService sampleQuestionAdminService;
 

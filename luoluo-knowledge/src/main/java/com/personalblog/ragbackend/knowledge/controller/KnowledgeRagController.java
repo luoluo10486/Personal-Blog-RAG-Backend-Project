@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping({"/luoluo/knowledge", "/luoluo/rag"})
+@MemberLoginRequired
 public class KnowledgeRagController {
     private final KnowledgeRagApplicationService knowledgeRagApplicationService;
 

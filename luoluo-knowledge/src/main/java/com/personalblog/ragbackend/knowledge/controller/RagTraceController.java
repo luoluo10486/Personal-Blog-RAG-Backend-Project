@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceDetailView;
 import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceNodeView;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class RagTraceController {
     private final RagTraceQueryService ragTraceQueryService;
 

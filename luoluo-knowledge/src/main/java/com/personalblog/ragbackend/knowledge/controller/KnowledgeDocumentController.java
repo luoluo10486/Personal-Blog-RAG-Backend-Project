@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeAdminApplicationService;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
@@ -32,6 +33,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping({"/luoluo/knowledge/document", "/luoluo/knowledge"})
+@MemberLoginRequired
 public class KnowledgeDocumentController {
     private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
     private final KnowledgeAdminApplicationService knowledgeAdminApplicationService;

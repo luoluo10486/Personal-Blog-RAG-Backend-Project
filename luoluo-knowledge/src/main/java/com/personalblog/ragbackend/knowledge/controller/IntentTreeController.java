@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
+import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.service.admin.IntentTreeAdminService;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping
+@MemberLoginRequired
 public class IntentTreeController {
     private final IntentTreeAdminService intentTreeAdminService;
 

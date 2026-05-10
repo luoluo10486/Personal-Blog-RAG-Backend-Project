@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
+import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
@@ -233,8 +234,19 @@ public class RagTraceAspect {
 
     private Long resolveCurrentUserId() {
         try {
-            return authSessionService.getCurrentSubjectId();
+            Long currentSubjectId = authSessionService.getCurrentSubjectId();
+            if (currentSubjectId != null) {
+                return currentSubjectId;
+            }
         } catch (RuntimeException ignored) {
+        }
+        String userId = UserContext.getUserId();
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userId);
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
