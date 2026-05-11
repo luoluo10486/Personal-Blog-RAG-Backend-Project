@@ -162,9 +162,6 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
         if (text.length() <= maxLength) {
             return text;
         }
-        if (maxLength <= 3) {
-            return text.substring(0, maxLength);
-        }
-        return text.substring(0, maxLength - 3) + "...";
+        return text.substring(0, maxLength);
     }
 }

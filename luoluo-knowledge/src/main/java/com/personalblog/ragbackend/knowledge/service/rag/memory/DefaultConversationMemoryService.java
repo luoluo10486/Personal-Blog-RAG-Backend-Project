@@ -3,21 +3,26 @@ package com.personalblog.ragbackend.knowledge.service.rag.memory;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Service
 public class DefaultConversationMemoryService implements ConversationMemoryService {
     private final ConversationMemoryStore memoryStore;
     private final ConversationMemorySummaryService summaryService;
+    private final Executor memoryLoadExecutor;
 
     public DefaultConversationMemoryService(ConversationMemoryStore memoryStore,
-                                            ConversationMemorySummaryService summaryService) {
+                                            ConversationMemorySummaryService summaryService,
+                                            @Qualifier("memoryLoadThreadPoolExecutor") Executor memoryLoadExecutor) {
         this.memoryStore = memoryStore;
         this.summaryService = summaryService;
+        this.memoryLoadExecutor = memoryLoadExecutor;
     }
 
     @Override
@@ -27,10 +32,12 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
         }
         try {
             CompletableFuture<ChatMessage> summaryFuture = CompletableFuture.supplyAsync(
-                    () -> loadSummaryWithFallback(conversationId, userId)
+                    () -> loadSummaryWithFallback(conversationId, userId),
+                    memoryLoadExecutor
             );
             CompletableFuture<List<ChatMessage>> historyFuture = CompletableFuture.supplyAsync(
-                    () -> loadHistoryWithFallback(conversationId, userId)
+                    () -> loadHistoryWithFallback(conversationId, userId),
+                    memoryLoadExecutor
             );
             return CompletableFuture.allOf(summaryFuture, historyFuture)
                     .thenApply(ignored -> attachSummary(summaryFuture.join(), historyFuture.join()))
@@ -71,7 +78,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
 
     private List<ChatMessage> attachSummary(ChatMessage summary, List<ChatMessage> messages) {
         if (CollUtil.isEmpty(messages)) {
-            return summary == null ? List.of() : List.of(summaryService.decorateIfNeeded(summary));
+            return List.of();
         }
         if (summary == null) {
             return messages;

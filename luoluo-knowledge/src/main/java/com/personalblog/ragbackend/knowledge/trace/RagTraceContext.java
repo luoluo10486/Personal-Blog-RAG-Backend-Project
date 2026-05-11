@@ -1,12 +1,14 @@
 package com.personalblog.ragbackend.knowledge.trace;
 
+import com.alibaba.ttl.TransmittableThreadLocal;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 public final class RagTraceContext {
-    private static final ThreadLocal<String> TRACE_ID = new ThreadLocal<>();
-    private static final ThreadLocal<String> TASK_ID = new ThreadLocal<>();
-    private static final ThreadLocal<Deque<String>> NODE_STACK = new ThreadLocal<>();
+    private static final TransmittableThreadLocal<String> TRACE_ID = new TransmittableThreadLocal<>();
+    private static final TransmittableThreadLocal<String> TASK_ID = new TransmittableThreadLocal<>();
+    private static final TransmittableThreadLocal<Deque<String>> NODE_STACK = new TransmittableThreadLocal<>();
 
     private RagTraceContext() {
     }

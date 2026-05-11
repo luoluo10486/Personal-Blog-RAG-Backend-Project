@@ -1,24 +1,20 @@
 package com.personalblog.ragbackend.knowledge.service.rag;
 
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.common.redis.RedisClient;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
 import com.personalblog.ragbackend.infra.ai.chat.StreamCancellationHandle;
 import com.personalblog.ragbackend.knowledge.dto.stream.CompletionPayload;
 import com.personalblog.ragbackend.knowledge.enums.SseEventType;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.redisson.api.RBucket;
+import org.redisson.api.RTopic;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
-import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -28,50 +24,47 @@ public class StreamTaskManager {
     private static final String CANCEL_KEY_PREFIX = "ragent:stream:cancel:";
     private static final Duration CANCEL_TTL = Duration.ofMinutes(30);
 
-    private final ConcurrentMap<String, StreamTaskInfo> tasks = new ConcurrentHashMap<>();
-    private final RedisClient redisClient;
-    private final StringRedisTemplate stringRedisTemplate;
-    private final RedisMessageListenerContainer redisMessageListenerContainer;
-    private final ChannelTopic cancelTopic = new ChannelTopic(CANCEL_TOPIC);
-    private final MessageListener cancelListener = new CancelMessageListener();
+    private final Cache<String, StreamTaskInfo> tasks = CacheBuilder.newBuilder()
+            .expireAfterWrite(CANCEL_TTL)
+            .maximumSize(10000)
+            .build();
 
-    public StreamTaskManager(RedisClient redisClient,
-                             StringRedisTemplate stringRedisTemplate,
-                             RedisMessageListenerContainer redisMessageListenerContainer) {
-        this.redisClient = redisClient;
-        this.stringRedisTemplate = stringRedisTemplate;
-        this.redisMessageListenerContainer = redisMessageListenerContainer;
+    private final RedissonClient redissonClient;
+    private int listenerId = -1;
+
+    public StreamTaskManager(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
     }
 
     @PostConstruct
     public void subscribe() {
-        redisMessageListenerContainer.addMessageListener(cancelListener, cancelTopic);
+        RTopic topic = redissonClient.getTopic(CANCEL_TOPIC);
+        listenerId = topic.addListener(String.class, (channel, taskId) -> {
+            if (StrUtil.isBlank(taskId)) {
+                return;
+            }
+            cancelLocal(taskId);
+        });
     }
 
     @PreDestroy
     public void unsubscribe() {
-        redisMessageListenerContainer.removeMessageListener(cancelListener, cancelTopic);
-    }
-
-    public void register(String taskId) {
-        if (StrUtil.isBlank(taskId)) {
+        if (listenerId == -1) {
             return;
         }
-        StreamTaskInfo taskInfo = tasks.computeIfAbsent(taskId, key -> new StreamTaskInfo());
-        if (isTaskCancelledInRedis(taskId, taskInfo)) {
-            taskInfo.cancelled.set(true);
-        }
+        redissonClient.getTopic(CANCEL_TOPIC).removeListener(listenerId);
     }
 
     public void register(String taskId, SseEmitterSender sender, Supplier<CompletionPayload> onCancelSupplier) {
         if (StrUtil.isBlank(taskId)) {
             return;
         }
-        StreamTaskInfo taskInfo = tasks.computeIfAbsent(taskId, key -> new StreamTaskInfo());
+        StreamTaskInfo taskInfo = getOrCreate(taskId);
         taskInfo.sender = sender;
         taskInfo.onCancelSupplier = onCancelSupplier;
         if (isTaskCancelledInRedis(taskId, taskInfo)) {
-            sendCancelAndDone(sender, onCancelSupplier == null ? null : onCancelSupplier.get());
+            CompletionPayload payload = taskInfo.onCancelSupplier == null ? null : taskInfo.onCancelSupplier.get();
+            sendCancelAndDone(sender, payload);
             sender.complete();
         }
     }
@@ -80,53 +73,50 @@ public class StreamTaskManager {
         if (StrUtil.isBlank(taskId)) {
             return;
         }
-        StreamTaskInfo taskInfo = tasks.computeIfAbsent(taskId, key -> new StreamTaskInfo());
+        StreamTaskInfo taskInfo = getOrCreate(taskId);
         taskInfo.handle = handle;
         if (taskInfo.cancelled.get() && handle != null) {
             handle.cancel();
         }
     }
 
-    public void unregister(String taskId) {
-        if (StrUtil.isBlank(taskId)) {
-            return;
-        }
-        tasks.remove(taskId);
-        redisClient.delete(cancelKey(taskId));
+    public boolean isCancelled(String taskId) {
+        StreamTaskInfo info = tasks.getIfPresent(taskId);
+        return info != null && info.cancelled.get();
     }
 
     public void cancel(String taskId) {
         if (StrUtil.isBlank(taskId)) {
             return;
         }
-        redisClient.set(cancelKey(taskId), Boolean.TRUE.toString(), CANCEL_TTL);
-        stringRedisTemplate.convertAndSend(CANCEL_TOPIC, taskId);
+        RBucket<Boolean> bucket = redissonClient.getBucket(cancelKey(taskId));
+        bucket.set(Boolean.TRUE, CANCEL_TTL);
+        redissonClient.getTopic(CANCEL_TOPIC).publish(taskId);
     }
 
-    public boolean isCancelled(String taskId) {
-        StreamTaskInfo taskInfo = tasks.get(taskId);
-        return taskInfo != null && taskInfo.cancelled.get();
-    }
-
-    private void sendCancelAndDone(SseEmitterSender sender, CompletionPayload payload) {
-        CompletionPayload actualPayload = payload == null ? new CompletionPayload(null, null) : payload;
-        sender.sendEvent(SseEventType.CANCEL.value(), actualPayload);
-        sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
+    public void unregister(String taskId) {
+        if (StrUtil.isBlank(taskId)) {
+            return;
+        }
+        tasks.invalidate(taskId);
+        redissonClient.getBucket(cancelKey(taskId)).deleteAsync();
     }
 
     private boolean isTaskCancelledInRedis(String taskId, StreamTaskInfo taskInfo) {
         if (taskInfo.cancelled.get()) {
             return true;
         }
-        boolean cancelled = Boolean.parseBoolean(redisClient.get(cancelKey(taskId)).orElse(Boolean.FALSE.toString()));
-        if (cancelled) {
+        RBucket<Boolean> bucket = redissonClient.getBucket(cancelKey(taskId));
+        Boolean cancelled = bucket.get();
+        if (Boolean.TRUE.equals(cancelled)) {
             taskInfo.cancelled.set(true);
+            return true;
         }
-        return cancelled;
+        return false;
     }
 
     private void cancelLocal(String taskId) {
-        StreamTaskInfo taskInfo = tasks.get(taskId);
+        StreamTaskInfo taskInfo = tasks.getIfPresent(taskId);
         if (taskInfo == null) {
             return;
         }
@@ -147,21 +137,24 @@ public class StreamTaskManager {
         return CANCEL_KEY_PREFIX + taskId;
     }
 
+    private void sendCancelAndDone(SseEmitterSender sender, CompletionPayload payload) {
+        CompletionPayload actualPayload = payload == null ? new CompletionPayload(null, null) : payload;
+        sender.sendEvent(SseEventType.CANCEL.value(), actualPayload);
+        sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
+    }
+
+    private StreamTaskInfo getOrCreate(String taskId) {
+        try {
+            return tasks.get(taskId, StreamTaskInfo::new);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to get stream task info", exception);
+        }
+    }
+
     private static final class StreamTaskInfo {
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private volatile StreamCancellationHandle handle;
         private volatile SseEmitterSender sender;
         private volatile Supplier<CompletionPayload> onCancelSupplier;
-    }
-
-    private final class CancelMessageListener implements MessageListener {
-        @Override
-        public void onMessage(Message message, byte[] pattern) {
-            String taskId = new String(message.getBody(), StandardCharsets.UTF_8);
-            if (StrUtil.isBlank(taskId)) {
-                return;
-            }
-            cancelLocal(taskId);
-        }
     }
 }

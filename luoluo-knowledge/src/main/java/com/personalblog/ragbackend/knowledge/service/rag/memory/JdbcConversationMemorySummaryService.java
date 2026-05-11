@@ -11,37 +11,54 @@ import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEn
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import jakarta.annotation.Nullable;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Service
 public class JdbcConversationMemorySummaryService implements ConversationMemorySummaryService {
-    private static final String SUMMARY_PREFIX = "Conversation summary: ";
-    private final ConcurrentMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private static final String SUMMARY_PREFIX = "对话摘要：";
+    private static final String SUMMARY_LOCK_PREFIX = "ragent:memory:summary:lock:";
+    private static final String SUMMARY_PROMPT_PATH = "prompt/conversation-summary.st";
+    private final ConcurrentMap<String, RLock> locks = new ConcurrentHashMap<>();
 
     private final RagConversationMessageMapper messageMapper;
     private final RagConversationSummaryMapper summaryMapper;
     private final RagMemoryProperties memoryProperties;
+    private final PromptTemplateLoader promptTemplateLoader;
+    private final RedissonClient redissonClient;
     private final ObjectProvider<LLMService> llmServiceProvider;
+    private final Executor memorySummaryExecutor;
 
     public JdbcConversationMemorySummaryService(RagConversationMessageMapper messageMapper,
                                                 RagConversationSummaryMapper summaryMapper,
                                                 RagMemoryProperties memoryProperties,
-                                                ObjectProvider<LLMService> llmServiceProvider) {
+                                                PromptTemplateLoader promptTemplateLoader,
+                                                RedissonClient redissonClient,
+                                                ObjectProvider<LLMService> llmServiceProvider,
+                                                @Qualifier("memorySummaryThreadPoolExecutor") Executor memorySummaryExecutor) {
         this.messageMapper = messageMapper;
         this.summaryMapper = summaryMapper;
         this.memoryProperties = memoryProperties;
+        this.promptTemplateLoader = promptTemplateLoader;
+        this.redissonClient = redissonClient;
         this.llmServiceProvider = llmServiceProvider;
+        this.memorySummaryExecutor = memorySummaryExecutor;
     }
 
     @Override
@@ -52,7 +69,8 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         if (message == null || message.getRole() != ChatMessage.Role.ASSISTANT) {
             return;
         }
-        CompletableFuture.runAsync(() -> doCompressIfNeeded(conversationId, userId));
+        CompletableFuture.runAsync(() -> doCompressIfNeeded(conversationId, userId), memorySummaryExecutor)
+                .exceptionally(ex -> null);
     }
 
     @Override
@@ -74,7 +92,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             return summary;
         }
         String content = summary.getContent().trim();
-        if (content.startsWith(SUMMARY_PREFIX) || content.startsWith("Summary:")) {
+        if (content.startsWith(SUMMARY_PREFIX) || content.startsWith("摘要：")) {
             return summary;
         }
         return ChatMessage.system(SUMMARY_PREFIX + content);
@@ -85,12 +103,11 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             return;
         }
 
-        String lockKey = userId + ":" + conversationId.trim();
-        ReentrantLock lock = locks.computeIfAbsent(lockKey, ignored -> new ReentrantLock());
+        String lockKey = SUMMARY_LOCK_PREFIX + userId + ":" + conversationId.trim();
+        RLock lock = locks.computeIfAbsent(lockKey, ignored -> redissonClient.getLock(lockKey));
         if (!lock.tryLock()) {
             return;
         }
-
         try {
             long total = messageMapper.selectCount(
                     Wrappers.lambdaQuery(RagConversationMessageEntity.class)
@@ -173,7 +190,9 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             record.setUpdatedAt(LocalDateTime.now());
             summaryMapper.insert(record);
         } finally {
-            lock.unlock();
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
     }
 
@@ -190,8 +209,11 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
         int summaryMaxChars = memoryProperties.getSummaryMaxChars();
         List<ChatMessage> summaryMessages = new ArrayList<>();
-        summaryMessages.add(ChatMessage.system("You are a conversation summarizer. Compress the dialogue into one summary of no more than "
-                + summaryMaxChars + " characters. Keep only important facts, preferences, constraints, todo items, and unresolved questions."));
+        String summaryPrompt = promptTemplateLoader.render(
+                SUMMARY_PROMPT_PATH,
+                Map.of("summary_max_chars", String.valueOf(summaryMaxChars))
+        );
+        summaryMessages.add(ChatMessage.system(summaryPrompt));
         if (StrUtil.isNotBlank(existingSummary)) {
             summaryMessages.add(ChatMessage.assistant("Existing summary for merge only:\n" + existingSummary.trim()));
         }

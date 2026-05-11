@@ -9,6 +9,7 @@ import com.personalblog.ragbackend.infra.ai.chat.LLMService;
 import com.personalblog.ragbackend.infra.ai.chat.StreamCancellationHandle;
 import com.personalblog.ragbackend.infra.ai.config.AIModelProperties;
 import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
+import com.personalblog.ragbackend.knowledge.aop.ChatRateLimit;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class RAGChatServiceImpl implements RAGChatService {
@@ -31,22 +31,26 @@ public class RAGChatServiceImpl implements RAGChatService {
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final KnowledgeAnswerGenerator answerGenerator;
     private final RagConversationService ragConversationService;
+    private final StreamCallbackFactory streamCallbackFactory;
 
     public RAGChatServiceImpl(KnowledgeRagApplicationService knowledgeRagApplicationService,
                               AIModelProperties aiModelProperties,
                               StreamTaskManager streamTaskManager,
                               ObjectProvider<LLMService> llmServiceProvider,
                               KnowledgeAnswerGenerator answerGenerator,
-                              RagConversationService ragConversationService) {
+                              RagConversationService ragConversationService,
+                              StreamCallbackFactory streamCallbackFactory) {
         this.knowledgeRagApplicationService = knowledgeRagApplicationService;
         this.aiModelProperties = aiModelProperties;
         this.streamTaskManager = streamTaskManager;
         this.llmServiceProvider = llmServiceProvider;
         this.answerGenerator = answerGenerator;
         this.ragConversationService = ragConversationService;
+        this.streamCallbackFactory = streamCallbackFactory;
     }
 
     @Override
+    @ChatRateLimit
     public void streamChat(String question, String conversationId, Boolean deepThinking, SseEmitter emitter) {
         String actualConversationId = StrUtil.isBlank(conversationId)
                 ? IdUtil.getSnowflakeNextIdStr()
@@ -54,8 +58,7 @@ public class RAGChatServiceImpl implements RAGChatService {
         String taskId = StrUtil.blankToDefault(RagTraceContext.getTaskId(), IdUtil.getSnowflakeNextIdStr());
         LoginUser loginUser = UserContext.get();
         SseEmitterSender sender = new SseEmitterSender(emitter);
-
-        CompletableFuture.runAsync(() -> executeStream(question, actualConversationId, Boolean.TRUE.equals(deepThinking), taskId, loginUser, sender));
+        executeStream(question, actualConversationId, Boolean.TRUE.equals(deepThinking), taskId, loginUser, sender);
     }
 
     @Override
@@ -85,17 +88,19 @@ public class RAGChatServiceImpl implements RAGChatService {
                 return;
             }
 
-            StreamChatEventHandler callback = new StreamChatEventHandler(
-                    sender,
-                    taskId,
-                    conversationId,
-                    ragConversationService,
-                    loginUser,
-                    question,
-                    prepared.baseCode(),
-                    prepared.citations().size(),
-                    Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
-                    streamTaskManager
+            StreamChatEventHandler callback = streamCallbackFactory.createChatEventHandler(
+                    new StreamChatHandlerParams(
+                            sender,
+                            taskId,
+                            conversationId,
+                            ragConversationService,
+                            loginUser,
+                            question,
+                            prepared.baseCode(),
+                            prepared.citations().size(),
+                            Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
+                            streamTaskManager
+                    )
             );
 
             if (prepared.hasDirectAnswer()) {
@@ -105,8 +110,7 @@ public class RAGChatServiceImpl implements RAGChatService {
             }
 
             if (!prepared.hasEvidence()) {
-                String answer = knowledgeRagApplicationService.generateAnswer(prepared, deepThinking);
-                callback.onContent(answer);
+                callback.onContent("未检索到与问题相关的文档内容。");
                 callback.onComplete();
                 return;
             }

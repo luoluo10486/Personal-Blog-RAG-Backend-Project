@@ -7,15 +7,15 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "app.rag.memory")
 public class RagMemoryProperties {
-    private boolean summaryEnabled = true;
+    private boolean summaryEnabled = false;
     @Min(1)
-    private int titleMaxLength = 32;
+    private int titleMaxLength = 30;
     @Min(1)
     private int historyKeepTurns = 8;
     @Min(1)
-    private int summaryStartTurns = 10;
+    private int summaryStartTurns = 9;
     @Min(1)
-    private int summaryMaxChars = 2000;
+    private int summaryMaxChars = 200;
 
     public boolean isSummaryEnabled() {
         return summaryEnabled;
