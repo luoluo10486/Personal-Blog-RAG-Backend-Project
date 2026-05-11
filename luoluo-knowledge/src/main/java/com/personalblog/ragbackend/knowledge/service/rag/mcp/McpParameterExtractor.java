@@ -7,6 +7,7 @@ import com.personalblog.ragbackend.infra.ai.chat.LLMService;
 import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.config.RagMcpProperties;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -16,25 +17,21 @@ import java.util.Map;
 
 @Service
 public class McpParameterExtractor {
-    private static final String DEFAULT_SYSTEM_PROMPT = """
-            You extract MCP tool parameters from the user's question.
-            Return only a valid JSON object.
-            Use only fields defined by the tool schema.
-            If a required field is missing and has no default, set it to null.
-            If an optional field is missing and has no default, omit it.
-            Keep value types aligned with the schema.
-            """;
+    private static final String DEFAULT_SYSTEM_PROMPT_PATH = "prompt/mcp-parameter-extract.st";
 
     private final RagMcpProperties ragMcpProperties;
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final ObjectMapper objectMapper;
+    private final PromptTemplateLoader promptTemplateLoader;
 
     public McpParameterExtractor(RagMcpProperties ragMcpProperties,
                                  ObjectProvider<LLMService> llmServiceProvider,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 PromptTemplateLoader promptTemplateLoader) {
         this.ragMcpProperties = ragMcpProperties;
         this.llmServiceProvider = llmServiceProvider;
         this.objectMapper = objectMapper;
+        this.promptTemplateLoader = promptTemplateLoader;
     }
 
     public Map<String, Object> extract(String question,
@@ -56,9 +53,12 @@ public class McpParameterExtractor {
         }
 
         try {
+            String systemPrompt = StrUtil.isNotBlank(customPromptTemplate)
+                    ? customPromptTemplate
+                    : promptTemplateLoader.load(DEFAULT_SYSTEM_PROMPT_PATH);
             ChatRequest request = ChatRequest.builder()
                     .messages(List.of(
-                            ChatMessage.system(StrUtil.blankToDefault(customPromptTemplate, DEFAULT_SYSTEM_PROMPT)),
+                            ChatMessage.system(systemPrompt),
                             ChatMessage.user(buildToolDefinition(tool)),
                             ChatMessage.user("Question:\n" + StrUtil.blankToDefault(question, ""))
                     ))

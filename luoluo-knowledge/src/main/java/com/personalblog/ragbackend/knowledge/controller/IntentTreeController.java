@@ -4,6 +4,7 @@ import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.service.admin.IntentTreeAdminService;
+import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolDescriptor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,11 @@ public class IntentTreeController {
     @GetMapping("/intent-tree/trees")
     public R<List<IntentNodeEntity>> tree() {
         return R.ok(intentTreeAdminService.tree());
+    }
+
+    @GetMapping("/intent-tree/mcp-tools")
+    public R<List<McpToolDescriptor>> mcpTools() {
+        return R.ok(intentTreeAdminService.listMcpTools());
     }
 
     @PostMapping("/intent-tree")

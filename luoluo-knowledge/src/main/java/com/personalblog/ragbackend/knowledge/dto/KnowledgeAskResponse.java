@@ -6,6 +6,8 @@ public record KnowledgeAskResponse(
         String answer,
         String baseCode,
         List<KnowledgeCitation> citations,
-        KnowledgeTrace trace
+        KnowledgeTrace trace,
+        String assistantMessageId,
+        String conversationTitle
 ) {
 }

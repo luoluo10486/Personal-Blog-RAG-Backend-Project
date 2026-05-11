@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.application;
 
+import com.personalblog.ragbackend.common.context.LoginUser;
 import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
@@ -7,10 +8,13 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
+import com.personalblog.ragbackend.knowledge.service.generation.TemplateKnowledgeAnswerGenerator;
+import com.personalblog.ragbackend.knowledge.service.rag.ConversationPersistResult;
+import com.personalblog.ragbackend.knowledge.service.rag.PreparedRagAnswer;
 import com.personalblog.ragbackend.knowledge.service.rag.RagConversationService;
+import com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore;
 import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolOrchestrator;
 import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPipeline;
 import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPlan;
@@ -68,6 +72,63 @@ public class KnowledgeRagApplicationService {
 
     @RagTraceRoot(name = "knowledge-ask")
     public KnowledgeAskResponse ask(KnowledgeAskRequest request) {
+        PreparedRagAnswer prepared = prepare(request);
+        if (prepared.hasDirectAnswer()) {
+            ConversationPersistResult persistResult = shouldPersistDirectAnswer(prepared)
+                    ? ragConversationService.persistExchange(
+                    request.conversationId(),
+                    request.question(),
+                    prepared.directAnswer(),
+                    prepared.baseCode(),
+                    prepared.citations().size()
+            )
+                    : new ConversationPersistResult(null, null);
+            return new KnowledgeAskResponse(
+                    prepared.directAnswer(),
+                    prepared.baseCode(),
+                    prepared.citations(),
+                    prepared.trace(),
+                    persistResult.assistantMessageId(),
+                    persistResult.conversationTitle()
+            );
+        }
+
+        String answer = generateAnswer(prepared, Boolean.TRUE.equals(request.deepThinking()));
+        ConversationPersistResult persistResult = ragConversationService.persistExchange(
+                request.conversationId(),
+                request.question(),
+                answer,
+                prepared.baseCode(),
+                prepared.citations().size()
+        );
+        List<String> steps = new ArrayList<>(prepared.trace().steps());
+        steps.add("generate");
+        KnowledgeTrace trace = new KnowledgeTrace(
+                prepared.trace().traceId(),
+                prepared.trace().conversationId(),
+                prepared.trace().route(),
+                prepared.trace().vectorType(),
+                prepared.trace().collectionName(),
+                prepared.trace().requestedTopK(),
+                prepared.trace().question(),
+                prepared.trace().rewrittenQuestion(),
+                steps
+        );
+        return new KnowledgeAskResponse(
+                answer,
+                prepared.baseCode(),
+                prepared.citations(),
+                trace,
+                persistResult.assistantMessageId(),
+                persistResult.conversationTitle()
+        );
+    }
+
+    public String generateAnswer(PreparedRagAnswer prepared, boolean deepThinking) {
+        return doGenerateAnswer(prepared, deepThinking);
+    }
+
+    public PreparedRagAnswer prepare(KnowledgeAskRequest request) {
         StopWatch stopWatch = new StopWatch("knowledge-rag");
         List<String> steps = new ArrayList<>();
         String baseCode = normalizeBaseCode(request.baseCode());
@@ -92,21 +153,24 @@ public class KnowledgeRagApplicationService {
                     plan.rewrittenQuestion(),
                     steps
             );
-            return new KnowledgeAskResponse(plan.directAnswer(), baseCode, List.of(), trace);
+            return new PreparedRagAnswer(
+                    request.question(),
+                    plan.rewrittenQuestion(),
+                    baseCode,
+                    plan.topK(),
+                    memory,
+                    plan,
+                    plan.intentGroup(),
+                    List.of(),
+                    List.of(),
+                    "",
+                    trace
+            );
         }
 
         String effectiveBaseCode = normalizeBaseCode(plan.baseCode());
         int effectiveTopK = plan.topK() > 0 ? plan.topK() : topK;
         if (plan.hasDirectAnswer()) {
-            if (request.conversationId() != null && !request.conversationId().isBlank()) {
-                ragConversationService.persistExchange(
-                        request.conversationId(),
-                        request.question(),
-                        plan.directAnswer(),
-                        effectiveBaseCode,
-                        0
-                );
-            }
             KnowledgeTrace trace = new KnowledgeTrace(
                     RagTraceContext.getTraceId(),
                     request.conversationId(),
@@ -118,8 +182,21 @@ public class KnowledgeRagApplicationService {
                     plan.rewrittenQuestion(),
                     steps
             );
-            return new KnowledgeAskResponse(plan.directAnswer(), effectiveBaseCode, List.of(), trace);
+            return new PreparedRagAnswer(
+                    request.question(),
+                    plan.rewrittenQuestion(),
+                    effectiveBaseCode,
+                    effectiveTopK,
+                    memory,
+                    plan,
+                    plan.intentGroup(),
+                    List.of(),
+                    List.of(),
+                    "",
+                    trace
+            );
         }
+
         stopWatch.start("retrieve");
         List<KnowledgeChunk> chunks = shouldRetrieveKnowledge(plan)
                 ? knowledgeRetrievalEngine.retrieve(new RetrieveRequest(effectiveBaseCode, plan.rewrittenQuestion(), effectiveTopK))
@@ -137,13 +214,6 @@ public class KnowledgeRagApplicationService {
         stopWatch.stop();
         steps.add("mcp:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
 
-        stopWatch.start("generate");
-        String answer = plan.hasDirectAnswer()
-                ? plan.directAnswer()
-                : answerGenerator.generate(plan.rewrittenQuestion(), memory, chunks, mcpContext);
-        stopWatch.stop();
-        steps.add("generate:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
-
         List<KnowledgeCitation> citations = chunks.stream()
                 .map(chunk -> new KnowledgeCitation(
                         chunk.documentId(),
@@ -154,16 +224,6 @@ public class KnowledgeRagApplicationService {
                         chunk.content()
                 ))
                 .toList();
-
-        if (!plan.hasDirectAnswer()) {
-            ragConversationService.persistExchange(
-                    request.conversationId(),
-                    request.question(),
-                    answer,
-                    effectiveBaseCode,
-                    citations.size()
-            );
-        }
 
         KnowledgeTrace trace = new KnowledgeTrace(
                 RagTraceContext.getTraceId(),
@@ -176,7 +236,19 @@ public class KnowledgeRagApplicationService {
                 plan.rewrittenQuestion(),
                 steps
         );
-        return new KnowledgeAskResponse(answer, effectiveBaseCode, citations, trace);
+        return new PreparedRagAnswer(
+                request.question(),
+                plan.rewrittenQuestion(),
+                effectiveBaseCode,
+                effectiveTopK,
+                memory,
+                plan,
+                plan.intentGroup(),
+                chunks,
+                citations,
+                mcpContext,
+                trace
+        );
     }
 
     private String normalizeBaseCode(String baseCode) {
@@ -197,5 +269,32 @@ public class KnowledgeRagApplicationService {
         return plan.intentGroup() == null
                 || plan.intentGroup().kbIntents() == null
                 || !plan.intentGroup().kbIntents().isEmpty();
+    }
+
+    private boolean shouldPersistDirectAnswer(PreparedRagAnswer prepared) {
+        return prepared != null
+                && prepared.plan() != null
+                && prepared.plan().guidanceDecision() != null
+                && !prepared.plan().guidanceDecision().prompt();
+    }
+
+    private String doGenerateAnswer(PreparedRagAnswer prepared, boolean deepThinking) {
+        if (prepared.hasDirectAnswer()) {
+            return prepared.directAnswer();
+        }
+        if (answerGenerator instanceof TemplateKnowledgeAnswerGenerator templateGenerator) {
+            List<NodeScore> kbIntents = prepared.intentGroup() == null ? List.of() : prepared.intentGroup().kbIntents();
+            List<NodeScore> mcpIntents = prepared.intentGroup() == null ? List.of() : prepared.intentGroup().mcpIntents();
+            return templateGenerator.generate(
+                    prepared.rewrittenQuestion(),
+                    prepared.memory(),
+                    prepared.chunks(),
+                    prepared.mcpContext(),
+                    kbIntents,
+                    mcpIntents,
+                    deepThinking
+            );
+        }
+        return answerGenerator.generate(prepared.rewrittenQuestion(), prepared.memory(), prepared.chunks(), prepared.mcpContext());
     }
 }

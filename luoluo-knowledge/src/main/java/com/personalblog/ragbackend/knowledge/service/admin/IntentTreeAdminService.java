@@ -3,6 +3,8 @@ package com.personalblog.ragbackend.knowledge.service.admin;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IntentNodeMapper;
+import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolClient;
+import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolDescriptor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -11,9 +13,12 @@ import java.util.List;
 @Service
 public class IntentTreeAdminService {
     private final IntentNodeMapper intentNodeMapper;
+    private final McpToolClient mcpToolClient;
 
-    public IntentTreeAdminService(IntentNodeMapper intentNodeMapper) {
+    public IntentTreeAdminService(IntentNodeMapper intentNodeMapper,
+                                  McpToolClient mcpToolClient) {
         this.intentNodeMapper = intentNodeMapper;
+        this.mcpToolClient = mcpToolClient;
     }
 
     public List<IntentNodeEntity> tree() {
@@ -22,10 +27,12 @@ public class IntentTreeAdminService {
                 .orderByAsc("id"));
     }
 
+    public List<McpToolDescriptor> listMcpTools() {
+        return mcpToolClient.listTools();
+    }
+
     public Long create(IntentNodeEntity request) {
-        if (request.intentCode == null || request.intentCode.isBlank() || request.name == null || request.name.isBlank()) {
-            throw new IllegalArgumentException("意图编码和名称不能为空");
-        }
+        validate(request, true);
         request.createdAt = LocalDateTime.now();
         request.updatedAt = LocalDateTime.now();
         request.enabled = request.enabled == null ? 1 : request.enabled;
@@ -51,6 +58,7 @@ public class IntentTreeAdminService {
         if (request.paramPromptTemplate != null) entity.paramPromptTemplate = request.paramPromptTemplate;
         if (request.sortOrder != null) entity.sortOrder = request.sortOrder;
         if (request.enabled != null) entity.enabled = request.enabled;
+        validate(entity, false);
         entity.updatedAt = LocalDateTime.now();
         intentNodeMapper.updateById(entity);
     }
@@ -68,15 +76,20 @@ public class IntentTreeAdminService {
     }
 
     public void batchDelete(List<Long> ids) {
-        if (ids == null) return;
+        if (ids == null) {
+            return;
+        }
         ids.forEach(intentNodeMapper::deleteById);
     }
 
     private void batchToggle(List<Long> ids, int enabled) {
-        if (ids == null) return;
+        if (ids == null) {
+            return;
+        }
         for (Long id : ids) {
             IntentNodeEntity entity = require(id);
             entity.enabled = enabled;
+            validate(entity, false);
             entity.updatedAt = LocalDateTime.now();
             intentNodeMapper.updateById(entity);
         }
@@ -85,8 +98,53 @@ public class IntentTreeAdminService {
     private IntentNodeEntity require(Long id) {
         IntentNodeEntity entity = intentNodeMapper.selectById(id);
         if (entity == null) {
-            throw new IllegalArgumentException("意图节点不存在");
+            throw new IllegalArgumentException("Intent node does not exist");
         }
         return entity;
+    }
+
+    private void validate(IntentNodeEntity entity, boolean creating) {
+        if (entity == null) {
+            throw new IllegalArgumentException("Intent node is required");
+        }
+        trim(entity);
+        if (creating && (entity.intentCode == null || entity.name == null)) {
+            throw new IllegalArgumentException("Intent code and name are required");
+        }
+        int kind = entity.kind == null ? 0 : entity.kind;
+        if (kind == 2) {
+            if (entity.mcpToolId == null) {
+                throw new IllegalArgumentException("MCP intent must provide mcpToolId");
+            }
+            entity.collectionName = null;
+        } else if (kind == 1) {
+            entity.collectionName = null;
+            entity.mcpToolId = null;
+            entity.paramPromptTemplate = null;
+        } else {
+            entity.mcpToolId = null;
+            entity.paramPromptTemplate = null;
+        }
+    }
+
+    private void trim(IntentNodeEntity entity) {
+        entity.intentCode = trimToNull(entity.intentCode);
+        entity.name = trimToNull(entity.name);
+        entity.parentCode = trimToNull(entity.parentCode);
+        entity.description = trimToNull(entity.description);
+        entity.examples = trimToNull(entity.examples);
+        entity.collectionName = trimToNull(entity.collectionName);
+        entity.mcpToolId = trimToNull(entity.mcpToolId);
+        entity.promptSnippet = trimToNull(entity.promptSnippet);
+        entity.promptTemplate = trimToNull(entity.promptTemplate);
+        entity.paramPromptTemplate = trimToNull(entity.paramPromptTemplate);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }
