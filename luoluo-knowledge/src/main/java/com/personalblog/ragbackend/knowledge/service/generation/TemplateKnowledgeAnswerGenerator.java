@@ -26,25 +26,26 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
     @Override
     @RagTraceNode(name = "answer-generate", type = "GENERATE")
     public String generate(String question, List<KnowledgeChunk> chunks) {
-        return generate(question, List.of(), chunks, "", List.of(), List.of(), false);
+        return generate(question, List.of(), chunks, "", List.of(), List.of(), List.of(), false);
     }
 
     @Override
     @RagTraceNode(name = "answer-generate", type = "GENERATE")
     public String generate(String question, List<ChatMessage> memory, List<KnowledgeChunk> chunks) {
-        return generate(question, memory, chunks, "", List.of(), List.of(), false);
+        return generate(question, memory, chunks, "", List.of(), List.of(), List.of(), false);
     }
 
     @Override
     @RagTraceNode(name = "answer-generate", type = "GENERATE")
     public String generate(String question, List<ChatMessage> memory, List<KnowledgeChunk> chunks, String mcpContext) {
-        return generate(question, memory, chunks, mcpContext, List.of(), List.of(), false);
+        return generate(question, memory, chunks, mcpContext, List.of(), List.of(), List.of(), false);
     }
 
     public String generate(String question,
                            List<ChatMessage> memory,
                            List<KnowledgeChunk> chunks,
                            String mcpContext,
+                           List<String> subQuestions,
                            List<NodeScore> kbIntents,
                            List<NodeScore> mcpIntents,
                            boolean deepThinking) {
@@ -58,7 +59,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
         }
 
         try {
-            ChatRequest request = buildRequest(question, memory, chunks, kbIntents, mcpIntents, mcpContext, deepThinking);
+            ChatRequest request = buildRequest(question, memory, chunks, kbIntents, mcpIntents, mcpContext, subQuestions, deepThinking);
             return llmService.chat(request);
         } catch (RuntimeException ex) {
             return fallbackAnswer(chunks, mcpContext);
@@ -72,12 +73,12 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                                     List<NodeScore> kbIntents,
                                     List<NodeScore> mcpIntents,
                                     String mcpContext,
+                                    List<String> subQuestions,
                                     boolean deepThinking) {
         return ragPromptService.buildChatRequest(
-                new RagPromptContext(question, chunks, kbIntents, mcpIntents, mcpContext),
+                new RagPromptContext(question, chunks, kbIntents, mcpIntents, mcpContext, subQuestions),
                 memory,
-                deepThinking,
-                mcpContext != null && !mcpContext.isBlank()
+                deepThinking
         );
     }
 

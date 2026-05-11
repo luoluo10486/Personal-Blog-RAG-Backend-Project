@@ -6,6 +6,7 @@ import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.IntentGroup;
+import com.personalblog.ragbackend.knowledge.service.rag.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPlan;
 
 import java.util.List;
@@ -33,5 +34,15 @@ public record PreparedRagAnswer(
 
     public boolean hasEvidence() {
         return (chunks != null && !chunks.isEmpty()) || StrUtil.isNotBlank(mcpContext);
+    }
+
+    public List<String> subQuestions() {
+        if (plan == null || plan.subIntents() == null) {
+            return List.of();
+        }
+        return plan.subIntents().stream()
+                .map(SubQuestionIntent::subQuestion)
+                .filter(StrUtil::isNotBlank)
+                .toList();
     }
 }

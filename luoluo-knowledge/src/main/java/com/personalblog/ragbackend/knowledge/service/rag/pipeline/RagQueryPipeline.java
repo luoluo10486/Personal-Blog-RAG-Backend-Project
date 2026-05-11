@@ -50,10 +50,13 @@ public class RagQueryPipeline {
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         steps.add("normalize-base");
 
-        KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(question, normalizedBaseCode);
+        KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(question, normalizedBaseCode, memory);
         steps.add("rewrite:" + rewriteResult.appliedMappings().size());
 
-        List<SubQuestionIntent> subIntents = ragIntentResolver.resolve(rewriteResult.rewrittenQuestion());
+        List<SubQuestionIntent> subIntents = ragIntentResolver.resolve(
+                rewriteResult.rewrittenQuestion(),
+                rewriteResult.subQuestions()
+        );
         steps.add("intent:" + subIntents.size());
 
         GuidanceDecision guidanceDecision = ragGuidanceService.detectAmbiguity(rewriteResult.rewrittenQuestion(), subIntents);
@@ -73,7 +76,9 @@ public class RagQueryPipeline {
         }
 
         IntentGroup intentGroup = ragIntentResolver.mergeIntentGroup(subIntents);
-        if (ragIntentResolver.isSystemOnly(selectTopCandidates(subIntents))) {
+        boolean allSystemOnly = subIntents.stream()
+                .allMatch(subQuestionIntent -> ragIntentResolver.isSystemOnly(subQuestionIntent.nodeScores()));
+        if (allSystemOnly) {
             String directAnswer = executeSystemOnly(rewriteResult.rewrittenQuestion(), memory, intentGroup);
             steps.add("system-only");
             return new RagQueryPlan(
@@ -153,13 +158,6 @@ public class RagQueryPipeline {
                 .filter(StrUtil::isNotBlank)
                 .findFirst()
                 .orElse("");
-    }
-
-    private List<NodeScore> selectTopCandidates(List<SubQuestionIntent> subIntents) {
-        if (CollUtil.isEmpty(subIntents)) {
-            return List.of();
-        }
-        return subIntents.get(0).nodeScores();
     }
 
     private String selectBaseCode(String fallbackBaseCode, IntentGroup intentGroup) {

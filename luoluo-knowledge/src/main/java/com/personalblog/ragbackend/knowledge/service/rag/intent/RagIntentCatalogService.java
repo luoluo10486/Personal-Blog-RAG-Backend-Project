@@ -53,6 +53,16 @@ public class RagIntentCatalogService {
                 .toList();
     }
 
+    public RagIntentNode findByIntentCode(String intentCode) {
+        if (StrUtil.isBlank(intentCode)) {
+            return null;
+        }
+        return listAllNodes().stream()
+                .filter(node -> intentCode.equals(node.intentCode))
+                .findFirst()
+                .orElse(null);
+    }
+
     public IntentGroup mergeIntentGroup(List<SubQuestionIntent> subIntents) {
         List<NodeScore> mcpIntents = new ArrayList<>();
         List<NodeScore> kbIntents = new ArrayList<>();

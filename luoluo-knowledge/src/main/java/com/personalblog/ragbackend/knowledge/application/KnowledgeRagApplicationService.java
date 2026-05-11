@@ -290,6 +290,7 @@ public class KnowledgeRagApplicationService {
                     prepared.memory(),
                     prepared.chunks(),
                     prepared.mcpContext(),
+                    prepared.subQuestions(),
                     kbIntents,
                     mcpIntents,
                     deepThinking

@@ -24,13 +24,13 @@ public class KnowledgeContextFormatter {
         StringBuilder builder = new StringBuilder();
         List<String> snippets = collectPromptSnippets(kbIntents);
         if (!snippets.isEmpty()) {
-            builder.append("Answer rules:\n");
+            builder.append("### 回答规则\n");
             for (int i = 0; i < snippets.size(); i++) {
                 builder.append(i + 1).append(". ").append(snippets.get(i)).append("\n");
             }
             builder.append("\n");
         }
-        builder.append("Knowledge evidence:\n");
+        builder.append("### 文档内容\n");
         int usedChars = 0;
         for (int index = 0; index < chunks.size(); index++) {
             KnowledgeChunk chunk = chunks.get(index);
@@ -54,7 +54,7 @@ public class KnowledgeContextFormatter {
         if (StrUtil.isBlank(mcpContext)) {
             return "";
         }
-        return "Dynamic tool evidence:\n" + safeTruncate(mcpContext, MAX_MCP_CONTEXT_CHARS);
+        return "### 动态数据片段\n" + safeTruncate(mcpContext, MAX_MCP_CONTEXT_CHARS);
     }
 
     private List<String> collectPromptSnippets(List<NodeScore> kbIntents) {

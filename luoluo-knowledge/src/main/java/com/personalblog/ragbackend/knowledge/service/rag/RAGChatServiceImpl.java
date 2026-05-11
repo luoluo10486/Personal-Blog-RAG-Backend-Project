@@ -18,6 +18,7 @@ import com.personalblog.ragbackend.knowledge.enums.SseEventType;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.IntentGroup;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore;
+import com.personalblog.ragbackend.knowledge.service.rag.intent.SubQuestionIntent;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -146,6 +147,7 @@ public class RAGChatServiceImpl implements RAGChatService {
                     extractKbIntents(prepared.intentGroup()),
                     extractMcpIntents(prepared.intentGroup()),
                     prepared.mcpContext(),
+                    prepared.subQuestions(),
                     deepThinking
             );
             if (llmService == null || chatRequest == null) {
@@ -227,5 +229,15 @@ public class RAGChatServiceImpl implements RAGChatService {
 
     private List<NodeScore> extractMcpIntents(IntentGroup intentGroup) {
         return intentGroup == null || intentGroup.mcpIntents() == null ? List.of() : intentGroup.mcpIntents();
+    }
+
+    private List<String> extractSubQuestions(PreparedRagAnswer prepared) {
+        if (prepared == null || prepared.plan() == null || prepared.plan().subIntents() == null) {
+            return List.of();
+        }
+        return prepared.plan().subIntents().stream()
+                .map(SubQuestionIntent::subQuestion)
+                .filter(StrUtil::isNotBlank)
+                .toList();
     }
 }

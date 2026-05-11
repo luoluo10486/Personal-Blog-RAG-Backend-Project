@@ -24,6 +24,7 @@ public interface KnowledgeAnswerGenerator {
                                      List<NodeScore> kbIntents,
                                      List<NodeScore> mcpIntents,
                                      String mcpContext,
+                                     List<String> subQuestions,
                                      boolean deepThinking) {
         return null;
     }

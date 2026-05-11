@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.ai.chat.LLMService;
 import com.personalblog.ragbackend.infra.ai.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -20,24 +21,32 @@ import java.util.stream.Collectors;
 
 @Service
 public class RagIntentResolver {
+    private static final String INTENT_CLASSIFIER_PROMPT_PATH = "prompt/intent-classifier.st";
     private static final int MAX_INTENT_COUNT = 8;
     private static final double MIN_SCORE = 0.15D;
 
     private final RagIntentCatalogService catalogService;
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final ObjectMapper objectMapper;
+    private final PromptTemplateLoader promptTemplateLoader;
 
     public RagIntentResolver(RagIntentCatalogService catalogService,
                              ObjectProvider<LLMService> llmServiceProvider,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper,
+                             PromptTemplateLoader promptTemplateLoader) {
         this.catalogService = catalogService;
         this.llmServiceProvider = llmServiceProvider;
         this.objectMapper = objectMapper;
+        this.promptTemplateLoader = promptTemplateLoader;
     }
 
     @RagTraceNode(name = "intent-resolve", type = "INTENT")
     public List<SubQuestionIntent> resolve(String question) {
-        List<String> subQuestions = splitSubQuestions(question);
+        return resolve(question, List.of());
+    }
+
+    public List<SubQuestionIntent> resolve(String question, List<String> explicitSubQuestions) {
+        List<String> subQuestions = normalizeSubQuestions(question, explicitSubQuestions);
         if (CollUtil.isEmpty(subQuestions)) {
             return List.of(new SubQuestionIntent(StrUtil.blankToDefault(question, ""), classify(StrUtil.blankToDefault(question, ""))));
         }
@@ -89,8 +98,6 @@ public class RagIntentResolver {
 
     private String buildPrompt(List<RagIntentNode> leafNodes) {
         StringBuilder builder = new StringBuilder();
-        builder.append("You are an intent classifier. Return a JSON array of objects with fields id, score, reason.");
-        builder.append("\nOnly choose ids from the list below.\n\n");
         for (RagIntentNode node : leafNodes) {
             builder.append("- id=").append(node.intentCode).append("\n");
             builder.append("  path=").append(StrUtil.blankToDefault(node.fullPath, node.name)).append("\n");
@@ -107,7 +114,10 @@ public class RagIntentResolver {
             }
             builder.append("\n");
         }
-        return builder.toString();
+        return promptTemplateLoader.render(
+                INTENT_CLASSIFIER_PROMPT_PATH,
+                java.util.Map.of("intent_list", builder.toString().trim())
+        );
     }
 
     private List<NodeScore> parseScores(String raw, List<RagIntentNode> leafNodes) throws Exception {
@@ -187,6 +197,18 @@ public class RagIntentResolver {
                 .filter(StrUtil::isNotBlank)
                 .limit(4)
                 .collect(Collectors.toList());
+    }
+
+    private List<String> normalizeSubQuestions(String question, List<String> explicitSubQuestions) {
+        if (CollUtil.isNotEmpty(explicitSubQuestions)) {
+            return explicitSubQuestions.stream()
+                    .map(value -> value == null ? "" : value.trim())
+                    .filter(StrUtil::isNotBlank)
+                    .distinct()
+                    .limit(4)
+                    .toList();
+        }
+        return splitSubQuestions(question);
     }
 
     private String normalize(String text) {
