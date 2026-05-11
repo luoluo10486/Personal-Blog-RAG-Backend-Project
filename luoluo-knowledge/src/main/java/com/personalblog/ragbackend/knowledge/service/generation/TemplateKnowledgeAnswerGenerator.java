@@ -93,7 +93,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
         if (mcpContext != null && !mcpContext.isBlank()) {
             snippets.add("[M1] " + safeTruncate(mcpContext, 300));
         }
-        return "Retrieved " + (chunks == null ? 0 : chunks.size()) + " knowledge chunks. AI generation is unavailable, so here are the most relevant excerpts:\n"
+        return "模型暂不可用，先给你相关片段：\n"
                 + snippets.stream().collect(Collectors.joining("\n"));
     }
 

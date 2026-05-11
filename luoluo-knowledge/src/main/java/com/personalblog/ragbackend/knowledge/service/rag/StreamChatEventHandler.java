@@ -7,6 +7,7 @@ import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
 import com.personalblog.ragbackend.infra.ai.chat.StreamCallback;
 import com.personalblog.ragbackend.knowledge.dto.stream.CompletionPayload;
 import com.personalblog.ragbackend.knowledge.dto.stream.MessageDelta;
+import com.personalblog.ragbackend.knowledge.dto.stream.MetaPayload;
 import com.personalblog.ragbackend.knowledge.enums.SseEventType;
 
 public class StreamChatEventHandler implements StreamCallback {
@@ -23,6 +24,7 @@ public class StreamChatEventHandler implements StreamCallback {
     private final int citationCount;
     private final int chunkSize;
     private final StreamTaskManager taskManager;
+    private final boolean sendTitleOnComplete;
     private final StringBuilder answer = new StringBuilder();
     private final StringBuilder thinking = new StringBuilder();
     private long thinkingStartMs;
@@ -48,6 +50,14 @@ public class StreamChatEventHandler implements StreamCallback {
         this.citationCount = citationCount;
         this.chunkSize = chunkSize;
         this.taskManager = taskManager;
+        this.sendTitleOnComplete = shouldSendTitle();
+
+        initialize();
+    }
+
+    private void initialize() {
+        sender.sendEvent(SseEventType.META.value(), new MetaPayload(conversationId, taskId));
+        taskManager.register(taskId, sender, this::buildCancelPayload);
     }
 
     @Override
@@ -96,7 +106,7 @@ public class StreamChatEventHandler implements StreamCallback {
         } finally {
             UserContext.clear();
         }
-        sender.sendEvent(SseEventType.FINISH.value(), new CompletionPayload(result.assistantMessageId(), result.conversationTitle()));
+        sender.sendEvent(SseEventType.FINISH.value(), new CompletionPayload(result.assistantMessageId(), resolveTitleForEvent()));
         sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
         taskManager.unregister(taskId);
         sender.complete();
@@ -112,13 +122,13 @@ public class StreamChatEventHandler implements StreamCallback {
     }
 
     public CompletionPayload buildCancelPayload() {
-        if (answer.isEmpty()) {
-            return new CompletionPayload(null, null);
-        }
         if (loginUser != null) {
             UserContext.set(loginUser);
         }
         try {
+            if (answer.isEmpty()) {
+                return new CompletionPayload(null, resolveTitleForEvent());
+            }
             ConversationPersistResult result = ragConversationService.persistExchange(
                     conversationId,
                     question,
@@ -128,10 +138,14 @@ public class StreamChatEventHandler implements StreamCallback {
                     StrUtil.isBlank(thinking.toString()) ? null : thinking.toString(),
                     resolveThinkingDuration()
             );
-            return new CompletionPayload(result.assistantMessageId(), result.conversationTitle());
+            return new CompletionPayload(result.assistantMessageId(), resolveTitleForEvent());
         } finally {
             UserContext.clear();
         }
+    }
+
+    private boolean shouldSendTitle() {
+        return StrUtil.isBlank(ragConversationService.findConversationTitle(conversationId));
     }
 
     private void sendChunked(String type, String content) {
@@ -163,5 +177,12 @@ public class StreamChatEventHandler implements StreamCallback {
         }
         thinkingDurationSeconds = Math.max(1, Math.round((System.currentTimeMillis() - thinkingStartMs) / 1000.0f));
         return thinkingDurationSeconds;
+    }
+
+    private String resolveTitleForEvent() {
+        if (!sendTitleOnComplete) {
+            return null;
+        }
+        return ragConversationService.findConversationTitle(conversationId);
     }
 }

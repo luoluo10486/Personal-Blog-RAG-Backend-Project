@@ -24,8 +24,8 @@ import java.util.function.Supplier;
 
 @Component
 public class StreamTaskManager {
-    private static final String CANCEL_TOPIC = "luoluo:stream:cancel";
-    private static final String CANCEL_KEY_PREFIX = "luoluo:stream:cancel:";
+    private static final String CANCEL_TOPIC = "ragent:stream:cancel";
+    private static final String CANCEL_KEY_PREFIX = "ragent:stream:cancel:";
     private static final Duration CANCEL_TTL = Duration.ofMinutes(30);
 
     private final ConcurrentMap<String, StreamTaskInfo> tasks = new ConcurrentHashMap<>();

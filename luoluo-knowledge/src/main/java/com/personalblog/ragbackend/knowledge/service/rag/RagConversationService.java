@@ -73,6 +73,14 @@ public class RagConversationService {
         return resolveCurrentUserId();
     }
 
+    public String findConversationTitle(String conversationId) {
+        Long userId = resolveCurrentUserId();
+        if (StrUtil.isBlank(conversationId) || userId == null) {
+            return null;
+        }
+        return findConversationTitle(conversationId.trim(), userId);
+    }
+
     private Long resolveCurrentUserId() {
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(userId)) {

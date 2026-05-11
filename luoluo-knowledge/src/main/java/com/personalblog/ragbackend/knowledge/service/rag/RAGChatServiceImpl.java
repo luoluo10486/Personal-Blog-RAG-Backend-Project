@@ -11,14 +11,11 @@ import com.personalblog.ragbackend.infra.ai.config.AIModelProperties;
 import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
-import com.personalblog.ragbackend.knowledge.dto.stream.CompletionPayload;
-import com.personalblog.ragbackend.knowledge.dto.stream.MessageDelta;
-import com.personalblog.ragbackend.knowledge.dto.stream.MetaPayload;
-import com.personalblog.ragbackend.knowledge.enums.SseEventType;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.IntentGroup;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore;
 import com.personalblog.ragbackend.knowledge.service.rag.intent.SubQuestionIntent;
+import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -28,8 +25,6 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 public class RAGChatServiceImpl implements RAGChatService {
-    private static final String MESSAGE_TYPE_RESPONSE = "response";
-
     private final KnowledgeRagApplicationService knowledgeRagApplicationService;
     private final AIModelProperties aiModelProperties;
     private final StreamTaskManager streamTaskManager;
@@ -56,12 +51,10 @@ public class RAGChatServiceImpl implements RAGChatService {
         String actualConversationId = StrUtil.isBlank(conversationId)
                 ? IdUtil.getSnowflakeNextIdStr()
                 : conversationId.trim();
-        String taskId = IdUtil.getSnowflakeNextIdStr();
+        String taskId = StrUtil.blankToDefault(RagTraceContext.getTaskId(), IdUtil.getSnowflakeNextIdStr());
         LoginUser loginUser = UserContext.get();
         SseEmitterSender sender = new SseEmitterSender(emitter);
 
-        streamTaskManager.register(taskId);
-        sender.sendEvent(SseEventType.META.value(), new MetaPayload(actualConversationId, taskId));
         CompletableFuture.runAsync(() -> executeStream(question, actualConversationId, Boolean.TRUE.equals(deepThinking), taskId, loginUser, sender));
     }
 
@@ -84,58 +77,37 @@ public class RAGChatServiceImpl implements RAGChatService {
                 UserContext.set(loginUser);
             }
 
-            if (streamTaskManager.isCancelled(taskId)) {
-                sendCancel(sender);
-                streamTaskManager.unregister(taskId);
-                return;
-            }
-
             PreparedRagAnswer prepared = knowledgeRagApplicationService.prepare(
                     new KnowledgeAskRequest(question, null, null, conversationId, deepThinking)
             );
 
             if (streamTaskManager.isCancelled(taskId)) {
-                sendCancel(sender);
-                streamTaskManager.unregister(taskId);
                 return;
             }
 
+            StreamChatEventHandler callback = new StreamChatEventHandler(
+                    sender,
+                    taskId,
+                    conversationId,
+                    ragConversationService,
+                    loginUser,
+                    question,
+                    prepared.baseCode(),
+                    prepared.citations().size(),
+                    Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
+                    streamTaskManager
+            );
+
             if (prepared.hasDirectAnswer()) {
-                ConversationPersistResult persistResult = ragConversationService.persistExchange(
-                        conversationId,
-                        question,
-                        prepared.directAnswer(),
-                        prepared.baseCode(),
-                        prepared.citations().size()
-                );
-                sendChunkedAnswer(sender, prepared.directAnswer());
-                sender.sendEvent(SseEventType.FINISH.value(), new CompletionPayload(
-                        persistResult.assistantMessageId(),
-                        persistResult.conversationTitle()
-                ));
-                sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
-                sender.complete();
-                streamTaskManager.unregister(taskId);
+                callback.onContent(prepared.directAnswer());
+                callback.onComplete();
                 return;
             }
 
             if (!prepared.hasEvidence()) {
                 String answer = knowledgeRagApplicationService.generateAnswer(prepared, deepThinking);
-                ConversationPersistResult persistResult = ragConversationService.persistExchange(
-                        conversationId,
-                        question,
-                        answer,
-                        prepared.baseCode(),
-                        prepared.citations().size()
-                );
-                sendChunkedAnswer(sender, answer);
-                sender.sendEvent(SseEventType.FINISH.value(), new CompletionPayload(
-                        persistResult.assistantMessageId(),
-                        persistResult.conversationTitle()
-                ));
-                sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
-                sender.complete();
-                streamTaskManager.unregister(taskId);
+                callback.onContent(answer);
+                callback.onComplete();
                 return;
             }
 
@@ -152,37 +124,11 @@ public class RAGChatServiceImpl implements RAGChatService {
             );
             if (llmService == null || chatRequest == null) {
                 String answer = knowledgeRagApplicationService.generateAnswer(prepared, deepThinking);
-                ConversationPersistResult persistResult = ragConversationService.persistExchange(
-                        conversationId,
-                        question,
-                        answer,
-                        prepared.baseCode(),
-                        prepared.citations().size()
-                );
-                sendChunkedAnswer(sender, answer);
-                sender.sendEvent(SseEventType.FINISH.value(), new CompletionPayload(
-                        persistResult.assistantMessageId(),
-                        persistResult.conversationTitle()
-                ));
-                sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
-                sender.complete();
-                streamTaskManager.unregister(taskId);
+                callback.onContent(answer);
+                callback.onComplete();
                 return;
             }
 
-            StreamChatEventHandler callback = new StreamChatEventHandler(
-                    sender,
-                    taskId,
-                    conversationId,
-                    ragConversationService,
-                    loginUser,
-                    question,
-                    prepared.baseCode(),
-                    prepared.citations().size(),
-                    Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
-                    streamTaskManager
-            );
-            streamTaskManager.register(taskId, sender, callback::buildCancelPayload);
             StreamCancellationHandle handle = llmService.streamChat(chatRequest, callback);
             streamTaskManager.bindHandle(taskId, handle);
         } catch (Throwable error) {
@@ -191,36 +137,6 @@ public class RAGChatServiceImpl implements RAGChatService {
         } finally {
             UserContext.clear();
         }
-    }
-
-    private void sendChunkedAnswer(SseEmitterSender sender, String answer) {
-        if (answer == null || answer.isBlank()) {
-            return;
-        }
-        int chunkSize = Math.max(1, aiModelProperties.getStream().getMessageChunkSize());
-        int index = 0;
-        int count = 0;
-        StringBuilder buffer = new StringBuilder();
-        while (index < answer.length()) {
-            int codePoint = answer.codePointAt(index);
-            buffer.appendCodePoint(codePoint);
-            index += Character.charCount(codePoint);
-            count++;
-            if (count >= chunkSize) {
-                sender.sendEvent(SseEventType.MESSAGE.value(), new MessageDelta(MESSAGE_TYPE_RESPONSE, buffer.toString()));
-                buffer.setLength(0);
-                count = 0;
-            }
-        }
-        if (!buffer.isEmpty()) {
-            sender.sendEvent(SseEventType.MESSAGE.value(), new MessageDelta(MESSAGE_TYPE_RESPONSE, buffer.toString()));
-        }
-    }
-
-    private void sendCancel(SseEmitterSender sender) {
-        sender.sendEvent(SseEventType.CANCEL.value(), new CompletionPayload(null, null));
-        sender.sendEvent(SseEventType.DONE.value(), "[DONE]");
-        sender.complete();
     }
 
     private List<NodeScore> extractKbIntents(IntentGroup intentGroup) {
