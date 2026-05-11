@@ -20,10 +20,11 @@ public class StreamChatEventHandler implements StreamCallback {
     private final RagConversationService ragConversationService;
     private final LoginUser loginUser;
     private final String question;
-    private final String baseCode;
-    private final int citationCount;
+    private String baseCode;
+    private int citationCount;
     private final int chunkSize;
     private final StreamTaskManager taskManager;
+    private final boolean userQuestionPrePersisted;
     private final boolean sendTitleOnComplete;
     private final StringBuilder answer = new StringBuilder();
     private final StringBuilder thinking = new StringBuilder();
@@ -39,7 +40,8 @@ public class StreamChatEventHandler implements StreamCallback {
                                   String baseCode,
                                   int citationCount,
                                   int chunkSize,
-                                  StreamTaskManager taskManager) {
+                                  StreamTaskManager taskManager,
+                                  boolean userQuestionPrePersisted) {
         this.sender = sender;
         this.taskId = taskId;
         this.conversationId = conversationId;
@@ -50,9 +52,17 @@ public class StreamChatEventHandler implements StreamCallback {
         this.citationCount = citationCount;
         this.chunkSize = chunkSize;
         this.taskManager = taskManager;
+        this.userQuestionPrePersisted = userQuestionPrePersisted;
         this.sendTitleOnComplete = shouldSendTitle();
 
         initialize();
+    }
+
+    public void updateEvidenceMetadata(String baseCode, int citationCount) {
+        if (StrUtil.isNotBlank(baseCode)) {
+            this.baseCode = baseCode.trim();
+        }
+        this.citationCount = Math.max(0, citationCount);
     }
 
     private void initialize() {
@@ -94,15 +104,7 @@ public class StreamChatEventHandler implements StreamCallback {
             UserContext.set(loginUser);
         }
         try {
-            result = ragConversationService.persistExchange(
-                    conversationId,
-                    question,
-                    answer.toString(),
-                    baseCode,
-                    citationCount,
-                    StrUtil.isBlank(thinking.toString()) ? null : thinking.toString(),
-                    resolveThinkingDuration()
-            );
+            result = persistAnswer();
         } finally {
             UserContext.clear();
         }
@@ -129,19 +131,34 @@ public class StreamChatEventHandler implements StreamCallback {
             if (answer.isEmpty()) {
                 return new CompletionPayload(null, resolveTitleForEvent());
             }
-            ConversationPersistResult result = ragConversationService.persistExchange(
-                    conversationId,
-                    question,
-                    answer.toString(),
-                    baseCode,
-                    citationCount,
-                    StrUtil.isBlank(thinking.toString()) ? null : thinking.toString(),
-                    resolveThinkingDuration()
-            );
+            ConversationPersistResult result = persistAnswer();
             return new CompletionPayload(result.assistantMessageId(), resolveTitleForEvent());
         } finally {
             UserContext.clear();
         }
+    }
+
+    private ConversationPersistResult persistAnswer() {
+        String thinkingContent = StrUtil.isBlank(thinking.toString()) ? null : thinking.toString();
+        if (userQuestionPrePersisted) {
+            return ragConversationService.persistAssistantAnswer(
+                    conversationId,
+                    answer.toString(),
+                    baseCode,
+                    citationCount,
+                    thinkingContent,
+                    resolveThinkingDuration()
+            );
+        }
+        return ragConversationService.persistExchange(
+                conversationId,
+                question,
+                answer.toString(),
+                baseCode,
+                citationCount,
+                thinkingContent,
+                resolveThinkingDuration()
+        );
     }
 
     private boolean shouldSendTitle() {

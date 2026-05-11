@@ -10,13 +10,17 @@ import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,15 +33,18 @@ public class RagIntentResolver {
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final ObjectMapper objectMapper;
     private final PromptTemplateLoader promptTemplateLoader;
+    private final Executor intentClassifyExecutor;
 
     public RagIntentResolver(RagIntentCatalogService catalogService,
                              ObjectProvider<LLMService> llmServiceProvider,
                              ObjectMapper objectMapper,
-                             PromptTemplateLoader promptTemplateLoader) {
+                             PromptTemplateLoader promptTemplateLoader,
+                             @Qualifier("intentClassifyThreadPoolExecutor") Executor intentClassifyExecutor) {
         this.catalogService = catalogService;
         this.llmServiceProvider = llmServiceProvider;
         this.objectMapper = objectMapper;
         this.promptTemplateLoader = promptTemplateLoader;
+        this.intentClassifyExecutor = intentClassifyExecutor;
     }
 
     @RagTraceNode(name = "intent-resolve", type = "INTENT")
@@ -51,9 +58,12 @@ public class RagIntentResolver {
             return List.of(new SubQuestionIntent(StrUtil.blankToDefault(question, ""), classify(StrUtil.blankToDefault(question, ""))));
         }
         List<CompletableFuture<SubQuestionIntent>> tasks = subQuestions.stream()
-                .map(subQuestion -> CompletableFuture.supplyAsync(() -> new SubQuestionIntent(subQuestion, classify(subQuestion))))
+                .map(subQuestion -> CompletableFuture.supplyAsync(
+                        () -> new SubQuestionIntent(subQuestion, classify(subQuestion)),
+                        intentClassifyExecutor
+                ))
                 .toList();
-        return tasks.stream().map(CompletableFuture::join).toList();
+        return capTotalIntents(tasks.stream().map(CompletableFuture::join).toList());
     }
 
     public IntentGroup mergeIntentGroup(List<SubQuestionIntent> subIntents) {
@@ -188,6 +198,87 @@ public class RagIntentResolver {
                 .toList();
     }
 
+    private List<SubQuestionIntent> capTotalIntents(List<SubQuestionIntent> subIntents) {
+        int totalIntents = subIntents.stream()
+                .mapToInt(subIntent -> subIntent.nodeScores() == null ? 0 : subIntent.nodeScores().size())
+                .sum();
+        if (totalIntents <= MAX_INTENT_COUNT) {
+            return subIntents;
+        }
+
+        List<IntentCandidate> allCandidates = collectAllCandidates(subIntents);
+        List<IntentCandidate> guaranteed = selectTopIntentPerSubQuestion(allCandidates, subIntents.size());
+        int remaining = Math.max(0, MAX_INTENT_COUNT - guaranteed.size());
+        List<IntentCandidate> additional = selectAdditionalIntents(allCandidates, guaranteed, remaining);
+        return rebuildSubIntents(subIntents, guaranteed, additional);
+    }
+
+    private List<IntentCandidate> collectAllCandidates(List<SubQuestionIntent> subIntents) {
+        List<IntentCandidate> candidates = new ArrayList<>();
+        for (int i = 0; i < subIntents.size(); i++) {
+            List<NodeScore> scores = subIntents.get(i).nodeScores();
+            if (CollUtil.isEmpty(scores)) {
+                continue;
+            }
+            for (NodeScore score : scores) {
+                candidates.add(new IntentCandidate(i, score));
+            }
+        }
+        candidates.sort(Comparator.comparingDouble((IntentCandidate candidate) -> candidate.nodeScore().score()).reversed());
+        return candidates;
+    }
+
+    private List<IntentCandidate> selectTopIntentPerSubQuestion(List<IntentCandidate> candidates, int subQuestionCount) {
+        List<IntentCandidate> selected = new ArrayList<>();
+        boolean[] seen = new boolean[subQuestionCount];
+        for (IntentCandidate candidate : candidates) {
+            if (!seen[candidate.subQuestionIndex()]) {
+                selected.add(candidate);
+                seen[candidate.subQuestionIndex()] = true;
+            }
+            if (selected.size() == subQuestionCount) {
+                break;
+            }
+        }
+        return selected;
+    }
+
+    private List<IntentCandidate> selectAdditionalIntents(List<IntentCandidate> candidates,
+                                                          List<IntentCandidate> selected,
+                                                          int remaining) {
+        if (remaining <= 0) {
+            return List.of();
+        }
+        List<IntentCandidate> additional = new ArrayList<>();
+        for (IntentCandidate candidate : candidates) {
+            if (selected.contains(candidate)) {
+                continue;
+            }
+            additional.add(candidate);
+            if (additional.size() >= remaining) {
+                break;
+            }
+        }
+        return additional;
+    }
+
+    private List<SubQuestionIntent> rebuildSubIntents(List<SubQuestionIntent> original,
+                                                      List<IntentCandidate> guaranteed,
+                                                      List<IntentCandidate> additional) {
+        Map<Integer, List<NodeScore>> grouped = new HashMap<>();
+        List<IntentCandidate> selected = new ArrayList<>(guaranteed);
+        selected.addAll(additional);
+        for (IntentCandidate candidate : selected) {
+            grouped.computeIfAbsent(candidate.subQuestionIndex(), ignored -> new ArrayList<>())
+                    .add(candidate.nodeScore());
+        }
+        List<SubQuestionIntent> result = new ArrayList<>();
+        for (int i = 0; i < original.size(); i++) {
+            result.add(new SubQuestionIntent(original.get(i).subQuestion(), grouped.getOrDefault(i, List.of())));
+        }
+        return result;
+    }
+
     private List<String> splitSubQuestions(String question) {
         if (StrUtil.isBlank(question)) {
             return List.of();
@@ -225,5 +316,8 @@ public class RagIntentResolver {
         }
         String withoutStart = trimmed.replaceFirst("^```[a-zA-Z]*\\s*", "");
         return withoutStart.replaceFirst("\\s*```$", "").trim();
+    }
+
+    private record IntentCandidate(int subQuestionIndex, NodeScore nodeScore) {
     }
 }

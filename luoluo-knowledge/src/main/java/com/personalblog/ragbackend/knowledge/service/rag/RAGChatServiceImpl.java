@@ -5,46 +5,34 @@ import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.common.context.LoginUser;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
-import com.personalblog.ragbackend.infra.ai.chat.LLMService;
-import com.personalblog.ragbackend.infra.ai.chat.StreamCancellationHandle;
 import com.personalblog.ragbackend.infra.ai.config.AIModelProperties;
-import com.personalblog.ragbackend.infra.ai.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.aop.ChatRateLimit;
-import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
-import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
-import com.personalblog.ragbackend.knowledge.service.rag.intent.IntentGroup;
-import com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore;
-import com.personalblog.ragbackend.knowledge.service.rag.intent.SubQuestionIntent;
+import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.knowledge.service.rag.pipeline.StreamChatContext;
+import com.personalblog.ragbackend.knowledge.service.rag.pipeline.StreamChatPipeline;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.List;
-
 @Service
 public class RAGChatServiceImpl implements RAGChatService {
-    private final KnowledgeRagApplicationService knowledgeRagApplicationService;
+    private final StreamChatPipeline chatPipeline;
     private final AIModelProperties aiModelProperties;
+    private final KnowledgeProperties knowledgeProperties;
     private final StreamTaskManager streamTaskManager;
-    private final ObjectProvider<LLMService> llmServiceProvider;
-    private final KnowledgeAnswerGenerator answerGenerator;
     private final RagConversationService ragConversationService;
     private final StreamCallbackFactory streamCallbackFactory;
 
-    public RAGChatServiceImpl(KnowledgeRagApplicationService knowledgeRagApplicationService,
+    public RAGChatServiceImpl(StreamChatPipeline chatPipeline,
                               AIModelProperties aiModelProperties,
+                              KnowledgeProperties knowledgeProperties,
                               StreamTaskManager streamTaskManager,
-                              ObjectProvider<LLMService> llmServiceProvider,
-                              KnowledgeAnswerGenerator answerGenerator,
                               RagConversationService ragConversationService,
                               StreamCallbackFactory streamCallbackFactory) {
-        this.knowledgeRagApplicationService = knowledgeRagApplicationService;
+        this.chatPipeline = chatPipeline;
         this.aiModelProperties = aiModelProperties;
+        this.knowledgeProperties = knowledgeProperties;
         this.streamTaskManager = streamTaskManager;
-        this.llmServiceProvider = llmServiceProvider;
-        this.answerGenerator = answerGenerator;
         this.ragConversationService = ragConversationService;
         this.streamCallbackFactory = streamCallbackFactory;
     }
@@ -57,107 +45,65 @@ public class RAGChatServiceImpl implements RAGChatService {
                 : conversationId.trim();
         String taskId = StrUtil.blankToDefault(RagTraceContext.getTaskId(), IdUtil.getSnowflakeNextIdStr());
         LoginUser loginUser = UserContext.get();
+        String userIdText = StrUtil.blankToDefault(UserContext.getUserId(), "");
         SseEmitterSender sender = new SseEmitterSender(emitter);
-        executeStream(question, actualConversationId, Boolean.TRUE.equals(deepThinking), taskId, loginUser, sender);
-    }
 
-    @Override
-    public void stopTask(String taskId) {
-        if (taskId == null || taskId.isBlank()) {
-            return;
-        }
-        streamTaskManager.cancel(taskId.trim());
-    }
+        StreamChatEventHandler callback = streamCallbackFactory.createChatEventHandler(
+                new StreamChatHandlerParams(
+                        sender,
+                        taskId,
+                        actualConversationId,
+                        ragConversationService,
+                        loginUser,
+                        question,
+                        knowledgeProperties.getDefaultBaseCode(),
+                        0,
+                        Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
+                        streamTaskManager,
+                        true
+                )
+        );
 
-    private void executeStream(String question,
-                               String conversationId,
-                               boolean deepThinking,
-                               String taskId,
-                               LoginUser loginUser,
-                               SseEmitterSender sender) {
+        StreamChatContext context = StreamChatContext.builder()
+                .question(question)
+                .conversationId(actualConversationId)
+                .taskId(taskId)
+                .deepThinking(Boolean.TRUE.equals(deepThinking))
+                .userId(resolveUserId(userIdText))
+                .userIdText(userIdText)
+                .baseCode(knowledgeProperties.getDefaultBaseCode())
+                .topK(knowledgeProperties.getSearch().getTopK())
+                .callback(callback)
+                .build();
+
         try {
             if (loginUser != null) {
                 UserContext.set(loginUser);
             }
-
-            PreparedRagAnswer prepared = knowledgeRagApplicationService.prepare(
-                    new KnowledgeAskRequest(question, null, null, conversationId, deepThinking)
-            );
-
-            if (streamTaskManager.isCancelled(taskId)) {
-                return;
-            }
-
-            StreamChatEventHandler callback = streamCallbackFactory.createChatEventHandler(
-                    new StreamChatHandlerParams(
-                            sender,
-                            taskId,
-                            conversationId,
-                            ragConversationService,
-                            loginUser,
-                            question,
-                            prepared.baseCode(),
-                            prepared.citations().size(),
-                            Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
-                            streamTaskManager
-                    )
-            );
-
-            if (prepared.hasDirectAnswer()) {
-                callback.onContent(prepared.directAnswer());
-                callback.onComplete();
-                return;
-            }
-
-            if (!prepared.hasEvidence()) {
-                callback.onContent("未检索到与问题相关的文档内容。");
-                callback.onComplete();
-                return;
-            }
-
-            LLMService llmService = llmServiceProvider.getIfAvailable();
-            ChatRequest chatRequest = answerGenerator.buildRequest(
-                    prepared.rewrittenQuestion(),
-                    prepared.memory(),
-                    prepared.chunks(),
-                    extractKbIntents(prepared.intentGroup()),
-                    extractMcpIntents(prepared.intentGroup()),
-                    prepared.mcpContext(),
-                    prepared.subQuestions(),
-                    deepThinking
-            );
-            if (llmService == null || chatRequest == null) {
-                String answer = knowledgeRagApplicationService.generateAnswer(prepared, deepThinking);
-                callback.onContent(answer);
-                callback.onComplete();
-                return;
-            }
-
-            StreamCancellationHandle handle = llmService.streamChat(chatRequest, callback);
-            streamTaskManager.bindHandle(taskId, handle);
+            chatPipeline.execute(context);
         } catch (Throwable error) {
-            sender.fail(error);
-            streamTaskManager.unregister(taskId);
+            callback.onError(error);
         } finally {
             UserContext.clear();
         }
     }
 
-    private List<NodeScore> extractKbIntents(IntentGroup intentGroup) {
-        return intentGroup == null || intentGroup.kbIntents() == null ? List.of() : intentGroup.kbIntents();
-    }
-
-    private List<NodeScore> extractMcpIntents(IntentGroup intentGroup) {
-        return intentGroup == null || intentGroup.mcpIntents() == null ? List.of() : intentGroup.mcpIntents();
-    }
-
-    private List<String> extractSubQuestions(PreparedRagAnswer prepared) {
-        if (prepared == null || prepared.plan() == null || prepared.plan().subIntents() == null) {
-            return List.of();
+    @Override
+    public void stopTask(String taskId) {
+        if (StrUtil.isBlank(taskId)) {
+            return;
         }
-        return prepared.plan().subIntents().stream()
-                .map(SubQuestionIntent::subQuestion)
-                .filter(StrUtil::isNotBlank)
-                .toList();
+        streamTaskManager.cancel(taskId.trim());
+    }
+
+    private Long resolveUserId(String userId) {
+        if (StrUtil.isBlank(userId)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userId.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

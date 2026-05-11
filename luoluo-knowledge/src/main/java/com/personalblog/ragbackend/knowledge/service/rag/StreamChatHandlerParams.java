@@ -13,6 +13,20 @@ public record StreamChatHandlerParams(
         String baseCode,
         int citationCount,
         int chunkSize,
-        StreamTaskManager taskManager
+        StreamTaskManager taskManager,
+        boolean userQuestionPrePersisted
 ) {
+    public StreamChatHandlerParams(SseEmitterSender sender,
+                                   String taskId,
+                                   String conversationId,
+                                   RagConversationService ragConversationService,
+                                   LoginUser loginUser,
+                                   String question,
+                                   String baseCode,
+                                   int citationCount,
+                                   int chunkSize,
+                                   StreamTaskManager taskManager) {
+        this(sender, taskId, conversationId, ragConversationService, loginUser, question, baseCode,
+                citationCount, chunkSize, taskManager, false);
+    }
 }

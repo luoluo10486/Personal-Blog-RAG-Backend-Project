@@ -69,6 +69,30 @@ public class RagConversationService {
         return new ConversationPersistResult(assistantMessageId, findConversationTitle(normalizedConversationId, userId));
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public ConversationPersistResult persistAssistantAnswer(String conversationId,
+                                                           String answer,
+                                                           String baseCode,
+                                                           int citationCount,
+                                                           String thinkingContent,
+                                                           Integer thinkingDuration) {
+        Long userId = resolveCurrentUserId();
+        if (StrUtil.isBlank(conversationId) || userId == null) {
+            return new ConversationPersistResult(null, null);
+        }
+        String normalizedConversationId = conversationId.trim();
+        String assistantMessageId = conversationMemoryService.append(
+                normalizedConversationId,
+                userId,
+                ChatMessage.assistant(
+                        StrUtil.blankToDefault(answer, "").trim(),
+                        StrUtil.isBlank(thinkingContent) ? null : thinkingContent.trim(),
+                        thinkingDuration
+                )
+        );
+        return new ConversationPersistResult(assistantMessageId, findConversationTitle(normalizedConversationId, userId));
+    }
+
     public Long resolveCurrentUserIdValue() {
         return resolveCurrentUserId();
     }

@@ -35,7 +35,6 @@ public class RagPromptService {
                 .thinking(deepThinking)
                 .temperature(resolveTemperature(scene))
                 .topP(resolveTopP(scene))
-                .maxTokens(1024)
                 .build();
     }
 
@@ -58,7 +57,9 @@ public class RagPromptService {
             messages.add(ChatMessage.system(formatEvidence("## 动态数据片段", mcpContext)));
         }
 
-        String kbContext = knowledgeContextFormatter.formatKbContext(promptContext.kbIntents(), promptContext.chunks());
+        String kbContext = StrUtil.isNotBlank(promptContext.kbContext())
+                ? promptContext.kbContext()
+                : knowledgeContextFormatter.formatKbContext(promptContext.kbIntents(), promptContext.chunks());
         if (StrUtil.isNotBlank(kbContext)) {
             messages.add(ChatMessage.user(formatEvidence("## 文档内容", kbContext)));
         }
@@ -88,8 +89,8 @@ public class RagPromptService {
 
     private String buildSystemPrompt(RagPromptContext promptContext, PromptScene scene) {
         String customTemplate = switch (scene) {
-            case KB_ONLY -> resolveSingleIntentTemplate(promptContext.kbIntents(), KB_PROMPT_PATH);
-            case MCP_ONLY -> resolveSingleIntentTemplate(promptContext.mcpIntents(), MCP_PROMPT_PATH);
+            case KB_ONLY -> resolveSingleIntentTemplate(promptContext.kbIntents(), promptContext.intentChunks(), KB_PROMPT_PATH);
+            case MCP_ONLY -> resolveSingleIntentTemplate(promptContext.mcpIntents(), java.util.Map.of(), MCP_PROMPT_PATH);
             case MIXED -> promptTemplateLoader.load(MIXED_PROMPT_PATH);
             case EMPTY -> promptTemplateLoader.load(CHAT_SYSTEM_PROMPT_PATH);
         };
@@ -115,11 +116,13 @@ public class RagPromptService {
     }
 
     private String resolveSingleIntentTemplate(List<com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore> intents,
+                                               java.util.Map<String, List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk>> intentChunks,
                                                String defaultPath) {
-        if (CollUtil.isEmpty(intents) || intents.size() != 1 || intents.get(0) == null || intents.get(0).node() == null) {
+        List<com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore> retained = retainHitIntents(intents, intentChunks);
+        if (CollUtil.isEmpty(retained) || retained.size() != 1 || retained.get(0) == null || retained.get(0).node() == null) {
             return promptTemplateLoader.load(defaultPath);
         }
-        var node = intents.get(0).node();
+        var node = retained.get(0).node();
         if (StrUtil.isNotBlank(node.promptTemplate)) {
             return node.promptTemplate;
         }
@@ -153,6 +156,43 @@ public class RagPromptService {
             return "";
         }
         return template.replace("\r\n", "\n").trim();
+    }
+
+    private List<com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore> retainHitIntents(
+            List<com.personalblog.ragbackend.knowledge.service.rag.intent.NodeScore> intents,
+            java.util.Map<String, List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk>> intentChunks) {
+        if (CollUtil.isEmpty(intents)) {
+            return List.of();
+        }
+        if (intentChunks == null || intentChunks.isEmpty()) {
+            return intents;
+        }
+        return intents.stream()
+                .filter(intent -> {
+                    if (intent == null || intent.node() == null) {
+                        return false;
+                    }
+                    List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk> chunks =
+                            intentChunks.get(nodeKey(intent.node()));
+                    return CollUtil.isNotEmpty(chunks);
+                })
+                .toList();
+    }
+
+    private String nodeKey(com.personalblog.ragbackend.knowledge.service.rag.intent.RagIntentNode node) {
+        if (node == null) {
+            return "";
+        }
+        if (node.id != null) {
+            return String.valueOf(node.id);
+        }
+        if (StrUtil.isNotBlank(node.intentCode)) {
+            return node.intentCode.trim();
+        }
+        if (StrUtil.isNotBlank(node.collectionName)) {
+            return node.collectionName.trim();
+        }
+        return StrUtil.blankToDefault(node.name, "").trim();
     }
 
     private enum PromptScene {

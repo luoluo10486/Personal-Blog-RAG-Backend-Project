@@ -15,7 +15,8 @@ public class StreamCallbackFactory {
                 params.baseCode(),
                 params.citationCount(),
                 params.chunkSize(),
-                params.taskManager()
+                params.taskManager(),
+                params.userQuestionPrePersisted()
         );
     }
 }
