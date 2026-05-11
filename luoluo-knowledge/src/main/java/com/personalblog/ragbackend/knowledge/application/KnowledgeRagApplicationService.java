@@ -11,9 +11,10 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
 import com.personalblog.ragbackend.knowledge.service.rag.RagConversationService;
+import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPipeline;
+import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPlan;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetrievalEngine;
 import com.personalblog.ragbackend.knowledge.service.retrieval.RetrieveRequest;
-import com.personalblog.ragbackend.knowledge.service.rewrite.QueryTermRewriteService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
@@ -30,23 +31,23 @@ public class KnowledgeRagApplicationService {
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
     private final KnowledgeAnswerGenerator answerGenerator;
-    private final QueryTermRewriteService queryTermRewriteService;
     private final RagConversationService ragConversationService;
+    private final RagQueryPipeline ragQueryPipeline;
 
     public KnowledgeRagApplicationService(
             KnowledgeProperties knowledgeProperties,
             KnowledgeVectorSpaceResolver vectorSpaceResolver,
             KnowledgeRetrievalEngine knowledgeRetrievalEngine,
             KnowledgeAnswerGenerator answerGenerator,
-            QueryTermRewriteService queryTermRewriteService,
-            RagConversationService ragConversationService
+            RagConversationService ragConversationService,
+            RagQueryPipeline ragQueryPipeline
     ) {
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
         this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
         this.answerGenerator = answerGenerator;
-        this.queryTermRewriteService = queryTermRewriteService;
         this.ragConversationService = ragConversationService;
+        this.ragQueryPipeline = ragQueryPipeline;
     }
 
     public KnowledgeHealthResponse health() {
@@ -70,20 +71,62 @@ public class KnowledgeRagApplicationService {
         int topK = normalizeTopK(request.topK());
         KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(baseCode);
         steps.add("resolve-collection");
-        KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(request.question(), baseCode);
-        steps.add("rewrite:" + rewriteResult.appliedMappings().size());
         List<ChatMessage> memory = ragConversationService.loadMemory(request.conversationId());
         steps.add("memory:" + memory.size());
+        RagQueryPlan plan = ragQueryPipeline.prepare(baseCode, request.question(), memory);
+        steps.addAll(plan.steps());
 
+        if (plan.guidanceDecision() != null && plan.guidanceDecision().prompt()) {
+            KnowledgeTrace trace = new KnowledgeTrace(
+                    RagTraceContext.getTraceId(),
+                    request.conversationId(),
+                    "knowledge-rag",
+                    vectorSpace.vectorType(),
+                    vectorSpace.collectionName(),
+                    plan.topK(),
+                    plan.originalQuestion(),
+                    plan.rewrittenQuestion(),
+                    steps
+            );
+            return new KnowledgeAskResponse(plan.directAnswer(), baseCode, List.of(), trace);
+        }
+
+        String effectiveBaseCode = normalizeBaseCode(plan.baseCode());
+        int effectiveTopK = plan.topK() > 0 ? plan.topK() : topK;
+        if (plan.hasDirectAnswer()) {
+            if (request.conversationId() != null && !request.conversationId().isBlank()) {
+                ragConversationService.persistExchange(
+                        request.conversationId(),
+                        request.question(),
+                        plan.directAnswer(),
+                        effectiveBaseCode,
+                        0
+                );
+            }
+            KnowledgeTrace trace = new KnowledgeTrace(
+                    RagTraceContext.getTraceId(),
+                    request.conversationId(),
+                    "knowledge-rag",
+                    vectorSpace.vectorType(),
+                    vectorSpace.collectionName(),
+                    effectiveTopK,
+                    plan.originalQuestion(),
+                    plan.rewrittenQuestion(),
+                    steps
+            );
+            return new KnowledgeAskResponse(plan.directAnswer(), effectiveBaseCode, List.of(), trace);
+        }
         stopWatch.start("retrieve");
         List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(
-                new RetrieveRequest(baseCode, rewriteResult.rewrittenQuestion(), topK)
+                new RetrieveRequest(effectiveBaseCode, plan.rewrittenQuestion(), effectiveTopK)
         );
         stopWatch.stop();
         steps.add("retrieve:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
 
         stopWatch.start("generate");
-        String answer = answerGenerator.generate(rewriteResult.rewrittenQuestion(), memory, chunks);
+        String answer = plan.hasDirectAnswer()
+                ? plan.directAnswer()
+                : answerGenerator.generate(plan.rewrittenQuestion(), memory, chunks);
         stopWatch.stop();
         steps.add("generate:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
 
@@ -98,13 +141,15 @@ public class KnowledgeRagApplicationService {
                 ))
                 .toList();
 
-        ragConversationService.persistExchange(
-                request.conversationId(),
-                request.question(),
-                answer,
-                baseCode,
-                citations.size()
-        );
+        if (!plan.hasDirectAnswer()) {
+            ragConversationService.persistExchange(
+                    request.conversationId(),
+                    request.question(),
+                    answer,
+                    effectiveBaseCode,
+                    citations.size()
+            );
+        }
 
         KnowledgeTrace trace = new KnowledgeTrace(
                 RagTraceContext.getTraceId(),
@@ -112,12 +157,12 @@ public class KnowledgeRagApplicationService {
                 "knowledge-rag",
                 vectorSpace.vectorType(),
                 vectorSpace.collectionName(),
-                topK,
-                rewriteResult.originalQuestion(),
-                rewriteResult.rewrittenQuestion(),
+                effectiveTopK,
+                plan.originalQuestion(),
+                plan.rewrittenQuestion(),
                 steps
         );
-        return new KnowledgeAskResponse(answer, baseCode, citations, trace);
+        return new KnowledgeAskResponse(answer, effectiveBaseCode, citations, trace);
     }
 
     private String normalizeBaseCode(String baseCode) {
