@@ -1,12 +1,12 @@
-package com.personalblog.ragbackend.knowledge.service.retrieval;
+package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.infra.ai.convention.RetrievedChunk;
-import com.personalblog.ragbackend.infra.ai.rerank.RerankService;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
+import com.personalblog.ragbackend.infra.rerank.RerankService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
-import com.personalblog.ragbackend.knowledge.service.retrieval.postprocessor.ConfidenceThresholdPostProcessor;
-import com.personalblog.ragbackend.knowledge.service.retrieval.postprocessor.DeduplicatePostProcessor;
-import com.personalblog.ragbackend.knowledge.service.retrieval.postprocessor.RerankPostProcessor;
+import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.ConfidenceThresholdPostProcessor;
+import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.DeduplicatePostProcessor;
+import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.RerankPostProcessor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 

@@ -3,8 +3,8 @@ package com.personalblog.ragbackend.knowledge.service.admin;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IntentNodeMapper;
-import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolClient;
-import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolDescriptor;
+import com.personalblog.ragbackend.rag.core.mcp.McpToolClient;
+import com.personalblog.ragbackend.rag.core.mcp.McpToolDescriptor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;

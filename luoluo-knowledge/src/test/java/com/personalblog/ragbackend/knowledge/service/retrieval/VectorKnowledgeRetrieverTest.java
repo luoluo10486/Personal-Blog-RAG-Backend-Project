@@ -1,6 +1,6 @@
-package com.personalblog.ragbackend.knowledge.service.retrieval;
+package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.infra.ai.embedding.EmbeddingService;
+import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;

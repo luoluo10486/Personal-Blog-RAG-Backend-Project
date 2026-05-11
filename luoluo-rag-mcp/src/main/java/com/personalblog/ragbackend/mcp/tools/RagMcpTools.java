@@ -9,7 +9,7 @@ import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
-import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetriever;
+import com.personalblog.ragbackend.rag.core.retrieve.KnowledgeRetriever;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import org.springframework.stereotype.Service;

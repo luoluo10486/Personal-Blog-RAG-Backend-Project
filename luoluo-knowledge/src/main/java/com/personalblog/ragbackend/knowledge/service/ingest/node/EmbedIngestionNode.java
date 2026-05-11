@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.ingest.node;
 
-import com.personalblog.ragbackend.infra.ai.embedding.EmbeddingService;
+import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionContext;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;

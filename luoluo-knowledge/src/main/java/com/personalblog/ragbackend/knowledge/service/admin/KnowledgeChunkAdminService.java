@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.knowledge.service.admin;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.infra.ai.embedding.EmbeddingService;
+import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;

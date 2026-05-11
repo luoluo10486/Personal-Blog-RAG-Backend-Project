@@ -1,8 +1,8 @@
-package com.personalblog.ragbackend.infra.ai.embedding;
+package com.personalblog.ragbackend.infra.embedding;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.personalblog.ragbackend.infra.ai.config.AIModelProperties;
-import com.personalblog.ragbackend.infra.ai.model.ModelTarget;
+import com.personalblog.ragbackend.infra.config.AIModelProperties;
+import com.personalblog.ragbackend.infra.model.ModelTarget;
 import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpClient;

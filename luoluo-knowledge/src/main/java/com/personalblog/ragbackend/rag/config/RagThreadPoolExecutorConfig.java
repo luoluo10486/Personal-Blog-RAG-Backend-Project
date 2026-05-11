@@ -1,0 +1,100 @@
+package com.personalblog.ragbackend.rag.config;
+
+import cn.hutool.core.thread.ThreadFactoryBuilder;
+import com.alibaba.ttl.threadpool.TtlExecutors;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+@Configuration
+public class RagThreadPoolExecutorConfig {
+    private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
+
+    @Bean
+    public Executor memoryLoadThreadPoolExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                Math.max(2, CPU_COUNT >> 1),
+                Math.max(4, CPU_COUNT),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("memory_load_executor_").build(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+
+    @Bean
+    public Executor memorySummaryThreadPoolExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                1,
+                Math.max(2, CPU_COUNT >> 1),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("memory_summary_executor_").build(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+
+    @Bean
+    public Executor chatEntryExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                Math.max(2, CPU_COUNT >> 1),
+                Math.max(4, CPU_COUNT),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("chat_entry_executor_").build(),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+
+    @Bean
+    public Executor intentClassifyThreadPoolExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                Math.max(2, CPU_COUNT >> 1),
+                Math.max(4, CPU_COUNT),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("intent_classify_executor_").build(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+
+    @Bean
+    public Executor ragContextThreadPoolExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                Math.max(2, CPU_COUNT >> 1),
+                Math.max(4, CPU_COUNT),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("rag_context_executor_").build(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+
+    @Bean
+    public Executor mcpBatchThreadPoolExecutor() {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                Math.max(2, CPU_COUNT >> 1),
+                Math.max(4, CPU_COUNT),
+                60,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(200),
+                ThreadFactoryBuilder.create().setNamePrefix("mcp_batch_executor_").build(),
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+        return TtlExecutors.getTtlExecutor(executor);
+    }
+}

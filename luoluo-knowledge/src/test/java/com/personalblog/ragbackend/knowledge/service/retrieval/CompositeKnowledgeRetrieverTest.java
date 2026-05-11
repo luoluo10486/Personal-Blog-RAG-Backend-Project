@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.knowledge.service.retrieval;
+package com.personalblog.ragbackend.rag.core.retrieve;
 
 import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import org.junit.jupiter.api.Test;
