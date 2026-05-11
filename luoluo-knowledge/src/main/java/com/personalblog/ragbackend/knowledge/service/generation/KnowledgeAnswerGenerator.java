@@ -11,4 +11,8 @@ public interface KnowledgeAnswerGenerator {
     default String generate(String question, List<ChatMessage> memory, List<KnowledgeChunk> chunks) {
         return generate(question, chunks);
     }
+
+    default String generate(String question, List<ChatMessage> memory, List<KnowledgeChunk> chunks, String mcpContext) {
+        return generate(question, memory, chunks);
+    }
 }

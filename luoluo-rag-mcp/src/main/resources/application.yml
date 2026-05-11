@@ -76,6 +76,8 @@ app:
     default-base-code: default
     jdbc:
       enabled: false
+    mcp:
+      enabled: false
     vector:
       type: milvus
       milvus:

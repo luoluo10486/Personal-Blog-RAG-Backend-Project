@@ -11,6 +11,7 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.generation.KnowledgeAnswerGenerator;
 import com.personalblog.ragbackend.knowledge.service.rag.RagConversationService;
+import com.personalblog.ragbackend.knowledge.service.rag.mcp.McpToolOrchestrator;
 import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPipeline;
 import com.personalblog.ragbackend.knowledge.service.rag.pipeline.RagQueryPlan;
 import com.personalblog.ragbackend.knowledge.service.retrieval.KnowledgeRetrievalEngine;
@@ -33,6 +34,7 @@ public class KnowledgeRagApplicationService {
     private final KnowledgeAnswerGenerator answerGenerator;
     private final RagConversationService ragConversationService;
     private final RagQueryPipeline ragQueryPipeline;
+    private final McpToolOrchestrator mcpToolOrchestrator;
 
     public KnowledgeRagApplicationService(
             KnowledgeProperties knowledgeProperties,
@@ -40,7 +42,8 @@ public class KnowledgeRagApplicationService {
             KnowledgeRetrievalEngine knowledgeRetrievalEngine,
             KnowledgeAnswerGenerator answerGenerator,
             RagConversationService ragConversationService,
-            RagQueryPipeline ragQueryPipeline
+            RagQueryPipeline ragQueryPipeline,
+            McpToolOrchestrator mcpToolOrchestrator
     ) {
         this.knowledgeProperties = knowledgeProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
@@ -48,6 +51,7 @@ public class KnowledgeRagApplicationService {
         this.answerGenerator = answerGenerator;
         this.ragConversationService = ragConversationService;
         this.ragQueryPipeline = ragQueryPipeline;
+        this.mcpToolOrchestrator = mcpToolOrchestrator;
     }
 
     public KnowledgeHealthResponse health() {
@@ -117,16 +121,26 @@ public class KnowledgeRagApplicationService {
             return new KnowledgeAskResponse(plan.directAnswer(), effectiveBaseCode, List.of(), trace);
         }
         stopWatch.start("retrieve");
-        List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(
-                new RetrieveRequest(effectiveBaseCode, plan.rewrittenQuestion(), effectiveTopK)
-        );
+        List<KnowledgeChunk> chunks = shouldRetrieveKnowledge(plan)
+                ? knowledgeRetrievalEngine.retrieve(new RetrieveRequest(effectiveBaseCode, plan.rewrittenQuestion(), effectiveTopK))
+                : List.of();
         stopWatch.stop();
         steps.add("retrieve:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
+
+        stopWatch.start("mcp");
+        String mcpContext = mcpToolOrchestrator.executeAndFormat(
+                plan.subIntents(),
+                effectiveBaseCode,
+                effectiveTopK,
+                request.conversationId()
+        );
+        stopWatch.stop();
+        steps.add("mcp:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
 
         stopWatch.start("generate");
         String answer = plan.hasDirectAnswer()
                 ? plan.directAnswer()
-                : answerGenerator.generate(plan.rewrittenQuestion(), memory, chunks);
+                : answerGenerator.generate(plan.rewrittenQuestion(), memory, chunks, mcpContext);
         stopWatch.stop();
         steps.add("generate:" + stopWatch.lastTaskInfo().getTimeMillis() + "ms");
 
@@ -177,5 +191,11 @@ public class KnowledgeRagApplicationService {
             return knowledgeProperties.getSearch().getTopK();
         }
         return topK;
+    }
+
+    private boolean shouldRetrieveKnowledge(RagQueryPlan plan) {
+        return plan.intentGroup() == null
+                || plan.intentGroup().kbIntents() == null
+                || !plan.intentGroup().kbIntents().isEmpty();
     }
 }

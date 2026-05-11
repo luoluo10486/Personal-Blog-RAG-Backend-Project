@@ -175,6 +175,12 @@ app:
       rerank:
         enabled: true
         provider: demo
+    mcp:
+      enabled: true
+      server-url: http://127.0.0.1:9099
+      connect-timeout-ms: 3000
+      read-timeout-ms: 10000
+      parameter-extraction-enabled: true
     trace:
       enabled: true
       max-error-length: 1000
