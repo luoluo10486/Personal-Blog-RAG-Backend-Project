@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_knowledge_vector_ref")
+@TableName("t_knowledge_vector")
 public class KnowledgeVectorRefEntity {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;

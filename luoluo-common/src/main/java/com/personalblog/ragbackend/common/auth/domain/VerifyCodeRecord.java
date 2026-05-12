@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * 验证码记录实体，用于保存验证码发送与核销流水。
  */
-@TableName("sys_verify_code_record")
+@TableName("t_verify_code_record")
 public class VerifyCodeRecord {
     @TableId(value = "record_id", type = IdType.AUTO)
     private Long recordId;

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * 认证会话实体，用于保存平台级登录会话记录。
  */
-@TableName("sys_auth_session")
+@TableName("t_auth_session")
 public class AuthSession {
     @TableId(value = "session_id", type = IdType.AUTO)
     private Long sessionId;

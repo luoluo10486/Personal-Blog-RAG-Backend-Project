@@ -106,7 +106,7 @@ public class KnowledgeProperties {
 
     public static class VectorProperties {
         @NotBlank
-        private String type = "milvus";
+        private String type = "pgvector";
         @Valid
         private MilvusProperties milvus = new MilvusProperties();
         @Valid
@@ -208,11 +208,13 @@ public class KnowledgeProperties {
     }
 
     public static class PgVectorProperties {
-        private boolean enabled = false;
+        private boolean enabled = true;
         @NotBlank
         private String schema = "public";
         @NotBlank
-        private String tableName = "knowledge_chunk_vector";
+        private String tableName = "t_knowledge_vector";
+        @NotBlank
+        private String collectionPrefix = "kb_";
 
         public boolean isEnabled() {
             return enabled;
@@ -237,11 +239,19 @@ public class KnowledgeProperties {
         public void setTableName(String tableName) {
             this.tableName = tableName;
         }
+
+        public String getCollectionPrefix() {
+            return collectionPrefix;
+        }
+
+        public void setCollectionPrefix(String collectionPrefix) {
+            this.collectionPrefix = collectionPrefix;
+        }
     }
 
     public static class DefaultStoreProperties {
         @NotBlank
-        private String collectionName = "knowledge_default_store";
+        private String collectionName = "default";
         @Min(1)
         private int dimension = 1536;
         @NotBlank

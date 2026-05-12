@@ -59,8 +59,9 @@ public class LuoluoAdminApplication {
         String externalBaseUrl = "http://" + ip + ":" + port + accessPath;
         String startupDuration = formatDuration(System.currentTimeMillis() - startTime);
 
-        boolean milvusEnabled = env.getProperty("app.knowledge.vector.milvus.enabled", Boolean.class, false);
-        String milvusUri = env.getProperty("app.knowledge.vector.milvus.uri", "http://127.0.0.1:19530");
+        String vectorType = env.getProperty("app.knowledge.vector.type", "pg");
+        String pgSchema = env.getProperty("app.knowledge.vector.pg.schema", "public");
+        String pgTable = env.getProperty("app.knowledge.vector.pg.table-name", "t_knowledge_vector");
 
         log.info("\n\n" +
                         "======================================================================\n" +
@@ -74,10 +75,8 @@ public class LuoluoAdminApplication {
                         "  Backend IP:       {}\n" +
                         "  Login API:        {}/luoluo/system/public/member/auth/login\n" +
                         "----------------------------------------------------------------------\n" +
-                        "  Milvus Enabled:   {}\n" +
-                        "  Milvus gRPC:      {}\n" +
-                        "  Milvus Health:    http://127.0.0.1:9091/healthz\n" +
-                        "  Attu Console:     http://127.0.0.1:8000\n" +
+                        "  Vector Type:      {}\n" +
+                        "  Vector Table:     {}.{}\n" +
                         "======================================================================\n",
                 appName,
                 profile,
@@ -85,8 +84,9 @@ public class LuoluoAdminApplication {
                 baseUrl,
                 externalBaseUrl,
                 baseUrl,
-                milvusEnabled,
-                milvusUri
+                vectorType,
+                pgSchema,
+                pgTable
         );
     }
 

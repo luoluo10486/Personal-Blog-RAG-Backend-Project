@@ -97,16 +97,22 @@ public class KnowledgeIngestionPersistenceService {
         }
 
         for (KnowledgeChunkEntity chunkEntity : context.getPersistedChunks()) {
-            KnowledgeVectorRefEntity vectorRefEntity = new KnowledgeVectorRefEntity();
+            KnowledgeVectorRefEntity vectorRefEntity = knowledgeVectorRefMapper.selectOne(
+                    Wrappers.<KnowledgeVectorRefEntity>lambdaQuery()
+                            .eq(KnowledgeVectorRefEntity::getChunkId, chunkEntity.getId())
+                            .last("limit 1")
+            );
+            if (vectorRefEntity == null) {
+                continue;
+            }
             vectorRefEntity.setKbId(context.getKnowledgeBaseId());
             vectorRefEntity.setDocId(context.getDocumentId());
-            vectorRefEntity.setChunkId(chunkEntity.getId());
             vectorRefEntity.setCollectionName(context.getPlan().vectorSpace().collectionName());
             vectorRefEntity.setVectorId(String.valueOf(chunkEntity.getId()));
             vectorRefEntity.setEmbeddingModel(context.getPlan().vectorSpace().embeddingModel());
             vectorRefEntity.setEmbeddingDim(context.getPlan().vectorSpace().dimension());
             vectorRefEntity.setMetadata(buildVectorRefMetadata(chunkEntity));
-            knowledgeVectorRefMapper.insert(vectorRefEntity);
+            knowledgeVectorRefMapper.updateById(vectorRefEntity);
         }
     }
 

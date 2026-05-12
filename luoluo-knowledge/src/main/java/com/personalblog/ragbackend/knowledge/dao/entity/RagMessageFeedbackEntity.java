@@ -8,10 +8,13 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("t_conversation_summary")
-public class RagConversationSummaryEntity {
+@TableName("t_message_feedback")
+public class RagMessageFeedbackEntity {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("message_id")
+    private Long messageId;
 
     @TableField("conversation_id")
     private String conversationId;
@@ -19,11 +22,14 @@ public class RagConversationSummaryEntity {
     @TableField("user_id")
     private Long userId;
 
-    @TableField("last_message_id")
-    private Long lastMessageId;
+    @TableField("vote")
+    private Integer vote;
 
-    @TableField("content")
-    private String content;
+    @TableField("reason")
+    private String reason;
+
+    @TableField("comment")
+    private String comment;
 
     @TableLogic
     @TableField("deleted")
@@ -43,6 +49,14 @@ public class RagConversationSummaryEntity {
         this.id = id;
     }
 
+    public Long getMessageId() {
+        return messageId;
+    }
+
+    public void setMessageId(Long messageId) {
+        this.messageId = messageId;
+    }
+
     public String getConversationId() {
         return conversationId;
     }
@@ -59,20 +73,28 @@ public class RagConversationSummaryEntity {
         this.userId = userId;
     }
 
-    public Long getLastMessageId() {
-        return lastMessageId;
+    public Integer getVote() {
+        return vote;
     }
 
-    public void setLastMessageId(Long lastMessageId) {
-        this.lastMessageId = lastMessageId;
+    public void setVote(Integer vote) {
+        this.vote = vote;
     }
 
-    public String getContent() {
-        return content;
+    public String getReason() {
+        return reason;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
     }
 
     public Integer getDeleted() {

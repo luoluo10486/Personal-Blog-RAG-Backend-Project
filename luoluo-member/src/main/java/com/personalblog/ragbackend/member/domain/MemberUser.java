@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * 系统用户实体，对应会员登录体系中的用户主表。
  */
-@TableName("sys_user")
+@TableName("t_user")
 public class MemberUser {
     @TableId(value = "user_id", type = IdType.AUTO)
     private Long userId;

@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_query_term_mapping")
+@TableName("t_query_term_mapping")
 public class QueryTermMappingEntity {
     @TableId(value = "id", type = IdType.AUTO)
     public Long id;

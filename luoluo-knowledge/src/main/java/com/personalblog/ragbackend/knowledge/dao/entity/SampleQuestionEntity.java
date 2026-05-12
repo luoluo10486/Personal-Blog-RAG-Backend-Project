@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_sample_question")
+@TableName("t_sample_question")
 public class SampleQuestionEntity {
     @TableId(value = "id", type = IdType.AUTO)
     public Long id;

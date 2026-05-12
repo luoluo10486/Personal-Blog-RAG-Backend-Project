@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_trace_run")
+@TableName("t_rag_trace_run")
 public class RagTraceRunEntity {
     @TableId(value = "id", type = IdType.AUTO)
     public Long id;

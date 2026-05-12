@@ -198,8 +198,7 @@ public class KnowledgeChunkAdminService {
                 .eq(KnowledgeVectorRefEntity::getChunkId, chunk.getId())
                 .last("limit 1"));
         if (entity == null) {
-            entity = new KnowledgeVectorRefEntity();
-            entity.setChunkId(chunk.getId());
+            return;
         }
         entity.setKbId(knowledgeBase.getId());
         entity.setDocId(document.getId());
@@ -208,11 +207,7 @@ public class KnowledgeChunkAdminService {
         entity.setEmbeddingModel(vectorSpace.embeddingModel());
         entity.setEmbeddingDim(dimension);
         entity.setMetadata("{\"chunkIndex\":" + chunk.getChunkIndex() + "}");
-        if (entity.getId() == null) {
-            knowledgeVectorRefMapper.insert(entity);
-        } else {
-            knowledgeVectorRefMapper.updateById(entity);
-        }
+        knowledgeVectorRefMapper.updateById(entity);
     }
 
     private void deleteChunkVector(KnowledgeDocumentEntity document, Long chunkId) {

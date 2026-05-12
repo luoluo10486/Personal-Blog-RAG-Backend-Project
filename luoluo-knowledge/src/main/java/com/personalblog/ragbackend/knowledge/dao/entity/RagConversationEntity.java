@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_conversation")
+@TableName("t_conversation")
 public class RagConversationEntity {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;

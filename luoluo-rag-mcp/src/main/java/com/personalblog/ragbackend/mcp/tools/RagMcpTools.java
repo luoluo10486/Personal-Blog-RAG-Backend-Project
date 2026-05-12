@@ -55,9 +55,10 @@ public class RagMcpTools {
         payload.put("confidenceThreshold", knowledgeProperties.getSearch().getConfidenceThreshold());
         payload.put("rerankEnabled", knowledgeProperties.getSearch().getRerank().isEnabled());
         payload.put("vectorType", knowledgeProperties.getVector().getType());
-        payload.put("milvusEnabled", knowledgeProperties.getVector().getMilvus().isEnabled());
-        payload.put("milvusUri", knowledgeProperties.getVector().getMilvus().getUri());
-        payload.put("collectionPrefix", knowledgeProperties.getVector().getMilvus().getCollectionPrefix());
+        payload.put("pgEnabled", knowledgeProperties.getVector().getPg().isEnabled());
+        payload.put("pgSchema", knowledgeProperties.getVector().getPg().getSchema());
+        payload.put("vectorTable", knowledgeProperties.getVector().getPg().getTableName());
+        payload.put("collectionPrefix", knowledgeProperties.getVector().getPg().getCollectionPrefix());
         return toJson(payload);
     }
 

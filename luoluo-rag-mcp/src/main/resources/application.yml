@@ -79,21 +79,14 @@ app:
     mcp:
       enabled: false
     vector:
-      type: milvus
-      milvus:
-        enabled: true
-        uri: http://127.0.0.1:19530
-        token: ""
-        database-name: ""
-        collection-prefix: kb_
-        consistency-level: BOUNDED
-        nprobe: 16
+      type: pgvector
       pg:
-        enabled: false
+        enabled: true
         schema: public
-        table-name: knowledge_chunk_vector
+        table-name: t_knowledge_vector
+        collection-prefix: kb_
     defaults:
-      collection-name: knowledge_default_store
+      collection-name: default
       dimension: 1536
       metric-type: COSINE
       embedding-model: Qwen/Qwen3-Embedding-8B

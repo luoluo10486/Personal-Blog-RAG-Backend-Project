@@ -8,10 +8,10 @@ spring:
     init:
       mode: never
   datasource:
-    url: jdbc:mysql://localhost:3306/personnal-blog?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
-    username: root
-    password: 1234
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/postgres}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
   mail:
     host: smtp.qq.com
     port: 465
@@ -136,22 +136,14 @@ app:
       # 当前正式检索默认先走 JDBC 检索器；关闭后会回退到空检索实现
       enabled: true
     vector:
-      # 可选：milvus / pg，当前主要用于正式链路的向量空间命名与后续扩展
-      type: milvus
-      milvus:
-        enabled: true
-        uri: http://127.0.0.1:19530
-        token: ""
-        database-name: ""
-        collection-prefix: kb_
-        consistency-level: BOUNDED
-        nprobe: 16
+      type: pgvector
       pg:
-        enabled: false
+        enabled: true
         schema: public
-        table-name: knowledge_chunk_vector
+        table-name: t_knowledge_vector
+        collection-prefix: kb_
     defaults:
-      collection-name: knowledge_default_store
+      collection-name: default
       dimension: 1536
       metric-type: COSINE
       embedding-model: Qwen/Qwen3-Embedding-8B

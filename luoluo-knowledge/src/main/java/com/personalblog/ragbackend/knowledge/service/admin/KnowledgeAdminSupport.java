@@ -156,7 +156,7 @@ public class KnowledgeAdminSupport {
                 || normalized.equals(knowledgeProperties.getDefaultBaseCode())) {
             return knowledgeProperties.getDefaults().getCollectionName();
         }
-        return knowledgeProperties.getVector().getMilvus().getCollectionPrefix() + normalized;
+        return knowledgeProperties.getVector().getPg().getCollectionPrefix() + normalized;
     }
 
     public String defaultChunkConfig(String strategy) {

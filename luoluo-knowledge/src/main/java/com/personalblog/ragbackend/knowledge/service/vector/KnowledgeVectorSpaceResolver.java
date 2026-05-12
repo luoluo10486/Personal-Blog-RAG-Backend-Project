@@ -63,7 +63,7 @@ public class KnowledgeVectorSpaceResolver {
         if (knowledgeProperties.getDefaultBaseCode().equals(normalizedBaseCode)) {
             return knowledgeProperties.getDefaults().getCollectionName();
         }
-        return knowledgeProperties.getVector().getMilvus().getCollectionPrefix() + normalizedBaseCode;
+        return knowledgeProperties.getVector().getPg().getCollectionPrefix() + normalizedBaseCode;
     }
 
     private KnowledgeBaseEntity findKnowledgeBase(String baseCode) {

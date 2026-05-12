@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_intent_node")
+@TableName("t_intent_node")
 public class IntentNodeEntity {
     @TableId(value = "id", type = IdType.AUTO)
     public Long id;

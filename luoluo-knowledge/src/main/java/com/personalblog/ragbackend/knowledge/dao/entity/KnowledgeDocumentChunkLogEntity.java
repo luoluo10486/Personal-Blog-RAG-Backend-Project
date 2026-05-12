@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_knowledge_document_chunk_log")
+@TableName("t_knowledge_document_chunk_log")
 public class KnowledgeDocumentChunkLogEntity {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;

@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_knowledge_base")
+@TableName("t_knowledge_base")
 public class KnowledgeBaseEntity {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;

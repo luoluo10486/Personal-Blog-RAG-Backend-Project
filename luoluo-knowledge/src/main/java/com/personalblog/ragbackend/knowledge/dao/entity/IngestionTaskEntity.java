@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
-@TableName("rag_ingestion_task")
+@TableName("t_ingestion_task")
 public class IngestionTaskEntity {
     @TableId(value = "id", type = IdType.AUTO)
     public Long id;

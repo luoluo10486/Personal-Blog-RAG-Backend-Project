@@ -92,9 +92,9 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
                     d.file_url as source_url,
                     kb.collection_name as collection_name,
                     kb.name as kb_name
-                from rag_knowledge_chunk c
-                join rag_knowledge_document d on d.id = c.doc_id and d.deleted = 0 and d.enabled = 1
-                join rag_knowledge_base kb on kb.id = c.kb_id and kb.deleted = 0 and kb.status = 'ACTIVE'
+                from t_knowledge_chunk c
+                join t_knowledge_document d on d.id = c.doc_id and d.deleted = 0 and d.enabled = 1
+                join t_knowledge_base kb on kb.id = c.kb_id and kb.deleted = 0 and kb.status = 'ACTIVE'
                 where c.deleted = 0 and c.enabled = 1
                 """);
         List<Object> params = new ArrayList<>();
