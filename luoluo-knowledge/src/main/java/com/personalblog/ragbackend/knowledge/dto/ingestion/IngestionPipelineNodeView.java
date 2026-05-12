@@ -1,19 +1,13 @@
 package com.personalblog.ragbackend.knowledge.dto.ingestion;
 
-import java.time.LocalDateTime;
-import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public record IngestionPipelineNodeView(
-        Long id,
-        Long pipelineId,
+        String id,
         String nodeId,
         String nodeType,
-        String nextNodeId,
-        Map<String, Object> settings,
-        Map<String, Object> condition,
-        Long createdBy,
-        Long updatedBy,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        JsonNode settings,
+        JsonNode condition,
+        String nextNodeId
 ) {
 }

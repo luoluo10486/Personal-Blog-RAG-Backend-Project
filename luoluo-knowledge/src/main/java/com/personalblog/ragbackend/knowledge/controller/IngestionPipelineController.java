@@ -33,13 +33,13 @@ public class IngestionPipelineController {
     }
 
     @PutMapping("/ingestion/pipelines/{id}")
-    public R<IngestionPipelineView> update(@PathVariable Long id,
+    public R<IngestionPipelineView> update(@PathVariable String id,
                                            @RequestBody IngestionPipelineUpdateRequest request) {
         return R.ok(ingestionPipelineService.update(id, request));
     }
 
     @GetMapping("/ingestion/pipelines/{id}")
-    public R<IngestionPipelineView> get(@PathVariable Long id) {
+    public R<IngestionPipelineView> get(@PathVariable String id) {
         return R.ok(ingestionPipelineService.get(id));
     }
 
@@ -51,7 +51,7 @@ public class IngestionPipelineController {
     }
 
     @DeleteMapping("/ingestion/pipelines/{id}")
-    public R<Void> delete(@PathVariable Long id) {
+    public R<Void> delete(@PathVariable String id) {
         ingestionPipelineService.delete(id);
         return R.ok();
     }

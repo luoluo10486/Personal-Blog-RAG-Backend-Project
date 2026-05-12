@@ -5,12 +5,10 @@ public class KnowledgeDocumentUpdateRequest {
     private String processMode;
     private String chunkStrategy;
     private String chunkConfig;
-    private Long pipelineId;
-    private String sourceType;
+    private String pipelineId;
     private String sourceLocation;
     private Integer scheduleEnabled;
     private String scheduleCron;
-    private String status;
 
     public String getDocName() {
         return docName;
@@ -44,20 +42,12 @@ public class KnowledgeDocumentUpdateRequest {
         this.chunkConfig = chunkConfig;
     }
 
-    public Long getPipelineId() {
+    public String getPipelineId() {
         return pipelineId;
     }
 
-    public void setPipelineId(Long pipelineId) {
+    public void setPipelineId(String pipelineId) {
         this.pipelineId = pipelineId;
-    }
-
-    public String getSourceType() {
-        return sourceType;
-    }
-
-    public void setSourceType(String sourceType) {
-        this.sourceType = sourceType;
     }
 
     public String getSourceLocation() {
@@ -82,13 +72,5 @@ public class KnowledgeDocumentUpdateRequest {
 
     public void setScheduleCron(String scheduleCron) {
         this.scheduleCron = scheduleCron;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 }

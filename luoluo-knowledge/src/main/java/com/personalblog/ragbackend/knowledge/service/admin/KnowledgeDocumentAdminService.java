@@ -32,8 +32,8 @@ import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
 import org.apache.rocketmq.common.message.MessageConst;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +43,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class KnowledgeDocumentAdminService {
@@ -89,14 +90,14 @@ public class KnowledgeDocumentAdminService {
     public KnowledgeDocumentView upload(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(kbId);
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("涓婁紶鏂囦欢涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("file is required");
         }
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
                 new KnowledgeIngestionRequest(resolveBaseCode(knowledgeBase), file, KnowledgeIngestionMode.INGEST)
         );
         DocumentIngestionSummary summary = result.ingestionSummary();
         if (summary == null || !summary.success()) {
-            throw new IllegalArgumentException(summary == null ? "鏂囨。鍏ュ簱澶辫触" : summary.errorMessage());
+            throw new IllegalArgumentException(summary == null ? "ingestion summary missing" : summary.errorMessage());
         }
         KnowledgeDocumentEntity entity = requireDocument(summary.documentId());
         applyUploadMetadata(entity, request);
@@ -108,7 +109,7 @@ public class KnowledgeDocumentAdminService {
     public void startChunk(Long documentId) {
         KnowledgeDocumentEntity document = requireDocument(documentId);
         if (!StringUtils.hasText(document.getFileUrl())) {
-            throw new IllegalArgumentException("鏂囨。娌℃湁鍙敤鐨勬簮鏂囦欢璺緞锛岃閲嶆柊涓婁紶");
+            throw new IllegalArgumentException("document file is missing");
         }
 
         int updated = knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocumentEntity>()
@@ -116,7 +117,7 @@ public class KnowledgeDocumentAdminService {
                 .eq(KnowledgeDocumentEntity::getId, documentId)
                 .ne(KnowledgeDocumentEntity::getStatus, "running"));
         if (updated <= 0) {
-            throw new IllegalArgumentException("鏂囨。姝ｅ湪鍒嗗潡涓紝璇风◢鍚庡啀璇�");
+            throw new IllegalArgumentException("document is already running");
         }
 
         String operator = StringUtils.hasText(UserContext.getUsername()) ? UserContext.getUsername() : "system";
@@ -141,7 +142,7 @@ public class KnowledgeDocumentAdminService {
                 document.getFileType()
         );
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("鏂囨。婧愭枃浠朵笉瀛樺湪");
+            throw new IllegalArgumentException("Document restore failed");
         }
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
                 new KnowledgeIngestionRequest(
@@ -158,7 +159,7 @@ public class KnowledgeDocumentAdminService {
         );
         DocumentIngestionSummary summary = result.ingestionSummary();
         if (summary == null || !summary.success()) {
-            throw new IllegalArgumentException(summary == null ? "閲嶆柊鍒嗗潡澶辫触" : summary.errorMessage());
+            throw new IllegalArgumentException(summary == null ? "ingestion summary missing" : summary.errorMessage());
         }
     }
 
@@ -192,11 +193,8 @@ public class KnowledgeDocumentAdminService {
         if (request.getChunkConfig() != null) {
             entity.setChunkConfig(blankToNull(request.getChunkConfig()));
         }
-        if (request.getPipelineId() != null) {
-            entity.setPipelineId(request.getPipelineId());
-        }
-        if (request.getSourceType() != null) {
-            entity.setSourceType(blankToNull(request.getSourceType()));
+        if (StringUtils.hasText(request.getPipelineId())) {
+            entity.setPipelineId(parseLong(request.getPipelineId()));
         }
         if (request.getSourceLocation() != null) {
             entity.setSourceLocation(blankToNull(request.getSourceLocation()));
@@ -207,9 +205,6 @@ public class KnowledgeDocumentAdminService {
         if (request.getScheduleCron() != null) {
             entity.setScheduleCron(blankToNull(request.getScheduleCron()));
         }
-        if (request.getStatus() != null) {
-            entity.setStatus(blankToNull(request.getStatus()));
-        }
         knowledgeDocumentMapper.updateById(entity);
     }
 
@@ -219,7 +214,6 @@ public class KnowledgeDocumentAdminService {
                 support.newPage(request.getCurrent(), request.getSize()),
                 new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                         .eq(KnowledgeDocumentEntity::getKbId, kbId)
-                        .eq(request.getEnabled() != null, KnowledgeDocumentEntity::getEnabled, request.getEnabled())
                         .eq(StringUtils.hasText(request.getStatus()), KnowledgeDocumentEntity::getStatus, request.getStatus())
                         .and(StringUtils.hasText(request.getKeyword()), wrapper -> wrapper
                                 .like(KnowledgeDocumentEntity::getDocName, request.getKeyword())
@@ -231,15 +225,31 @@ public class KnowledgeDocumentAdminService {
     }
 
     public List<KnowledgeDocumentSearchView> search(String keyword, int limit) {
-        return knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
+        List<KnowledgeDocumentEntity> documents = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                         .and(StringUtils.hasText(keyword), wrapper -> wrapper
                                 .like(KnowledgeDocumentEntity::getDocName, keyword)
                                 .or()
                                 .like(KnowledgeDocumentEntity::getSourceLocation, keyword))
                         .orderByDesc(KnowledgeDocumentEntity::getUpdatedAt)
-                        .last("limit " + Math.max(limit, 1)))
+                        .last("limit " + Math.max(limit, 1)));
+        if (documents.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> kbNameMap = knowledgeBaseMapper.selectList(new LambdaQueryWrapper<KnowledgeBaseEntity>()
+                        .in(KnowledgeBaseEntity::getId,
+                                documents.stream().map(KnowledgeDocumentEntity::getKbId).distinct().toList()))
                 .stream()
-                .map(support::toKnowledgeDocumentSearchView)
+                .collect(java.util.stream.Collectors.toMap(
+                        entity -> String.valueOf(entity.getId()),
+                        KnowledgeBaseEntity::getName
+                ));
+        return documents.stream()
+                .map(entity -> new KnowledgeDocumentSearchView(
+                        String.valueOf(entity.getId()),
+                        String.valueOf(entity.getKbId()),
+                        entity.getDocName(),
+                        kbNameMap.get(String.valueOf(entity.getKbId()))
+                ))
                 .toList();
     }
 
@@ -266,9 +276,6 @@ public class KnowledgeDocumentAdminService {
         if (request == null) {
             return;
         }
-        if (request.getSourceType() != null) {
-            entity.setSourceType(blankToNull(request.getSourceType()));
-        }
         if (request.getSourceLocation() != null) {
             entity.setSourceLocation(blankToNull(request.getSourceLocation()));
         }
@@ -289,8 +296,8 @@ public class KnowledgeDocumentAdminService {
         if (request.getChunkConfig() != null) {
             entity.setChunkConfig(blankToNull(request.getChunkConfig()));
         }
-        if (request.getPipelineId() != null) {
-            entity.setPipelineId(request.getPipelineId());
+        if (StringUtils.hasText(request.getPipelineId())) {
+            entity.setPipelineId(parseLong(request.getPipelineId()));
         }
     }
 
@@ -315,24 +322,35 @@ public class KnowledgeDocumentAdminService {
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
         if (kbId == null) {
-            throw new IllegalArgumentException("鐭ヨ瘑搴揑D 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("knowledge base id is required");
         }
         KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
-            throw new IllegalArgumentException("鐭ヨ瘑搴撲笉瀛樺湪");
+            throw new IllegalArgumentException("knowledge base not found");
         }
         return entity;
     }
 
     private KnowledgeDocumentEntity requireDocument(Long documentId) {
         if (documentId == null) {
-            throw new IllegalArgumentException("鏂囨。 ID 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("document id is required");
         }
         KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(documentId);
         if (entity == null) {
-            throw new IllegalArgumentException("鏂囨。涓嶅瓨鍦�");
+            throw new IllegalArgumentException("document not found");
         }
         return entity;
+    }
+
+    private Long parseLong(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("id not found");
+        }
     }
 
     private String resolveBaseCode(KnowledgeBaseEntity knowledgeBase) {

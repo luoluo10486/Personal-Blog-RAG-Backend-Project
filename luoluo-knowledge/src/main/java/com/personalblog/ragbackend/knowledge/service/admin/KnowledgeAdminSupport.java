@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -47,29 +48,27 @@ public class KnowledgeAdminSupport {
 
     public KnowledgeBaseView toKnowledgeBaseView(KnowledgeBaseEntity entity, long documentCount) {
         return new KnowledgeBaseView(
-                entity.getId(),
+                String.valueOf(entity.getId()),
                 entity.getName(),
-                entity.getDescription(),
                 entity.getEmbeddingModel(),
                 entity.getCollectionName(),
-                entity.getVisibility(),
-                entity.getStatus(),
                 documentCount,
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()),
+                entity.getCreatedAt() == null ? null : Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()),
+                entity.getUpdatedAt() == null ? null : Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
         );
     }
 
     public KnowledgeDocumentView toKnowledgeDocumentView(KnowledgeDocumentEntity entity) {
         return new KnowledgeDocumentView(
-                entity.getId(),
-                entity.getKbId(),
+                String.valueOf(entity.getId()),
+                String.valueOf(entity.getKbId()),
                 entity.getDocName(),
                 entity.getSourceType(),
                 entity.getSourceLocation(),
                 entity.getScheduleEnabled(),
                 entity.getScheduleCron(),
-                entity.getEnabled(),
+                entity.getEnabled() != null && entity.getEnabled() == 1,
                 entity.getChunkCount(),
                 entity.getFileUrl(),
                 entity.getFileType(),
@@ -77,9 +76,10 @@ public class KnowledgeAdminSupport {
                 entity.getChunkStrategy(),
                 entity.getProcessMode(),
                 entity.getChunkConfig(),
-                entity.getPipelineId(),
+                entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()),
                 entity.getStatus(),
-                entity.getContentHash(),
+                entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()),
+                entity.getUpdatedBy() == null ? null : String.valueOf(entity.getUpdatedBy()),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
@@ -87,52 +87,57 @@ public class KnowledgeAdminSupport {
 
     public KnowledgeDocumentSearchView toKnowledgeDocumentSearchView(KnowledgeDocumentEntity entity) {
         return new KnowledgeDocumentSearchView(
-                entity.getId(),
-                entity.getKbId(),
+                String.valueOf(entity.getId()),
+                String.valueOf(entity.getKbId()),
                 entity.getDocName(),
-                entity.getStatus(),
-                entity.getEnabled(),
-                entity.getChunkCount()
+                null
         );
     }
 
     public KnowledgeDocumentChunkLogView toKnowledgeDocumentChunkLogView(KnowledgeDocumentChunkLogEntity entity) {
         return new KnowledgeDocumentChunkLogView(
-                entity.getId(),
-                entity.getDocId(),
+                String.valueOf(entity.getId()),
+                String.valueOf(entity.getDocId()),
                 entity.getStatus(),
                 entity.getProcessMode(),
                 entity.getChunkStrategy(),
-                entity.getPipelineId(),
+                entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()),
+                null,
                 entity.getExtractDuration(),
                 entity.getChunkDuration(),
                 entity.getEmbedDuration(),
                 entity.getPersistDuration(),
+                null,
                 entity.getTotalDuration(),
                 entity.getChunkCount(),
                 entity.getErrorMessage(),
-                entity.getStartedAt(),
-                entity.getEndedAt(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                toDate(entity.getStartedAt()),
+                toDate(entity.getEndedAt()),
+                toDate(entity.getCreatedAt())
         );
     }
 
     public KnowledgeChunkView toKnowledgeChunkView(KnowledgeChunkEntity entity) {
         return new KnowledgeChunkView(
-                entity.getId(),
-                entity.getKbId(),
-                entity.getDocId(),
+                String.valueOf(entity.getId()),
+                String.valueOf(entity.getKbId()),
+                String.valueOf(entity.getDocId()),
                 entity.getChunkIndex(),
                 entity.getContent(),
                 entity.getContentHash(),
                 entity.getCharCount(),
                 entity.getTokenCount(),
                 entity.getEnabled(),
-                entity.getMetadata(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
+    }
+
+    private Date toDate(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return Date.from(value.atZone(java.time.ZoneId.systemDefault()).toInstant());
     }
 
     public List<ChunkStrategyOption> chunkStrategyOptions() {

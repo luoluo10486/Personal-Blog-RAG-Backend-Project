@@ -1,8 +1,9 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
-public class KnowledgeBasePageRequest extends PageRequest {
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+public class KnowledgeBasePageRequest extends Page {
     private String name;
-    private String status;
 
     public String getName() {
         return name;
@@ -10,13 +11,5 @@ public class KnowledgeBasePageRequest extends PageRequest {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 }

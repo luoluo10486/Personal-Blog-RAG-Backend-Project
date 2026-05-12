@@ -4,9 +4,9 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 public record IngestionTaskNodeView(
-        Long id,
-        Long taskId,
-        Long pipelineId,
+        String id,
+        String taskId,
+        String pipelineId,
         String nodeId,
         String nodeType,
         Integer nodeOrder,
@@ -15,7 +15,7 @@ public record IngestionTaskNodeView(
         String message,
         String errorMessage,
         Map<String, Object> output,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime createTime,
+        LocalDateTime updateTime
 ) {
 }

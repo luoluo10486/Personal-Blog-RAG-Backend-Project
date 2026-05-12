@@ -1,6 +1,8 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
-public class KnowledgeChunkPageRequest extends PageRequest {
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+public class KnowledgeChunkPageRequest extends Page {
     private Integer enabled;
 
     public Integer getEnabled() {

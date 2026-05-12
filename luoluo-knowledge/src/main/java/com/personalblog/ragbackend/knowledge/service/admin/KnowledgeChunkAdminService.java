@@ -148,7 +148,10 @@ public class KnowledgeChunkAdminService {
     }
 
     private List<KnowledgeChunkEntity> loadTargetChunks(Long documentId, KnowledgeChunkBatchRequest request) {
-        List<Long> chunkIds = request == null ? null : request.getChunkIds();
+        List<Long> chunkIds = request == null ? null : request.getChunkIds() == null ? null : request.getChunkIds().stream()
+                .filter(StringUtils::hasText)
+                .map(this::parseLong)
+                .toList();
         if (chunkIds == null || chunkIds.isEmpty()) {
             return knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkEntity>()
                     .eq(KnowledgeChunkEntity::getDocId, documentId));
@@ -274,40 +277,40 @@ public class KnowledgeChunkAdminService {
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
         if (kbId == null) {
-            throw new IllegalArgumentException("知识库 ID 不能为空");
+            throw new IllegalArgumentException("knowledge base id is required");
         }
         KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
-            throw new IllegalArgumentException("知识库不存在");
+            throw new IllegalArgumentException("knowledge base not found");
         }
         return entity;
     }
 
     private KnowledgeDocumentEntity requireDocument(Long documentId) {
         if (documentId == null) {
-            throw new IllegalArgumentException("文档 ID 不能为空");
+            throw new IllegalArgumentException("document id is required");
         }
         KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(documentId);
         if (entity == null) {
-            throw new IllegalArgumentException("文档不存在");
+            throw new IllegalArgumentException("document not found");
         }
         return entity;
     }
 
     private KnowledgeChunkEntity requireChunk(Long documentId, Long chunkId) {
         if (chunkId == null) {
-            throw new IllegalArgumentException("Chunk ID 不能为空");
+            throw new IllegalArgumentException("chunk id is required");
         }
         KnowledgeChunkEntity entity = knowledgeChunkMapper.selectById(chunkId);
         if (entity == null || !Objects.equals(entity.getDocId(), documentId)) {
-            throw new IllegalArgumentException("Chunk 不存在");
+            throw new IllegalArgumentException("chunk not found");
         }
         return entity;
     }
 
     private String requireContent(String content) {
         if (!StringUtils.hasText(content)) {
-            throw new IllegalArgumentException("Chunk 内容不能为空");
+            throw new IllegalArgumentException("chunk content is required");
         }
         return content.trim();
     }
@@ -318,5 +321,16 @@ public class KnowledgeChunkAdminService {
             return normalized;
         }
         return String.valueOf(knowledgeBase.getId());
+    }
+
+    private Long parseLong(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("id not found");
+        }
     }
 }

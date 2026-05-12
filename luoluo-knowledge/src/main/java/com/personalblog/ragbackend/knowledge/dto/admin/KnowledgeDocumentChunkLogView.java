@@ -1,24 +1,25 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
-import java.time.LocalDateTime;
+import java.util.Date;
 
 public record KnowledgeDocumentChunkLogView(
-        Long id,
-        Long docId,
+        String id,
+        String docId,
         String status,
         String processMode,
         String chunkStrategy,
-        Long pipelineId,
+        String pipelineId,
+        String pipelineName,
         Long extractDuration,
         Long chunkDuration,
         Long embedDuration,
         Long persistDuration,
+        Long otherDuration,
         Long totalDuration,
         Integer chunkCount,
         String errorMessage,
-        LocalDateTime startedAt,
-        LocalDateTime endedAt,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Date startTime,
+        Date endTime,
+        Date createTime
 ) {
 }

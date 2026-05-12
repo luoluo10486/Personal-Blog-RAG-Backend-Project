@@ -31,25 +31,25 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping("/knowledge-base")
-    public R<Long> createKnowledgeBase(@Valid @RequestBody KnowledgeBaseCreateRequest request) {
+    public R<String> createKnowledgeBase(@Valid @RequestBody KnowledgeBaseCreateRequest request) {
         return R.ok(knowledgeAdminApplicationService.createKnowledgeBase(request));
     }
 
-    @PutMapping("/knowledge-base/{kbId}")
-    public R<Void> updateKnowledgeBase(@PathVariable Long kbId,
+    @PutMapping("/knowledge-base/{kb-id}")
+    public R<Void> updateKnowledgeBase(@PathVariable("kb-id") String kbId,
                                        @RequestBody KnowledgeBaseUpdateRequest request) {
         knowledgeAdminApplicationService.updateKnowledgeBase(kbId, request);
         return R.ok();
     }
 
-    @DeleteMapping("/knowledge-base/{kbId}")
-    public R<Void> deleteKnowledgeBase(@PathVariable Long kbId) {
+    @DeleteMapping("/knowledge-base/{kb-id}")
+    public R<Void> deleteKnowledgeBase(@PathVariable("kb-id") String kbId) {
         knowledgeAdminApplicationService.deleteKnowledgeBase(kbId);
         return R.ok();
     }
 
-    @GetMapping("/knowledge-base/{kbId}")
-    public R<KnowledgeBaseView> getKnowledgeBase(@PathVariable Long kbId) {
+    @GetMapping("/knowledge-base/{kb-id}")
+    public R<KnowledgeBaseView> getKnowledgeBase(@PathVariable("kb-id") String kbId) {
         return R.ok(knowledgeAdminApplicationService.getKnowledgeBase(kbId));
     }
 

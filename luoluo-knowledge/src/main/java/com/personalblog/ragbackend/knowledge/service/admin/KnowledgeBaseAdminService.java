@@ -1,7 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.admin;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
@@ -11,9 +10,9 @@ import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseCreateReques
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
-import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -22,7 +21,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,16 +48,13 @@ public class KnowledgeBaseAdminService {
 
     @Transactional
     public Long create(KnowledgeBaseCreateRequest request) {
-        String name = requireText(request.getName(), "知识库名称不能为空");
+        String name = requireText(request.getName(), "knowledge base name is required");
         String collectionName = normalizeCollectionName(request.getCollectionName(), name);
         assertCollectionAvailable(collectionName, null);
         KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
         entity.setName(name);
-        entity.setDescription(blankToNull(request.getDescription()));
         entity.setEmbeddingModel(resolveEmbeddingModel(request.getEmbeddingModel()));
         entity.setCollectionName(collectionName);
-        entity.setVisibility(defaultIfBlank(request.getVisibility(), "PRIVATE"));
-        entity.setStatus(defaultIfBlank(request.getStatus(), "ACTIVE"));
         knowledgeBaseMapper.insert(entity);
         knowledgeFileStorageService.ensureBucketExists(
                 knowledgeFileStorageService.resolveBucketName(collectionName)
@@ -73,17 +68,8 @@ public class KnowledgeBaseAdminService {
         if (StringUtils.hasText(request.getName())) {
             entity.setName(request.getName().trim());
         }
-        if (request.getDescription() != null) {
-            entity.setDescription(blankToNull(request.getDescription()));
-        }
         if (StringUtils.hasText(request.getEmbeddingModel())) {
             entity.setEmbeddingModel(request.getEmbeddingModel().trim());
-        }
-        if (StringUtils.hasText(request.getVisibility())) {
-            entity.setVisibility(request.getVisibility().trim());
-        }
-        if (StringUtils.hasText(request.getStatus())) {
-            entity.setStatus(request.getStatus().trim());
         }
         knowledgeBaseMapper.updateById(entity);
     }
@@ -94,7 +80,7 @@ public class KnowledgeBaseAdminService {
         long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                 .eq(KnowledgeDocumentEntity::getKbId, kbId));
         if (documentCount > 0) {
-            throw new IllegalArgumentException("知识库下仍有文档，不能直接删除");
+            throw new IllegalArgumentException("knowledge base still has documents");
         }
         knowledgeBaseMapper.deleteById(kbId);
     }
@@ -111,7 +97,6 @@ public class KnowledgeBaseAdminService {
                 support.newPage(request.getCurrent(), request.getSize()),
                 new LambdaQueryWrapper<KnowledgeBaseEntity>()
                         .like(StringUtils.hasText(request.getName()), KnowledgeBaseEntity::getName, request.getName())
-                        .eq(StringUtils.hasText(request.getStatus()), KnowledgeBaseEntity::getStatus, request.getStatus())
                         .orderByDesc(KnowledgeBaseEntity::getUpdatedAt)
         );
         List<Long> kbIds = entityPage.getRecords().stream()
@@ -135,11 +120,11 @@ public class KnowledgeBaseAdminService {
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
         if (kbId == null) {
-            throw new IllegalArgumentException("知识库 ID 不能为空");
+            throw new IllegalArgumentException("knowledge base id is required");
         }
         KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
-            throw new IllegalArgumentException("知识库不存在");
+            throw new IllegalArgumentException("knowledge base not found");
         }
         return entity;
     }
@@ -156,13 +141,13 @@ public class KnowledgeBaseAdminService {
                 .eq(KnowledgeBaseEntity::getCollectionName, collectionName)
                 .last("limit 1"));
         if (existing != null && !existing.getId().equals(currentKbId)) {
-            throw new IllegalArgumentException("向量集合名称已存在");
+            throw new IllegalArgumentException("collection name already exists");
         }
         VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
         if (vectorStoreAdmin != null
                 && vectorStoreAdmin.vectorSpaceExists(null, collectionName)
                 && existing == null) {
-            throw new IllegalArgumentException("向量集合已被占用");
+            throw new IllegalArgumentException("collection already occupied");
         }
     }
 
@@ -178,13 +163,5 @@ public class KnowledgeBaseAdminService {
             throw new IllegalArgumentException(message);
         }
         return value.trim();
-    }
-
-    private String defaultIfBlank(String value, String fallback) {
-        return StringUtils.hasText(value) ? value.trim() : fallback;
-    }
-
-    private String blankToNull(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

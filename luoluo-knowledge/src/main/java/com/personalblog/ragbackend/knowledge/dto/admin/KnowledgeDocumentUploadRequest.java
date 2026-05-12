@@ -8,7 +8,7 @@ public class KnowledgeDocumentUploadRequest {
     private String processMode;
     private String chunkStrategy;
     private String chunkConfig;
-    private Long pipelineId;
+    private String pipelineId;
 
     public String getSourceType() {
         return sourceType;
@@ -66,11 +66,11 @@ public class KnowledgeDocumentUploadRequest {
         this.chunkConfig = chunkConfig;
     }
 
-    public Long getPipelineId() {
+    public String getPipelineId() {
         return pipelineId;
     }
 
-    public void setPipelineId(Long pipelineId) {
+    public void setPipelineId(String pipelineId) {
         this.pipelineId = pipelineId;
     }
 }

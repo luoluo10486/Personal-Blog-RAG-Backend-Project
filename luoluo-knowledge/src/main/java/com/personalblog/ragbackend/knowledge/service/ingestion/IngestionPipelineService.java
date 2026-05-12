@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineEntity;
@@ -15,11 +16,12 @@ import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineUpda
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineView;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineNodeMapper;
+import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineDefinition;
+import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineNodeConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,11 +55,12 @@ public class IngestionPipelineService {
         entity.updatedAt = LocalDateTime.now();
         pipelineMapper.insert(entity);
         replaceNodes(entity.id, request == null ? List.of() : request.nodes());
-        return get(entity.id);
+        return get(String.valueOf(entity.id));
     }
 
-    public IngestionPipelineView update(Long id, IngestionPipelineUpdateRequest request) {
-        IngestionPipelineEntity entity = requirePipeline(id);
+    public IngestionPipelineView update(String id, IngestionPipelineUpdateRequest request) {
+        Long pipelineId = parsePipelineId(id);
+        IngestionPipelineEntity entity = requirePipeline(pipelineId);
         if (StringUtils.hasText(request.name())) {
             entity.name = normalizeName(request.name());
         }
@@ -67,13 +70,14 @@ public class IngestionPipelineService {
         entity.updatedBy = currentUserId();
         entity.updatedAt = LocalDateTime.now();
         pipelineMapper.updateById(entity);
-        replaceNodes(id, request.nodes());
+        replaceNodes(pipelineId, request.nodes());
         return get(id);
     }
 
-    public IngestionPipelineView get(Long id) {
-        IngestionPipelineEntity entity = requirePipeline(id);
-        return toView(entity, listNodes(id));
+    public IngestionPipelineView get(String id) {
+        Long pipelineId = parsePipelineId(id);
+        IngestionPipelineEntity entity = requirePipeline(pipelineId);
+        return toView(entity, listNodes(pipelineId));
     }
 
     public IPage<IngestionPipelineView> page(long current, long size, String keyword) {
@@ -89,9 +93,11 @@ public class IngestionPipelineService {
         return result;
     }
 
-    public void delete(Long id) {
-        pipelineMapper.deleteById(id);
-        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", id));
+    public void delete(String id) {
+        Long pipelineId = parsePipelineId(id);
+        requirePipeline(pipelineId);
+        pipelineMapper.deleteById(pipelineId);
+        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
     }
 
     public List<IngestionPipelineNodeView> listNodes(Long pipelineId) {
@@ -104,12 +110,32 @@ public class IngestionPipelineService {
                 .toList();
     }
 
+    public IngestionPipelineDefinition getDefinition(Long id) {
+        IngestionPipelineEntity entity = requirePipeline(id);
+        List<IngestionPipelineNodeConfig> nodes = nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
+                        .eq("pipeline_id", id)
+                        .eq("deleted", 0)
+                        .orderByAsc("id"))
+                .stream()
+                .map(this::toNodeConfig)
+                .toList();
+        return new IngestionPipelineDefinition(
+                String.valueOf(entity.id),
+                entity.name,
+                entity.description,
+                nodes
+        );
+    }
+
     private void replaceNodes(Long pipelineId, List<IngestionPipelineNodeRequest> requests) {
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
         if (requests == null || requests.isEmpty()) {
             return;
         }
         for (IngestionPipelineNodeRequest request : requests) {
+            if (request == null) {
+                continue;
+            }
             IngestionPipelineNodeEntity entity = new IngestionPipelineNodeEntity();
             entity.pipelineId = pipelineId;
             entity.nodeId = normalizeNodeId(request.nodeId());
@@ -128,11 +154,11 @@ public class IngestionPipelineService {
 
     private IngestionPipelineEntity requirePipeline(Long id) {
         if (id == null) {
-            throw new IllegalArgumentException("pipeline id 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("pipeline id must not be blank");
         }
         IngestionPipelineEntity entity = pipelineMapper.selectById(id);
         if (entity == null || entity.deleted != null && entity.deleted != 0) {
-            throw new IllegalArgumentException("pipeline 涓嶅瓨鍦?");
+            throw new IllegalArgumentException("pipeline not found");
         }
         return entity;
     }
@@ -143,11 +169,10 @@ public class IngestionPipelineService {
 
     private IngestionPipelineView toView(IngestionPipelineEntity entity, List<IngestionPipelineNodeView> nodes) {
         return new IngestionPipelineView(
-                entity.id,
+                String.valueOf(entity.id),
                 entity.name,
                 entity.description,
-                entity.createdBy,
-                entity.updatedBy,
+                stringify(entity.createdBy),
                 nodes,
                 entity.createdAt,
                 entity.updatedAt
@@ -156,39 +181,52 @@ public class IngestionPipelineService {
 
     private IngestionPipelineNodeView toNodeView(IngestionPipelineNodeEntity entity) {
         return new IngestionPipelineNodeView(
-                entity.id,
-                entity.pipelineId,
+                String.valueOf(entity.id),
                 entity.nodeId,
-                entity.nodeType,
-                entity.nextNodeId,
+                normalizeNodeType(entity.nodeType),
+                parseJson(entity.settingsJson),
+                parseJson(entity.conditionJson),
+                blankToNull(entity.nextNodeId)
+        );
+    }
+
+    private IngestionPipelineNodeConfig toNodeConfig(IngestionPipelineNodeEntity entity) {
+        return new IngestionPipelineNodeConfig(
+                entity.nodeId,
+                normalizeNodeType(entity.nodeType),
                 parseMap(entity.settingsJson),
                 parseMap(entity.conditionJson),
-                entity.createdBy,
-                entity.updatedBy,
-                entity.createdAt,
-                entity.updatedAt
+                blankToNull(entity.nextNodeId)
         );
     }
 
     private String normalizeName(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("pipeline name 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("pipeline name must not be blank");
         }
         return value.trim();
     }
 
     private String normalizeNodeId(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("nodeId 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("nodeId must not be blank");
         }
         return value.trim();
     }
 
     private String normalizeNodeType(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("nodeType 涓嶈兘涓虹┖");
+            throw new IllegalArgumentException("nodeType must not be blank");
         }
-        return value.trim();
+        String normalized = value.trim().toLowerCase().replace('-', '_');
+        return switch (normalized) {
+            case "fetcher", "parser", "enhancer", "chunker", "enricher", "indexer" -> normalized;
+            case "plan" -> "fetcher";
+            case "parse" -> "parser";
+            case "chunk", "persist", "embed" -> "chunker";
+            case "index", "finalize" -> "indexer";
+            default -> throw new IllegalArgumentException("Unknown ingestion node type: " + value);
+        };
     }
 
     private String blankToNull(String value) {
@@ -203,15 +241,11 @@ public class IngestionPipelineService {
         }
     }
 
-    private String toJson(Map<String, Object> value) {
-        if (value == null || value.isEmpty()) {
+    private String toJson(JsonNode value) {
+        if (value == null || value.isNull()) {
             return null;
         }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception ignored) {
-            return null;
-        }
+        return value.toString();
     }
 
     private Map<String, Object> parseMap(String json) {
@@ -223,5 +257,31 @@ public class IngestionPipelineService {
         } catch (Exception ignored) {
             return Map.of("raw", json);
         }
+    }
+
+    private JsonNode parseJson(String json) {
+        if (!StringUtils.hasText(json)) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Long parsePipelineId(String id) {
+        if (!StringUtils.hasText(id)) {
+            throw new IllegalArgumentException("pipeline id must not be blank");
+        }
+        try {
+            return Long.valueOf(id.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("pipeline not found");
+        }
+    }
+
+    private String stringify(Long value) {
+        return value == null ? null : String.valueOf(value);
     }
 }

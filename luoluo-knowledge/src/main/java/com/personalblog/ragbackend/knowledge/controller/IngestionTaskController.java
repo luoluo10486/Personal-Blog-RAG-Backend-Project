@@ -43,12 +43,12 @@ public class IngestionTaskController {
     }
 
     @GetMapping("/ingestion/tasks/{id}")
-    public R<IngestionTaskView> get(@PathVariable Long id) {
+    public R<IngestionTaskView> get(@PathVariable String id) {
         return R.ok(ingestionTaskService.get(id));
     }
 
     @GetMapping("/ingestion/tasks/{id}/nodes")
-    public R<List<IngestionTaskNodeView>> nodes(@PathVariable Long id) {
+    public R<List<IngestionTaskNodeView>> nodes(@PathVariable String id) {
         return R.ok(ingestionTaskService.listNodes(id));
     }
 

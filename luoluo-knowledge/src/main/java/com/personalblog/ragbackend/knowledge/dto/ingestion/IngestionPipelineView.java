@@ -4,13 +4,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record IngestionPipelineView(
-        Long id,
+        String id,
         String name,
         String description,
-        Long createdBy,
-        Long updatedBy,
+        String createdBy,
         List<IngestionPipelineNodeView> nodes,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime createTime,
+        LocalDateTime updateTime
 ) {
 }

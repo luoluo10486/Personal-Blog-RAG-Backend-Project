@@ -1,17 +1,15 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
-import java.time.LocalDateTime;
+import java.util.Date;
 
 public record KnowledgeBaseView(
-        Long id,
+        String id,
         String name,
-        String description,
         String embeddingModel,
         String collectionName,
-        String visibility,
-        String status,
-        long documentCount,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Long documentCount,
+        String createdBy,
+        Date createTime,
+        Date updateTime
 ) {
 }

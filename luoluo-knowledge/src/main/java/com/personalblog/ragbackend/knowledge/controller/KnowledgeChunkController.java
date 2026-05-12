@@ -32,43 +32,43 @@ public class KnowledgeChunkController {
         this.knowledgeAdminApplicationService = knowledgeAdminApplicationService;
     }
 
-    @GetMapping("/knowledge-base/docs/{docId}/chunks")
-    public R<IPage<KnowledgeChunkView>> pageChunks(@PathVariable Long docId,
+    @GetMapping("/knowledge-base/docs/{doc-id}/chunks")
+    public R<IPage<KnowledgeChunkView>> pageChunks(@PathVariable("doc-id") String docId,
                                                    KnowledgeChunkPageRequest request) {
         return R.ok(knowledgeAdminApplicationService.pageChunks(docId, request));
     }
 
-    @PostMapping("/knowledge-base/docs/{docId}/chunks")
-    public R<KnowledgeChunkView> createChunk(@PathVariable Long docId,
+    @PostMapping("/knowledge-base/docs/{doc-id}/chunks")
+    public R<KnowledgeChunkView> createChunk(@PathVariable("doc-id") String docId,
                                              @Valid @RequestBody KnowledgeChunkCreateRequest request) {
         return R.ok(knowledgeAdminApplicationService.createChunk(docId, request));
     }
 
-    @PutMapping("/knowledge-base/docs/{docId}/chunks/{chunkId}")
-    public R<Void> updateChunk(@PathVariable Long docId,
-                               @PathVariable Long chunkId,
+    @PutMapping("/knowledge-base/docs/{doc-id}/chunks/{chunk-id}")
+    public R<Void> updateChunk(@PathVariable("doc-id") String docId,
+                               @PathVariable("chunk-id") String chunkId,
                                @Valid @RequestBody KnowledgeChunkUpdateRequest request) {
         knowledgeAdminApplicationService.updateChunk(docId, chunkId, request);
         return R.ok();
     }
 
-    @DeleteMapping("/knowledge-base/docs/{docId}/chunks/{chunkId}")
-    public R<Void> deleteChunk(@PathVariable Long docId,
-                               @PathVariable Long chunkId) {
+    @DeleteMapping("/knowledge-base/docs/{doc-id}/chunks/{chunk-id}")
+    public R<Void> deleteChunk(@PathVariable("doc-id") String docId,
+                               @PathVariable("chunk-id") String chunkId) {
         knowledgeAdminApplicationService.deleteChunk(docId, chunkId);
         return R.ok();
     }
 
-    @PatchMapping("/knowledge-base/docs/{docId}/chunks/{chunkId}/enable")
-    public R<Void> enableChunk(@PathVariable Long docId,
-                               @PathVariable Long chunkId,
+    @PatchMapping("/knowledge-base/docs/{doc-id}/chunks/{chunk-id}/enable")
+    public R<Void> enableChunk(@PathVariable("doc-id") String docId,
+                               @PathVariable("chunk-id") String chunkId,
                                @RequestParam("value") boolean enabled) {
         knowledgeAdminApplicationService.enableChunk(docId, chunkId, enabled);
         return R.ok();
     }
 
-    @PatchMapping("/knowledge-base/docs/{docId}/chunks/batch-enable")
-    public R<Void> batchEnableChunks(@PathVariable Long docId,
+    @PatchMapping("/knowledge-base/docs/{doc-id}/chunks/batch-enable")
+    public R<Void> batchEnableChunks(@PathVariable("doc-id") String docId,
                                      @RequestParam("value") boolean enabled,
                                      @RequestBody(required = false) KnowledgeChunkBatchRequest request) {
         knowledgeAdminApplicationService.batchEnableChunks(docId, request, enabled);

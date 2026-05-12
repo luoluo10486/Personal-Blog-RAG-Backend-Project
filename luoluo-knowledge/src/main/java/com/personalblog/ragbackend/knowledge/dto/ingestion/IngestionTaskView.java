@@ -5,23 +5,20 @@ import java.util.List;
 import java.util.Map;
 
 public record IngestionTaskView(
-        Long id,
-        Long pipelineId,
-        Long kbId,
-        Long docId,
+        String id,
+        String pipelineId,
         String sourceType,
         String sourceLocation,
         String sourceFileName,
         String status,
         Integer chunkCount,
         String errorMessage,
-        List<IngestionTaskNodeView> logs,
+        List<IngestionTaskLogView> logs,
         Map<String, Object> metadata,
         LocalDateTime startedAt,
         LocalDateTime completedAt,
-        Long createdBy,
-        Long updatedBy,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        String createdBy,
+        LocalDateTime createTime,
+        LocalDateTime updateTime
 ) {
 }

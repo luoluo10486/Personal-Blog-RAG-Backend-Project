@@ -1,12 +1,12 @@
 package com.personalblog.ragbackend.knowledge.dto.ingestion;
 
-import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public record IngestionPipelineNodeRequest(
         String nodeId,
         String nodeType,
-        String nextNodeId,
-        Map<String, Object> settings,
-        Map<String, Object> condition
+        JsonNode settings,
+        JsonNode condition,
+        String nextNodeId
 ) {
 }

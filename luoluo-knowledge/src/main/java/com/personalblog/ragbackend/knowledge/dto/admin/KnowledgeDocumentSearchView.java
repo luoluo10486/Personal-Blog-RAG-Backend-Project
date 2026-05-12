@@ -1,11 +1,9 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
 public record KnowledgeDocumentSearchView(
-        Long id,
-        Long kbId,
+        String id,
+        String kbId,
         String docName,
-        String status,
-        Integer enabled,
-        Integer chunkCount
+        String kbName
 ) {
 }

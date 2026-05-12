@@ -39,20 +39,20 @@ public class KnowledgeAdminApplicationService {
         this.knowledgeChunkAdminService = knowledgeChunkAdminService;
     }
 
-    public Long createKnowledgeBase(KnowledgeBaseCreateRequest request) {
-        return knowledgeBaseAdminService.create(request);
+    public String createKnowledgeBase(KnowledgeBaseCreateRequest request) {
+        return String.valueOf(knowledgeBaseAdminService.create(request));
     }
 
-    public void updateKnowledgeBase(Long kbId, KnowledgeBaseUpdateRequest request) {
-        knowledgeBaseAdminService.update(kbId, request);
+    public void updateKnowledgeBase(String kbId, KnowledgeBaseUpdateRequest request) {
+        knowledgeBaseAdminService.update(parseId(kbId), request);
     }
 
-    public void deleteKnowledgeBase(Long kbId) {
-        knowledgeBaseAdminService.delete(kbId);
+    public void deleteKnowledgeBase(String kbId) {
+        knowledgeBaseAdminService.delete(parseId(kbId));
     }
 
-    public KnowledgeBaseView getKnowledgeBase(Long kbId) {
-        return knowledgeBaseAdminService.get(kbId);
+    public KnowledgeBaseView getKnowledgeBase(String kbId) {
+        return knowledgeBaseAdminService.get(parseId(kbId));
     }
 
     public IPage<KnowledgeBaseView> pageKnowledgeBases(KnowledgeBasePageRequest request) {
@@ -63,63 +63,74 @@ public class KnowledgeAdminApplicationService {
         return knowledgeBaseAdminService.listChunkStrategies();
     }
 
-    public KnowledgeDocumentView uploadDocument(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
-        return knowledgeDocumentAdminService.upload(kbId, request, file);
+    public KnowledgeDocumentView uploadDocument(String kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
+        return knowledgeDocumentAdminService.upload(parseId(kbId), request, file);
     }
 
-    public void startChunk(Long documentId) {
-        knowledgeDocumentAdminService.startChunk(documentId);
+    public void startChunk(String documentId) {
+        knowledgeDocumentAdminService.startChunk(parseId(documentId));
     }
 
-    public void deleteDocument(Long documentId) {
-        knowledgeDocumentAdminService.delete(documentId);
+    public void deleteDocument(String documentId) {
+        knowledgeDocumentAdminService.delete(parseId(documentId));
     }
 
-    public KnowledgeDocumentView getDocument(Long documentId) {
-        return knowledgeDocumentAdminService.get(documentId);
+    public KnowledgeDocumentView getDocument(String documentId) {
+        return knowledgeDocumentAdminService.get(parseId(documentId));
     }
 
-    public void updateDocument(Long documentId, KnowledgeDocumentUpdateRequest request) {
-        knowledgeDocumentAdminService.update(documentId, request);
+    public void updateDocument(String documentId, KnowledgeDocumentUpdateRequest request) {
+        knowledgeDocumentAdminService.update(parseId(documentId), request);
     }
 
-    public IPage<KnowledgeDocumentView> pageDocuments(Long kbId, KnowledgeDocumentPageRequest request) {
-        return knowledgeDocumentAdminService.page(kbId, request);
+    public IPage<KnowledgeDocumentView> pageDocuments(String kbId, KnowledgeDocumentPageRequest request) {
+        return knowledgeDocumentAdminService.page(parseId(kbId), request);
     }
 
     public List<KnowledgeDocumentSearchView> searchDocuments(String keyword, int limit) {
         return knowledgeDocumentAdminService.search(keyword, limit);
     }
 
-    public void enableDocument(Long documentId, boolean enabled) {
-        knowledgeDocumentAdminService.enable(documentId, enabled);
+    public void enableDocument(String documentId, boolean enabled) {
+        knowledgeDocumentAdminService.enable(parseId(documentId), enabled);
     }
 
-    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(Long documentId, long current, long size) {
-        return knowledgeDocumentAdminService.pageChunkLogs(documentId, current, size);
+    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(String documentId, long current, long size) {
+        return knowledgeDocumentAdminService.pageChunkLogs(parseId(documentId), current, size);
     }
 
-    public IPage<KnowledgeChunkView> pageChunks(Long documentId, KnowledgeChunkPageRequest request) {
-        return knowledgeChunkAdminService.page(documentId, request);
+    public IPage<KnowledgeChunkView> pageChunks(String documentId, KnowledgeChunkPageRequest request) {
+        return knowledgeChunkAdminService.page(parseId(documentId), request);
     }
 
-    public KnowledgeChunkView createChunk(Long documentId, KnowledgeChunkCreateRequest request) {
-        return knowledgeChunkAdminService.create(documentId, request);
+    public KnowledgeChunkView createChunk(String documentId, KnowledgeChunkCreateRequest request) {
+        return knowledgeChunkAdminService.create(parseId(documentId), request);
     }
 
-    public void updateChunk(Long documentId, Long chunkId, KnowledgeChunkUpdateRequest request) {
-        knowledgeChunkAdminService.update(documentId, chunkId, request);
+    public void updateChunk(String documentId, String chunkId, KnowledgeChunkUpdateRequest request) {
+        knowledgeChunkAdminService.update(parseId(documentId), parseId(chunkId), request);
     }
 
-    public void deleteChunk(Long documentId, Long chunkId) {
-        knowledgeChunkAdminService.delete(documentId, chunkId);
+    public void deleteChunk(String documentId, String chunkId) {
+        knowledgeChunkAdminService.delete(parseId(documentId), parseId(chunkId));
     }
 
-    public void enableChunk(Long documentId, Long chunkId, boolean enabled) {
-        knowledgeChunkAdminService.enableChunk(documentId, chunkId, enabled);
+    public void enableChunk(String documentId, String chunkId, boolean enabled) {
+        knowledgeChunkAdminService.enableChunk(parseId(documentId), parseId(chunkId), enabled);
     }
 
-    public void batchEnableChunks(Long documentId, KnowledgeChunkBatchRequest request, boolean enabled) {
-        knowledgeChunkAdminService.batchToggleEnabled(documentId, request, enabled);
+    public void batchEnableChunks(String documentId, KnowledgeChunkBatchRequest request, boolean enabled) {
+        knowledgeChunkAdminService.batchToggleEnabled(parseId(documentId), request, enabled);
+    }
+
+    private Long parseId(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("id must not be blank");
+        }
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("id not found");
+        }
     }
 }
