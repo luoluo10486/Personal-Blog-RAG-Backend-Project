@@ -1,54 +1,41 @@
 package com.personalblog.ragbackend.knowledge.config;
 
+import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
 
+/**
+ * 知识库定时任务配置
+ */
+@Data
 @Validated
+@Configuration
 @ConfigurationProperties(prefix = "rag.knowledge.schedule")
 public class KnowledgeScheduleProperties {
+
+    /**
+     * 定时扫描间隔（毫秒）
+     */
     private Long scanDelayMs = 10000L;
+
+    /**
+     * 分布式锁持有时长（秒）
+     */
     private Long lockSeconds = 900L;
+
+    /**
+     * 每次扫描批量大小
+     */
     private Integer batchSize = 20;
+
+    /**
+     * 定时拉取最小间隔（秒）
+     */
     private Long minIntervalSeconds = 60L;
+
+    /**
+     * RUNNING 状态超时阈值（分钟），超过此时间未完成的文档重置为 FAILED
+     */
     private Long runningTimeoutMinutes = 30L;
-
-    public Long getScanDelayMs() {
-        return scanDelayMs;
-    }
-
-    public void setScanDelayMs(Long scanDelayMs) {
-        this.scanDelayMs = scanDelayMs;
-    }
-
-    public Long getLockSeconds() {
-        return lockSeconds;
-    }
-
-    public void setLockSeconds(Long lockSeconds) {
-        this.lockSeconds = lockSeconds;
-    }
-
-    public Integer getBatchSize() {
-        return batchSize;
-    }
-
-    public void setBatchSize(Integer batchSize) {
-        this.batchSize = batchSize;
-    }
-
-    public Long getMinIntervalSeconds() {
-        return minIntervalSeconds;
-    }
-
-    public void setMinIntervalSeconds(Long minIntervalSeconds) {
-        this.minIntervalSeconds = minIntervalSeconds;
-    }
-
-    public Long getRunningTimeoutMinutes() {
-        return runningTimeoutMinutes;
-    }
-
-    public void setRunningTimeoutMinutes(Long runningTimeoutMinutes) {
-        this.runningTimeoutMinutes = runningTimeoutMinutes;
-    }
 }
