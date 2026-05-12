@@ -32,7 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/luoluo/knowledge/document", "/luoluo/knowledge"})
+@RequestMapping
 @MemberLoginRequired
 public class KnowledgeDocumentController {
     private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;

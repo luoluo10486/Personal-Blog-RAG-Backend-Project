@@ -1,7 +1,9 @@
 package com.personalblog.ragbackend.knowledge.service.admin;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
@@ -19,6 +21,8 @@ import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentChunkLogMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeVectorRefMapper;
+import com.personalblog.ragbackend.knowledge.mq.MessageWrapper;
+import com.personalblog.ragbackend.knowledge.mq.event.KnowledgeDocumentChunkEvent;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
@@ -26,9 +30,15 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRe
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
+import org.apache.rocketmq.common.message.MessageConst;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,6 +46,9 @@ import java.util.List;
 
 @Service
 public class KnowledgeDocumentAdminService {
+    @Value("knowledge-document-chunk_topic${unique-name:}")
+    private String chunkTopic;
+
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
@@ -46,6 +59,7 @@ public class KnowledgeDocumentAdminService {
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final KnowledgeAdminSupport support;
     private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
+    private final RocketMQTemplate rocketMQTemplate;
 
     public KnowledgeDocumentAdminService(KnowledgeBaseMapper knowledgeBaseMapper,
                                          KnowledgeDocumentMapper knowledgeDocumentMapper,
@@ -56,7 +70,8 @@ public class KnowledgeDocumentAdminService {
                                          KnowledgeVectorSpaceResolver vectorSpaceResolver,
                                          KnowledgeFileStorageService knowledgeFileStorageService,
                                          KnowledgeAdminSupport support,
-                                         ObjectProvider<VectorStoreService> vectorStoreServiceProvider) {
+                                         ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
+                                         RocketMQTemplate rocketMQTemplate) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeChunkMapper = knowledgeChunkMapper;
@@ -67,23 +82,24 @@ public class KnowledgeDocumentAdminService {
         this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.support = support;
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
+        this.rocketMQTemplate = rocketMQTemplate;
     }
 
     @Transactional
     public KnowledgeDocumentView upload(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(kbId);
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("上传文件不能为空");
+            throw new IllegalArgumentException("涓婁紶鏂囦欢涓嶈兘涓虹┖");
         }
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
                 new KnowledgeIngestionRequest(resolveBaseCode(knowledgeBase), file, KnowledgeIngestionMode.INGEST)
         );
         DocumentIngestionSummary summary = result.ingestionSummary();
         if (summary == null || !summary.success()) {
-            throw new IllegalArgumentException(summary == null ? "文档入库失败" : summary.errorMessage());
+            throw new IllegalArgumentException(summary == null ? "鏂囨。鍏ュ簱澶辫触" : summary.errorMessage());
         }
         KnowledgeDocumentEntity entity = requireDocument(summary.documentId());
-        applyUploadMetadata(entity, request, file);
+        applyUploadMetadata(entity, request);
         knowledgeDocumentMapper.updateById(entity);
         return support.toKnowledgeDocumentView(requireDocument(entity.getId()));
     }
@@ -92,30 +108,67 @@ public class KnowledgeDocumentAdminService {
     public void startChunk(Long documentId) {
         KnowledgeDocumentEntity document = requireDocument(documentId);
         if (!StringUtils.hasText(document.getFileUrl())) {
-            throw new IllegalArgumentException("文档没有可用的源文件路径，请重新上传");
+            throw new IllegalArgumentException("鏂囨。娌℃湁鍙敤鐨勬簮鏂囦欢璺緞锛岃閲嶆柊涓婁紶");
         }
+
+        int updated = knowledgeDocumentMapper.update(null, new LambdaUpdateWrapper<KnowledgeDocumentEntity>()
+                .set(KnowledgeDocumentEntity::getStatus, "running")
+                .eq(KnowledgeDocumentEntity::getId, documentId)
+                .ne(KnowledgeDocumentEntity::getStatus, "running"));
+        if (updated <= 0) {
+            throw new IllegalArgumentException("鏂囨。姝ｅ湪鍒嗗潡涓紝璇风◢鍚庡啀璇�");
+        }
+
+        String operator = StringUtils.hasText(UserContext.getUsername()) ? UserContext.getUsername() : "system";
+        Runnable sendTask = () -> sendChunkMessage(documentId, operator);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendTask.run();
+                }
+            });
+            return;
+        }
+        sendTask.run();
+    }
+
+    public void executeChunk(Long documentId) {
+        KnowledgeDocumentEntity document = requireDocument(documentId);
         MultipartFile file = knowledgeFileStorageService.restore(
                 document.getFileUrl(),
                 document.getDocName(),
                 document.getFileType()
         );
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("文档源文件不存在");
+            throw new IllegalArgumentException("鏂囨。婧愭枃浠朵笉瀛樺湪");
         }
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
-                new KnowledgeIngestionRequest(resolveBaseCode(requireKnowledgeBase(document.getKbId())), file, KnowledgeIngestionMode.INGEST)
+                new KnowledgeIngestionRequest(
+                        resolveBaseCode(requireKnowledgeBase(document.getKbId())),
+                        file,
+                        KnowledgeIngestionMode.INGEST,
+                        null,
+                        String.valueOf(documentId),
+                        document.getSourceType(),
+                        document.getSourceLocation(),
+                        document.getDocName(),
+                        document.getFileUrl()
+                )
         );
         DocumentIngestionSummary summary = result.ingestionSummary();
         if (summary == null || !summary.success()) {
-            throw new IllegalArgumentException(summary == null ? "重新分块失败" : summary.errorMessage());
+            throw new IllegalArgumentException(summary == null ? "閲嶆柊鍒嗗潡澶辫触" : summary.errorMessage());
         }
     }
 
     @Transactional
     public void delete(Long documentId) {
         KnowledgeDocumentEntity document = requireDocument(documentId);
+        String fileUrl = document.getFileUrl();
         deleteDocumentArtifacts(document);
         knowledgeDocumentMapper.deleteById(documentId);
+        deleteStoredFileQuietly(fileUrl);
     }
 
     public KnowledgeDocumentView get(Long documentId) {
@@ -209,34 +262,35 @@ public class KnowledgeDocumentAdminService {
         knowledgeDocumentMapper.updateById(entity);
     }
 
-    private void applyUploadMetadata(KnowledgeDocumentEntity entity, KnowledgeDocumentUploadRequest request, MultipartFile file) {
-        if (request != null) {
-            if (request.getSourceType() != null) {
-                entity.setSourceType(blankToNull(request.getSourceType()));
-            }
-            if (request.getSourceLocation() != null) {
-                entity.setSourceLocation(blankToNull(request.getSourceLocation()));
-            }
-            if (request.getScheduleEnabled() != null) {
-                entity.setScheduleEnabled(Boolean.TRUE.equals(request.getScheduleEnabled()) ? 1 : 0);
-            }
-            if (request.getScheduleCron() != null) {
-                entity.setScheduleCron(blankToNull(request.getScheduleCron()));
-            }
-            if (request.getProcessMode() != null) {
-                entity.setProcessMode(blankToNull(request.getProcessMode()));
-            }
-            if (request.getChunkStrategy() != null) {
-                entity.setChunkStrategy(StringUtils.hasText(request.getChunkStrategy())
-                        ? support.normalizeChunkStrategy(request.getChunkStrategy())
-                        : entity.getChunkStrategy());
-            }
-            if (request.getChunkConfig() != null) {
-                entity.setChunkConfig(blankToNull(request.getChunkConfig()));
-            }
-            if (request.getPipelineId() != null) {
-                entity.setPipelineId(request.getPipelineId());
-            }
+    private void applyUploadMetadata(KnowledgeDocumentEntity entity, KnowledgeDocumentUploadRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (request.getSourceType() != null) {
+            entity.setSourceType(blankToNull(request.getSourceType()));
+        }
+        if (request.getSourceLocation() != null) {
+            entity.setSourceLocation(blankToNull(request.getSourceLocation()));
+        }
+        if (request.getScheduleEnabled() != null) {
+            entity.setScheduleEnabled(Boolean.TRUE.equals(request.getScheduleEnabled()) ? 1 : 0);
+        }
+        if (request.getScheduleCron() != null) {
+            entity.setScheduleCron(blankToNull(request.getScheduleCron()));
+        }
+        if (request.getProcessMode() != null) {
+            entity.setProcessMode(blankToNull(request.getProcessMode()));
+        }
+        if (request.getChunkStrategy() != null) {
+            entity.setChunkStrategy(StringUtils.hasText(request.getChunkStrategy())
+                    ? support.normalizeChunkStrategy(request.getChunkStrategy())
+                    : entity.getChunkStrategy());
+        }
+        if (request.getChunkConfig() != null) {
+            entity.setChunkConfig(blankToNull(request.getChunkConfig()));
+        }
+        if (request.getPipelineId() != null) {
+            entity.setPipelineId(request.getPipelineId());
         }
     }
 
@@ -261,22 +315,22 @@ public class KnowledgeDocumentAdminService {
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
         if (kbId == null) {
-            throw new IllegalArgumentException("知识库ID 不能为空");
+            throw new IllegalArgumentException("鐭ヨ瘑搴揑D 涓嶈兘涓虹┖");
         }
         KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
-            throw new IllegalArgumentException("知识库不存在");
+            throw new IllegalArgumentException("鐭ヨ瘑搴撲笉瀛樺湪");
         }
         return entity;
     }
 
     private KnowledgeDocumentEntity requireDocument(Long documentId) {
         if (documentId == null) {
-            throw new IllegalArgumentException("文档 ID 不能为空");
+            throw new IllegalArgumentException("鏂囨。 ID 涓嶈兘涓虹┖");
         }
         KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(documentId);
         if (entity == null) {
-            throw new IllegalArgumentException("文档不存在");
+            throw new IllegalArgumentException("鏂囨。涓嶅瓨鍦�");
         }
         return entity;
     }
@@ -288,5 +342,29 @@ public class KnowledgeDocumentAdminService {
 
     private String blankToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private void sendChunkMessage(Long documentId, String operator) {
+        KnowledgeDocumentChunkEvent event = new KnowledgeDocumentChunkEvent(documentId, operator);
+        MessageWrapper<KnowledgeDocumentChunkEvent> wrapper = new MessageWrapper<>();
+        wrapper.setKeys(String.valueOf(documentId));
+        wrapper.setBody(event);
+        rocketMQTemplate.syncSend(
+                chunkTopic,
+                MessageBuilder.withPayload(wrapper)
+                        .setHeader(MessageConst.PROPERTY_KEYS, String.valueOf(documentId))
+                        .build()
+        );
+    }
+
+    private void deleteStoredFileQuietly(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return;
+        }
+        try {
+            knowledgeFileStorageService.deleteByUrl(fileUrl);
+        } catch (Exception ignored) {
+            // ignore
+        }
     }
 }

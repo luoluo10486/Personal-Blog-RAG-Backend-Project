@@ -191,7 +191,7 @@ public class McpToolClient {
     }
 
     private String resolveEndpoint() {
-        String serverUrl = ragMcpProperties.getServerUrl().trim();
+        String serverUrl = ragMcpProperties.resolveServerUrl().trim();
         return serverUrl.endsWith("/mcp") ? serverUrl : serverUrl + "/mcp";
     }
 

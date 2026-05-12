@@ -14,18 +14,18 @@ public final class ModelUrlResolver {
         if (candidate != null && hasText(candidate.getUrl())) {
             return candidate.getUrl();
         }
-        if (provider == null || !hasText(provider.getBaseUrl())) {
+        if (provider == null || !hasText(provider.getUrl())) {
             throw new IllegalStateException("Provider baseUrl is missing");
         }
         String path = switch (capability) {
-            case CHAT -> provider.getEndpoints().getChat();
-            case EMBEDDING -> provider.getEndpoints().getEmbedding();
-            case RERANK -> provider.getEndpoints().getRerank();
+            case CHAT -> provider.getEndpoints().get("chat");
+            case EMBEDDING -> provider.getEndpoints().get("embedding");
+            case RERANK -> provider.getEndpoints().get("rerank");
         };
         if (!hasText(path)) {
             throw new IllegalStateException("Provider endpoint is missing: " + capability.name().toLowerCase());
         }
-        return joinUrl(provider.getBaseUrl(), path);
+        return joinUrl(provider.getUrl(), path);
     }
 
     private static String joinUrl(String baseUrl, String path) {

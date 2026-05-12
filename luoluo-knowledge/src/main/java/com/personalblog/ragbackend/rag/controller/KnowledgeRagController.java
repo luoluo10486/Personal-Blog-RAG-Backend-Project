@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping({"/luoluo/knowledge", "/luoluo/rag"})
+@RequestMapping({"/knowledge", "/rag"})
 @MemberLoginRequired
 public class KnowledgeRagController {
     private final KnowledgeRagApplicationService knowledgeRagApplicationService;

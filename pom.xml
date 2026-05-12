@@ -32,6 +32,7 @@
         <aliyun-dysmsapi.version>2.2.1</aliyun-dysmsapi.version>
         <hutool-all.version>5.8.37</hutool-all.version>
         <aws-sdk-s3.version>2.40.2</aws-sdk-s3.version>
+        <rocketmq-spring-boot-starter.version>2.3.5</rocketmq-spring-boot-starter.version>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
     </properties>
 
@@ -127,6 +128,11 @@
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>s3</artifactId>
                 <version>${aws-sdk-s3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-spring-boot-starter</artifactId>
+                <version>${rocketmq-spring-boot-starter.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

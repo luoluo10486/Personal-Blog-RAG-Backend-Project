@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 @Validated
-@ConfigurationProperties(prefix = "app.rag.memory")
+@ConfigurationProperties(prefix = "rag.memory")
 public class RagMemoryProperties {
     private boolean summaryEnabled = false;
     @Min(1)

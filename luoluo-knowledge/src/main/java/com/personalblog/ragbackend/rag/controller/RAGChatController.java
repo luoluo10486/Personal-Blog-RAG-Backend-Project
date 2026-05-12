@@ -2,6 +2,7 @@ package com.personalblog.ragbackend.rag.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.service.RAGChatService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,16 +19,19 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @MemberLoginRequired
 public class RAGChatController {
     private final RAGChatService ragChatService;
+    private final RAGDefaultProperties ragDefaultProperties;
 
-    public RAGChatController(RAGChatService ragChatService) {
+    public RAGChatController(RAGChatService ragChatService,
+                             RAGDefaultProperties ragDefaultProperties) {
         this.ragChatService = ragChatService;
+        this.ragDefaultProperties = ragDefaultProperties;
     }
 
     @GetMapping(value = "/rag/v3/chat", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter chat(@RequestParam String question,
                            @RequestParam(required = false) String conversationId,
                            @RequestParam(required = false, defaultValue = "false") Boolean deepThinking) {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(ragDefaultProperties.getSseTimeoutMs());
         ragChatService.streamChat(question, conversationId, deepThinking, emitter);
         return emitter;
     }

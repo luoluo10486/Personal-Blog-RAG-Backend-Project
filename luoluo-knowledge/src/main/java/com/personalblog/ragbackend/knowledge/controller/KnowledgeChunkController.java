@@ -24,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
-@RequestMapping("/luoluo/knowledge")
 @MemberLoginRequired
 public class KnowledgeChunkController {
     private final KnowledgeAdminApplicationService knowledgeAdminApplicationService;

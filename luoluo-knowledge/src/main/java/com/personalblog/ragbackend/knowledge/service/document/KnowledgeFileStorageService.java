@@ -67,6 +67,37 @@ public class KnowledgeFileStorageService {
         return new LocalRestoredMultipartFile(Path.of(fileUrl), originalFilename, contentType);
     }
 
+    public void deleteByUrl(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return;
+        }
+        if (fileUrl.startsWith("s3://")) {
+            S3Location location = parseS3Location(fileUrl);
+            s3Client.deleteObject(builder -> builder.bucket(location.bucket()).key(location.key()));
+            return;
+        }
+        try {
+            Files.deleteIfExists(Path.of(fileUrl));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to delete knowledge file", exception);
+        }
+    }
+
+    public InputStream openStream(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return InputStream.nullInputStream();
+        }
+        if (fileUrl.startsWith("s3://")) {
+            S3Location location = parseS3Location(fileUrl);
+            return s3Client.getObject(builder -> builder.bucket(location.bucket()).key(location.key()));
+        }
+        try {
+            return Files.newInputStream(Path.of(fileUrl));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to open knowledge file", exception);
+        }
+    }
+
     public String resolveBucketName(String collectionName) {
         String prefix = sanitizeBucketSegment(knowledgeProperties.getStorage().getBucketPrefix());
         String source = StringUtils.hasText(collectionName)

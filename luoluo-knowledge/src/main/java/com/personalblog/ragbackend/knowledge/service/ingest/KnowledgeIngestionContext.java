@@ -19,6 +19,7 @@ public class KnowledgeIngestionContext {
     private final String sourceType;
     private final String sourceLocation;
     private final String sourceFileName;
+    private final String sourceFileUrl;
 
     private KnowledgeIngestionPlan plan;
     private ParseResult parseResult;
@@ -34,7 +35,7 @@ public class KnowledgeIngestionContext {
     private DocumentIngestionSummary ingestionSummary;
 
     public KnowledgeIngestionContext(String baseCode, MultipartFile file, KnowledgeIngestionMode mode) {
-        this(baseCode, file, mode, null, null, null, null, null);
+        this(baseCode, file, mode, null, null, null, null, null, null);
     }
 
     public KnowledgeIngestionContext(String baseCode,
@@ -44,7 +45,8 @@ public class KnowledgeIngestionContext {
                                      String taskId,
                                      String sourceType,
                                      String sourceLocation,
-                                     String sourceFileName) {
+                                     String sourceFileName,
+                                     String sourceFileUrl) {
         this.baseCode = baseCode;
         this.file = file;
         this.mode = mode == null ? KnowledgeIngestionMode.PREVIEW : mode;
@@ -53,6 +55,7 @@ public class KnowledgeIngestionContext {
         this.sourceType = sourceType;
         this.sourceLocation = sourceLocation;
         this.sourceFileName = sourceFileName;
+        this.sourceFileUrl = sourceFileUrl;
     }
 
     public String getBaseCode() {
@@ -97,6 +100,10 @@ public class KnowledgeIngestionContext {
 
     public String getSourceFileName() {
         return sourceFileName;
+    }
+
+    public String getSourceFileUrl() {
+        return sourceFileUrl;
     }
 
     public KnowledgeIngestionPlan getPlan() {

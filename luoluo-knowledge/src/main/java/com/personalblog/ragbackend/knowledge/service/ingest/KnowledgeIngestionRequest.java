@@ -10,13 +10,25 @@ public record KnowledgeIngestionRequest(
         String taskId,
         String sourceType,
         String sourceLocation,
-        String sourceFileName
+        String sourceFileName,
+        String sourceFileUrl
 ) {
     public KnowledgeIngestionRequest(String baseCode, MultipartFile file) {
         this(baseCode, file, file == null ? KnowledgeIngestionMode.PLAN_ONLY : KnowledgeIngestionMode.PREVIEW);
     }
 
     public KnowledgeIngestionRequest(String baseCode, MultipartFile file, KnowledgeIngestionMode mode) {
-        this(baseCode, file, mode, null, null, null, null, null);
+        this(baseCode, file, mode, null, null, null, null, null, null);
+    }
+
+    public KnowledgeIngestionRequest(String baseCode,
+                                     MultipartFile file,
+                                     KnowledgeIngestionMode mode,
+                                     Long pipelineId,
+                                     String taskId,
+                                     String sourceType,
+                                     String sourceLocation,
+                                     String sourceFileName) {
+        this(baseCode, file, mode, pipelineId, taskId, sourceType, sourceLocation, sourceFileName, null);
     }
 }

@@ -20,6 +20,7 @@ import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStora
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.sql.DataSource;
@@ -174,13 +175,17 @@ public class KnowledgeIngestionPersistenceService {
 
         if (existing == null) {
             KnowledgeDocumentEntity entity = new KnowledgeDocumentEntity();
-            fillDocumentEntity(entity, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash);
+            fillDocumentEntity(entity, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash, context.getSourceFileUrl());
             knowledgeDocumentMapper.insert(entity);
             return entity;
         }
 
-        fillDocumentEntity(existing, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash);
+        String previousFileUrl = existing.getFileUrl();
+        fillDocumentEntity(existing, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash, context.getSourceFileUrl());
         knowledgeDocumentMapper.updateById(existing);
+        if (StringUtils.hasText(previousFileUrl) && !previousFileUrl.equals(existing.getFileUrl())) {
+            deleteStoredFileQuietly(previousFileUrl);
+        }
         return existing;
     }
 
@@ -232,12 +237,15 @@ public class KnowledgeIngestionPersistenceService {
                                     String collectionName,
                                     String docName,
                                     MultipartFile file,
-                                    String contentHash) {
+                                    String contentHash,
+                                    String sourceFileUrl) {
         entity.setKbId(kbId);
         entity.setDocName(docName);
         entity.setEnabled(1);
         entity.setChunkCount(0);
-        entity.setFileUrl(knowledgeFileStorageService.store(file, collectionName, docName));
+        entity.setFileUrl(StringUtils.hasText(sourceFileUrl)
+                ? sourceFileUrl
+                : knowledgeFileStorageService.store(file, collectionName, docName));
         entity.setFileType(file == null ? null : file.getContentType());
         entity.setFileSize(file == null ? null : file.getSize());
         entity.setProcessMode("pipeline");
@@ -331,6 +339,14 @@ public class KnowledgeIngestionPersistenceService {
             return builder.toString();
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
+        }
+    }
+
+    private void deleteStoredFileQuietly(String fileUrl) {
+        try {
+            knowledgeFileStorageService.deleteByUrl(fileUrl);
+        } catch (Exception exception) {
+            // ignore
         }
     }
 }

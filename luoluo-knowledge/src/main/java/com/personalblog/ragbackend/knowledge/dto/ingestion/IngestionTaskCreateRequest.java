@@ -1,10 +1,11 @@
 package com.personalblog.ragbackend.knowledge.dto.ingestion;
 
+import java.util.Map;
+
 public record IngestionTaskCreateRequest(
-        String baseCode,
-        Long pipelineId,
-        String sourceType,
-        String sourceLocation,
-        String sourceFileName
+        String pipelineId,
+        DocumentSourceRequest source,
+        Map<String, Object> metadata,
+        Map<String, Object> vectorSpaceId
 ) {
 }

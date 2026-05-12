@@ -1,16 +1,20 @@
 package com.personalblog.ragbackend.rag.config;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Validated
-@ConfigurationProperties(prefix = "app.knowledge.mcp")
+@ConfigurationProperties(prefix = "rag.mcp")
 public class RagMcpProperties {
     private boolean enabled = true;
-    @NotBlank
-    private String serverUrl = "http://127.0.0.1:9099";
+    @Valid
+    private List<ServerConfig> servers = new ArrayList<>();
     @Min(100)
     private int connectTimeoutMs = 3000;
     @Min(100)
@@ -25,12 +29,19 @@ public class RagMcpProperties {
         this.enabled = enabled;
     }
 
-    public String getServerUrl() {
-        return serverUrl;
+    public List<ServerConfig> getServers() {
+        return servers;
     }
 
-    public void setServerUrl(String serverUrl) {
-        this.serverUrl = serverUrl;
+    public void setServers(List<ServerConfig> servers) {
+        this.servers = servers;
+    }
+
+    public String resolveServerUrl() {
+        if (servers == null || servers.isEmpty() || servers.get(0) == null || servers.get(0).getUrl() == null) {
+            return "http://127.0.0.1:9099";
+        }
+        return servers.get(0).getUrl();
     }
 
     public int getConnectTimeoutMs() {
@@ -55,5 +66,29 @@ public class RagMcpProperties {
 
     public void setParameterExtractionEnabled(boolean parameterExtractionEnabled) {
         this.parameterExtractionEnabled = parameterExtractionEnabled;
+    }
+
+    public static class ServerConfig {
+        @NotBlank
+        private String name = "default";
+
+        @NotBlank
+        private String url = "http://127.0.0.1:9099";
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
     }
 }

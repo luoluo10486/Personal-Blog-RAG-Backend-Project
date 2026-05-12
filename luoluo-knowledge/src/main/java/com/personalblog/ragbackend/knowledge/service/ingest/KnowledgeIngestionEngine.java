@@ -32,7 +32,8 @@ public class KnowledgeIngestionEngine {
                 request.taskId(),
                 request.sourceType(),
                 request.sourceLocation(),
-                request.sourceFileName()
+                request.sourceFileName(),
+                request.sourceFileUrl()
         );
         for (KnowledgeIngestionNode node : nodes) {
             long startedAt = System.currentTimeMillis();

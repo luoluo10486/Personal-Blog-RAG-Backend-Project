@@ -12,6 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @SpringBootApplication(
         scanBasePackages = {
                 "com.personalblog.ragbackend.knowledge",
+                "com.personalblog.ragbackend.rag",
                 "com.personalblog.ragbackend.mcp"
         },
         exclude = {
@@ -22,7 +23,10 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
                 RedisRepositoriesAutoConfiguration.class
         }
 )
-@ConfigurationPropertiesScan(basePackages = "com.personalblog.ragbackend.knowledge.config")
+@ConfigurationPropertiesScan(basePackages = {
+        "com.personalblog.ragbackend.knowledge.config",
+        "com.personalblog.ragbackend.rag.config"
+})
 public class LuoluoRagMcpApplication {
 
     public static void main(String[] args) {

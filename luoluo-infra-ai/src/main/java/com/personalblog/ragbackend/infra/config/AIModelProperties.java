@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @Validated
-@ConfigurationProperties(prefix = "app.ai")
+@ConfigurationProperties(prefix = "ai")
 public class AIModelProperties {
 
     private boolean enabled = true;
@@ -209,30 +209,19 @@ public class AIModelProperties {
 
     public static class ProviderConfig {
         @NotBlank
-        private String type;
-
-        @NotBlank
-        private String baseUrl;
+        private String url;
 
         private String apiKey = "";
 
         @Valid
-        private final EndpointConfig endpoints = new EndpointConfig();
+        private Map<String, String> endpoints = new LinkedHashMap<>();
 
-        public String getType() {
-            return type;
+        public String getUrl() {
+            return url;
         }
 
-        public void setType(String type) {
-            this.type = type;
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = baseUrl;
+        public void setUrl(String url) {
+            this.url = url;
         }
 
         public String getApiKey() {
@@ -243,43 +232,12 @@ public class AIModelProperties {
             this.apiKey = apiKey;
         }
 
-        public EndpointConfig getEndpoints() {
+        public Map<String, String> getEndpoints() {
             return endpoints;
         }
-    }
 
-    public static class EndpointConfig {
-        @NotBlank
-        private String chat = "/v1/chat/completions";
-
-        @NotBlank
-        private String embedding = "/v1/embeddings";
-
-        @NotBlank
-        private String rerank = "/v1/rerank";
-
-        public String getChat() {
-            return chat;
-        }
-
-        public void setChat(String chat) {
-            this.chat = chat;
-        }
-
-        public String getEmbedding() {
-            return embedding;
-        }
-
-        public void setEmbedding(String embedding) {
-            this.embedding = embedding;
-        }
-
-        public String getRerank() {
-            return rerank;
-        }
-
-        public void setRerank(String rerank) {
-            this.rerank = rerank;
+        public void setEndpoints(Map<String, String> endpoints) {
+            this.endpoints = endpoints == null ? new LinkedHashMap<>() : new LinkedHashMap<>(endpoints);
         }
     }
 

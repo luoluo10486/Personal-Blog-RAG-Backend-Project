@@ -7,7 +7,7 @@ import org.springframework.context.annotation.ComponentScan;
 
 @AutoConfiguration
 @EnableConfigurationProperties(AIModelProperties.class)
-@ConditionalOnProperty(prefix = "app.ai", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "ai", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ComponentScan(basePackages = "com.personalblog.ragbackend.infra")
 public class AIInfraAutoConfiguration {
 }

@@ -23,6 +23,7 @@ import java.util.Enumeration;
 @SpringBootApplication(scanBasePackages = "com.personalblog.ragbackend")
 @ConfigurationPropertiesScan(basePackages = {
         "com.personalblog.ragbackend.knowledge.config",
+        "com.personalblog.ragbackend.rag.config",
         "com.personalblog.ragbackend.member.config"
 })
 @MapperScan({
@@ -73,7 +74,7 @@ public class LuoluoAdminApplication {
                         "----------------------------------------------------------------------\n" +
                         "  Backend Local:    {}\n" +
                         "  Backend IP:       {}\n" +
-                        "  Login API:        {}/luoluo/system/public/member/auth/login\n" +
+                        "  Login API:        {}/auth/login\n" +
                         "----------------------------------------------------------------------\n" +
                         "  Vector Type:      {}\n" +
                         "  Vector Table:     {}.{}\n" +

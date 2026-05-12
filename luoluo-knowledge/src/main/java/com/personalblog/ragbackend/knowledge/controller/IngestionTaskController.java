@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -30,21 +31,15 @@ public class IngestionTaskController {
         this.ingestionTaskService = ingestionTaskService;
     }
 
-    @PostMapping(value = {"/ingestion/tasks", "/ingestion/tasks/upload"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public R<IngestionTaskResult> upload(@RequestParam("baseCode") String baseCode,
-                                         @RequestParam(value = "pipelineId", required = false) Long pipelineId,
-                                         @RequestParam(value = "sourceType", required = false, defaultValue = "file") String sourceType,
-                                         @RequestParam(value = "sourceLocation", required = false) String sourceLocation,
-                                         @RequestParam(value = "sourceFileName", required = false) String sourceFileName,
+    @PostMapping("/ingestion/tasks")
+    public R<IngestionTaskResult> create(@RequestBody IngestionTaskCreateRequest request) {
+        return R.ok(ingestionTaskService.execute(request));
+    }
+
+    @PostMapping(value = "/ingestion/tasks/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<IngestionTaskResult> upload(@RequestParam("pipelineId") String pipelineId,
                                          @RequestPart("file") MultipartFile file) {
-        IngestionTaskCreateRequest request = new IngestionTaskCreateRequest(
-                baseCode,
-                pipelineId,
-                sourceType,
-                sourceLocation,
-                sourceFileName == null && file != null ? file.getOriginalFilename() : sourceFileName
-        );
-        return R.ok(ingestionTaskService.execute(request, file));
+        return R.ok(ingestionTaskService.upload(pipelineId, file));
     }
 
     @GetMapping("/ingestion/tasks/{id}")

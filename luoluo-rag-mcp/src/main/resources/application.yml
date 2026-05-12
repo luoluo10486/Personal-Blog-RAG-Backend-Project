@@ -3,93 +3,110 @@ server:
 
 spring:
   application:
-    name: luoluo-rag-mcp
-  main:
-    web-application-type: servlet
-    banner-mode: off
-
-logging:
-  file:
-    name: ./logs/luoluo-rag-mcp.log
-  level:
-    root: INFO
-
-rustfs:
-  url: http://localhost:9000
-  access-key-id: rustfsadmin
-  secret-access-key: rustfsadmin
+    name: ragent-mcp-server
 
 rocketmq:
   name-server: 127.0.0.1:9876
   producer:
-    group: luoluo-rag-mcp-producer
+    group: ragent-mcp-server-producer
+
+milvus:
+  uri: http://localhost:19530
+
+ai:
+  providers:
+    ollama:
+      type: ollama
+      base-url: http://localhost:11434
+      api-key: ""
+      endpoints:
+        chat: /v1/chat/completions
+        embedding: /v1/embeddings
+        rerank: /v1/rerank
+    bailian:
+      type: bailian
+      base-url: https://dashscope.aliyuncs.com
+      api-key: ${BAILIAN_API_KEY:}
+      endpoints:
+        chat: /compatible-mode/v1/chat/completions
+        embedding: /v1/embeddings
+        rerank: /api/v1/services/rerank/text-rerank/text-rerank
+    siliconflow:
+      type: siliconflow
+      base-url: https://api.siliconflow.cn
+      api-key: ${SILICONFLOW_API_KEY:}
+      endpoints:
+        chat: /v1/chat/completions
+        embedding: /v1/embeddings
+        rerank: /v1/rerank
+  selection:
+    failure-threshold: 2
+    open-duration-ms: 30000
+  stream:
+    message-chunk-size: 5
+  chat:
+    default-model: qwen3-max
+    deep-thinking-model: qwen3-max
+    candidates:
+      - id: qwen3-max
+        provider: bailian
+        model: qwen3-max
+        supports-thinking: true
+        priority: 3
+  embedding:
+    default-model: qwen-emb-8b
+    candidates:
+      - id: qwen-emb-8b
+        provider: siliconflow
+        model: Qwen/Qwen3-Embedding-8B
+        dimension: 1536
+        priority: 1
+  rerank:
+    default-model: qwen3-rerank
+    candidates:
+      - id: qwen3-rerank
+        provider: bailian
+        model: qwen3-rerank
+        priority: 1
+      - id: rerank-noop
+        provider: noop
+        model: noop
+        priority: 100
+
+rag:
+  vector:
+    type: pg
+  default:
+    collection-name: rag_default_store
+    dimension: 1536
+    metric-type: COSINE
+    sse-timeout-ms: 300000
+  query-rewrite:
+    enabled: true
+  rate-limit:
+    global:
+      enabled: true
+      max-concurrent: 1
+      max-wait-seconds: 3
+      lease-seconds: 30
+      poll-interval-ms: 200
+  memory:
+    history-keep-turns: 4
+    summary-start-turns: 5
+    summary-enabled: true
+    summary-max-chars: 200
+    title-max-length: 30
+  mcp:
+    servers:
+      - name: default
+        url: http://localhost:9099
 
 app:
-  ai:
-    enabled: true
-    connect-timeout-seconds: 30
-    read-timeout-seconds: 60
-    providers:
-      siliconflow:
-        type: siliconflow
-        base-url: https://api.siliconflow.cn
-        api-key: ${SILICONFLOW_API_KEY:}
-        endpoints:
-          chat: /v1/chat/completions
-          embedding: /v1/embeddings
-          rerank: /v1/rerank
-      ollama:
-        type: ollama
-        base-url: http://localhost:11434
-        api-key: ""
-        endpoints:
-          chat: /v1/chat/completions
-          embedding: /api/embed
-          rerank: /v1/rerank
-    chat:
-      default-model: siliconflow-chat
-      deep-thinking-model: siliconflow-chat
-      candidates:
-        - id: siliconflow-chat
-          provider: siliconflow
-          model: Qwen/Qwen3-32B
-          priority: 10
-          supports-thinking: true
-    embedding:
-      default-model: siliconflow-embedding
-      candidates:
-        - id: siliconflow-embedding
-          provider: siliconflow
-          model: Qwen/Qwen3-Embedding-8B
-          dimension: 1536
-          priority: 10
-    rerank:
-      default-model: noop-rerank
-      candidates:
-        - id: noop-rerank
-          provider: noop
-          model: noop
-          priority: 100
-        - id: siliconflow-rerank
-          provider: siliconflow
-          model: BAAI/bge-reranker-v2-m3
-          priority: 10
-          enabled: false
-    selection:
-      failure-threshold: 2
-      open-duration-ms: 30000
-    stream:
-      message-chunk-size: 5
-      executor-threads: 4
   knowledge:
     enabled: true
     default-base-code: default
     storage:
       bucket-prefix: knowledge
-    jdbc:
-      enabled: false
-    mcp:
-      enabled: false
     vector:
       type: pgvector
       pg:
@@ -109,6 +126,11 @@ app:
       chunk-size: 800
       chunk-overlap: 120
       max-chunk-count: 1000
+    schedule:
+      scan-delay-ms: 10000
+      lock-seconds: 900
+      batch-size: 20
+      min-interval-seconds: 60
     search:
       top-k: 8
       top-k-multiplier: 3
