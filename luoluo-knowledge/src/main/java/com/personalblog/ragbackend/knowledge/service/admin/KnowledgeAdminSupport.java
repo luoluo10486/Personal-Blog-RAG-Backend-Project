@@ -143,14 +143,14 @@ public class KnowledgeAdminSupport {
     public List<ChunkStrategyOption> chunkStrategyOptions() {
         return List.of(
                 new ChunkStrategyOption(
-                        ChunkingMode.STRUCTURE_AWARE.code(),
-                        "Structure Aware",
-                        defaultChunkConfig(ChunkingMode.STRUCTURE_AWARE.code())
+                        ChunkingMode.STRUCTURE_AWARE.getValue(),
+                        ChunkingMode.STRUCTURE_AWARE.getLabel(),
+                        ChunkingMode.STRUCTURE_AWARE.getDefaultConfig()
                 ),
                 new ChunkStrategyOption(
-                        ChunkingMode.FIXED_SIZE.code(),
-                        "Fixed Size",
-                        defaultChunkConfig(ChunkingMode.FIXED_SIZE.code())
+                        ChunkingMode.FIXED_SIZE.getValue(),
+                        ChunkingMode.FIXED_SIZE.getLabel(),
+                        ChunkingMode.FIXED_SIZE.getDefaultConfig()
                 )
         );
     }
@@ -166,15 +166,22 @@ public class KnowledgeAdminSupport {
 
     public String defaultChunkConfig(String strategy) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("strategy", normalizeChunkStrategy(strategy));
-        payload.put("chunkSize", knowledgeProperties.getChunking().getChunkSize());
-        payload.put("chunkOverlap", knowledgeProperties.getChunking().getChunkOverlap());
-        payload.put("maxChunkCount", knowledgeProperties.getChunking().getMaxChunkCount());
+        ChunkingMode mode = ChunkingMode.from(strategy);
+        payload.put("strategy", mode.getValue());
+        if (mode == ChunkingMode.FIXED_SIZE) {
+            payload.put("chunkSize", knowledgeProperties.getChunking().getChunkSize());
+            payload.put("overlapSize", knowledgeProperties.getChunking().getChunkOverlap());
+        } else {
+            payload.put("targetChars", 1400);
+            payload.put("overlapChars", 0);
+            payload.put("maxChars", 1800);
+            payload.put("minChars", 600);
+        }
         return toJson(payload);
     }
 
     public String normalizeChunkStrategy(String strategy) {
-        return ChunkingMode.from(strategy).code();
+        return ChunkingMode.from(strategy).getValue();
     }
 
     public String normalizeCode(String value) {

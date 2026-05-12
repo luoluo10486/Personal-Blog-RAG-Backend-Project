@@ -1,33 +1,48 @@
 package com.personalblog.ragbackend.knowledge.core.chunk;
 
 import java.util.Locale;
+import java.util.Map;
 
 public enum ChunkingMode {
-    STRUCTURE_AWARE("structure-aware"),
-    FIXED_SIZE("fixed-size");
+    FIXED_SIZE("fixed_size", "固定大小", true),
+    STRUCTURE_AWARE("structure_aware", "结构感知", true);
 
-    private final String code;
+    private final String value;
+    private final String label;
+    private final boolean visible;
 
-    ChunkingMode(String code) {
-        this.code = code;
+    ChunkingMode(String value, String label, boolean visible) {
+        this.value = value;
+        this.label = label;
+        this.visible = visible;
     }
 
-    public String code() {
-        return code;
+    public String getValue() {
+        return value;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
+
+    public Map<String, Integer> getDefaultConfig() {
+        return switch (this) {
+            case FIXED_SIZE -> Map.of("chunkSize", 512, "overlapSize", 128);
+            case STRUCTURE_AWARE -> Map.of("targetChars", 1400, "overlapChars", 0, "maxChars", 1800, "minChars", 600);
+        };
     }
 
     public static ChunkingMode from(String value) {
         if (value == null || value.isBlank()) {
             return STRUCTURE_AWARE;
         }
-
-        String normalized = value.trim()
-                .toLowerCase(Locale.ROOT)
-                .replace('_', '-')
-                .replace(' ', '-');
-
+        String normalized = value.trim().toLowerCase(Locale.ROOT).replace('-', '_');
         for (ChunkingMode mode : values()) {
-            if (mode.code.equals(normalized)) {
+            if (mode.value.equalsIgnoreCase(normalized) || mode.name().equalsIgnoreCase(normalized)) {
                 return mode;
             }
         }

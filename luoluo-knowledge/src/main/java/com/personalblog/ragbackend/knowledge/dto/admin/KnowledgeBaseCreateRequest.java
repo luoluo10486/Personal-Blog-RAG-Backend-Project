@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.knowledge.dto.admin;
 import jakarta.validation.constraints.NotBlank;
 
 public class KnowledgeBaseCreateRequest {
-    @NotBlank(message = "知识库名称不能为空")
+    @NotBlank(message = "knowledge base name must not be blank")
     private String name;
     private String embeddingModel;
     private String collectionName;

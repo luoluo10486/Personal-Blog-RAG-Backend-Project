@@ -4,18 +4,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
 import com.personalblog.ragbackend.knowledge.application.KnowledgeAdminApplicationService;
-import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUploadRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
-import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
-import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
-import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -23,7 +19,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,44 +27,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
-@RequestMapping
 @MemberLoginRequired
 public class KnowledgeDocumentController {
-    private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
     private final KnowledgeAdminApplicationService knowledgeAdminApplicationService;
 
-    public KnowledgeDocumentController(KnowledgeDocumentApplicationService knowledgeDocumentApplicationService,
-                                       KnowledgeAdminApplicationService knowledgeAdminApplicationService) {
-        this.knowledgeDocumentApplicationService = knowledgeDocumentApplicationService;
+    public KnowledgeDocumentController(KnowledgeAdminApplicationService knowledgeAdminApplicationService) {
         this.knowledgeAdminApplicationService = knowledgeAdminApplicationService;
-    }
-
-    @PostMapping(value = "/parse", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ParseResult> parseDocument(@RequestPart("file") MultipartFile file) {
-        ParseResult result = knowledgeDocumentApplicationService.parseFile(file);
-        if (result.success()) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.badRequest().body(result);
-    }
-
-    @PostMapping(value = "/chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentChunkResponse> chunkDocument(@RequestPart("file") MultipartFile file) {
-        DocumentChunkResponse result = knowledgeDocumentApplicationService.chunkFile(file);
-        if (result.success()) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.badRequest().body(result);
-    }
-
-    @PostMapping(value = "/ingest", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentIngestionSummary> ingestDocument(@RequestPart("file") MultipartFile file,
-                                                                   @RequestParam(value = "baseCode", required = false) String baseCode) {
-        DocumentIngestionSummary result = knowledgeDocumentApplicationService.ingestFile(baseCode, file);
-        if (result.success()) {
-            return ResponseEntity.ok(result);
-        }
-        return ResponseEntity.badRequest().body(result);
     }
 
     @PostMapping(value = "/knowledge-base/{kb-id}/docs/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -124,8 +87,7 @@ public class KnowledgeDocumentController {
 
     @GetMapping("/knowledge-base/docs/{doc-id}/chunk-logs")
     public R<IPage<KnowledgeDocumentChunkLogView>> getChunkLogs(@PathVariable("doc-id") String docId,
-                                                                @RequestParam(value = "current", defaultValue = "1") long current,
-                                                                @RequestParam(value = "size", defaultValue = "10") long size) {
-        return R.ok(knowledgeAdminApplicationService.pageChunkLogs(docId, current, size));
+                                                                Page<KnowledgeDocumentChunkLogView> page) {
+        return R.ok(knowledgeAdminApplicationService.pageChunkLogs(docId, page.getCurrent(), page.getSize()));
     }
 }
