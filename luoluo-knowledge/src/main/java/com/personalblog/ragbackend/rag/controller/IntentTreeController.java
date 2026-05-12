@@ -2,8 +2,11 @@ package com.personalblog.ragbackend.rag.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
-import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.service.admin.IntentTreeAdminService;
+import com.personalblog.ragbackend.rag.controller.request.IntentNodeBatchRequest;
+import com.personalblog.ragbackend.rag.controller.request.IntentNodeCreateRequest;
+import com.personalblog.ragbackend.rag.controller.request.IntentNodeUpdateRequest;
+import com.personalblog.ragbackend.rag.controller.vo.IntentNodeTreeVO;
 import com.personalblog.ragbackend.rag.core.mcp.McpToolDescriptor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +30,7 @@ public class IntentTreeController {
     }
 
     @GetMapping("/intent-tree/trees")
-    public R<List<IntentNodeEntity>> tree() {
+    public R<List<IntentNodeTreeVO>> tree() {
         return R.ok(intentTreeAdminService.tree());
     }
 
@@ -37,37 +40,37 @@ public class IntentTreeController {
     }
 
     @PostMapping("/intent-tree")
-    public R<Long> createNode(@RequestBody IntentNodeEntity request) {
+    public R<String> createNode(@RequestBody IntentNodeCreateRequest request) {
         return R.ok(intentTreeAdminService.create(request));
     }
 
     @PutMapping("/intent-tree/{id}")
-    public R<Void> updateNode(@PathVariable Long id, @RequestBody IntentNodeEntity request) {
+    public R<Void> updateNode(@PathVariable String id, @RequestBody IntentNodeUpdateRequest request) {
         intentTreeAdminService.update(id, request);
         return R.ok();
     }
 
     @DeleteMapping("/intent-tree/{id}")
-    public R<Void> deleteNode(@PathVariable Long id) {
+    public R<Void> deleteNode(@PathVariable String id) {
         intentTreeAdminService.delete(id);
         return R.ok();
     }
 
     @PostMapping("/intent-tree/batch/enable")
-    public R<Void> batchEnable(@RequestBody List<Long> ids) {
-        intentTreeAdminService.batchEnable(ids);
+    public R<Void> batchEnable(@RequestBody IntentNodeBatchRequest request) {
+        intentTreeAdminService.batchEnable(request == null ? null : request.getIds());
         return R.ok();
     }
 
     @PostMapping("/intent-tree/batch/disable")
-    public R<Void> batchDisable(@RequestBody List<Long> ids) {
-        intentTreeAdminService.batchDisable(ids);
+    public R<Void> batchDisable(@RequestBody IntentNodeBatchRequest request) {
+        intentTreeAdminService.batchDisable(request == null ? null : request.getIds());
         return R.ok();
     }
 
     @PostMapping("/intent-tree/batch/delete")
-    public R<Void> batchDelete(@RequestBody List<Long> ids) {
-        intentTreeAdminService.batchDelete(ids);
+    public R<Void> batchDelete(@RequestBody IntentNodeBatchRequest request) {
+        intentTreeAdminService.batchDelete(request == null ? null : request.getIds());
         return R.ok();
     }
 }
