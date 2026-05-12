@@ -1,34 +1,10 @@
 package com.personalblog.ragbackend.knowledge.dto.admin;
 
-import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
 
+@Data
 public class KnowledgeChunkCreateRequest {
-    @NotBlank(message = "Chunk 内容不能为空")
     private String content;
     private Integer index;
     private String chunkId;
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public Integer getIndex() {
-        return index;
-    }
-
-    public void setIndex(Integer index) {
-        this.index = index;
-    }
-
-    public String getChunkId() {
-        return chunkId;
-    }
-
-    public void setChunkId(String chunkId) {
-        this.chunkId = chunkId;
-    }
 }

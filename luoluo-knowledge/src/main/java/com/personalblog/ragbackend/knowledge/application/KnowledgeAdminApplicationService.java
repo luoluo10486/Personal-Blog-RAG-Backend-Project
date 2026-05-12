@@ -1,22 +1,22 @@
 package com.personalblog.ragbackend.knowledge.application;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyOption;
+import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkBatchRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkView;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUploadRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
 import com.personalblog.ragbackend.knowledge.service.admin.KnowledgeBaseAdminService;
 import com.personalblog.ragbackend.knowledge.service.admin.KnowledgeChunkAdminService;
 import com.personalblog.ragbackend.knowledge.service.admin.KnowledgeDocumentAdminService;
@@ -51,19 +51,19 @@ public class KnowledgeAdminApplicationService {
         knowledgeBaseAdminService.delete(parseId(kbId));
     }
 
-    public KnowledgeBaseView getKnowledgeBase(String kbId) {
+    public KnowledgeBaseVO getKnowledgeBase(String kbId) {
         return knowledgeBaseAdminService.get(parseId(kbId));
     }
 
-    public IPage<KnowledgeBaseView> pageKnowledgeBases(KnowledgeBasePageRequest request) {
+    public IPage<KnowledgeBaseVO> pageKnowledgeBases(KnowledgeBasePageRequest request) {
         return knowledgeBaseAdminService.page(request);
     }
 
-    public List<ChunkStrategyOption> listChunkStrategies() {
+    public List<ChunkStrategyVO> listChunkStrategies() {
         return knowledgeBaseAdminService.listChunkStrategies();
     }
 
-    public KnowledgeDocumentView uploadDocument(String kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
+    public KnowledgeDocumentVO uploadDocument(String kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
         return knowledgeDocumentAdminService.upload(parseId(kbId), request, file);
     }
 
@@ -75,7 +75,7 @@ public class KnowledgeAdminApplicationService {
         knowledgeDocumentAdminService.delete(parseId(documentId));
     }
 
-    public KnowledgeDocumentView getDocument(String documentId) {
+    public KnowledgeDocumentVO getDocument(String documentId) {
         return knowledgeDocumentAdminService.get(parseId(documentId));
     }
 
@@ -83,11 +83,11 @@ public class KnowledgeAdminApplicationService {
         knowledgeDocumentAdminService.update(parseId(documentId), request);
     }
 
-    public IPage<KnowledgeDocumentView> pageDocuments(String kbId, KnowledgeDocumentPageRequest request) {
+    public IPage<KnowledgeDocumentVO> pageDocuments(String kbId, KnowledgeDocumentPageRequest request) {
         return knowledgeDocumentAdminService.page(parseId(kbId), request);
     }
 
-    public List<KnowledgeDocumentSearchView> searchDocuments(String keyword, int limit) {
+    public List<KnowledgeDocumentSearchVO> searchDocuments(String keyword, int limit) {
         return knowledgeDocumentAdminService.search(keyword, limit);
     }
 
@@ -95,15 +95,15 @@ public class KnowledgeAdminApplicationService {
         knowledgeDocumentAdminService.enable(parseId(documentId), enabled);
     }
 
-    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(String documentId, long current, long size) {
+    public IPage<KnowledgeDocumentChunkLogVO> pageChunkLogs(String documentId, long current, long size) {
         return knowledgeDocumentAdminService.pageChunkLogs(parseId(documentId), current, size);
     }
 
-    public IPage<KnowledgeChunkView> pageChunks(String documentId, KnowledgeChunkPageRequest request) {
+    public IPage<KnowledgeChunkVO> pageChunks(String documentId, KnowledgeChunkPageRequest request) {
         return knowledgeChunkAdminService.page(parseId(documentId), request);
     }
 
-    public KnowledgeChunkView createChunk(String documentId, KnowledgeChunkCreateRequest request) {
+    public KnowledgeChunkVO createChunk(String documentId, KnowledgeChunkCreateRequest request) {
         return knowledgeChunkAdminService.create(parseId(documentId), request);
     }
 

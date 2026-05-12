@@ -8,12 +8,12 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyOption;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkView;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
+import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -46,91 +46,91 @@ public class KnowledgeAdminSupport {
         return page;
     }
 
-    public KnowledgeBaseView toKnowledgeBaseView(KnowledgeBaseEntity entity, long documentCount) {
-        return new KnowledgeBaseView(
-                String.valueOf(entity.getId()),
-                entity.getName(),
-                entity.getEmbeddingModel(),
-                entity.getCollectionName(),
-                documentCount,
-                entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()),
-                entity.getCreatedAt() == null ? null : Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()),
-                entity.getUpdatedAt() == null ? null : Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-        );
+    public KnowledgeBaseVO toKnowledgeBaseView(KnowledgeBaseEntity entity, long documentCount) {
+        KnowledgeBaseVO vo = new KnowledgeBaseVO();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setName(entity.getName());
+        vo.setEmbeddingModel(entity.getEmbeddingModel());
+        vo.setCollectionName(entity.getCollectionName());
+        vo.setDocumentCount(documentCount);
+        vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
+        vo.setCreateTime(entity.getCreatedAt() == null ? null : Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
+        vo.setUpdateTime(entity.getUpdatedAt() == null ? null : Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
+        return vo;
     }
 
-    public KnowledgeDocumentView toKnowledgeDocumentView(KnowledgeDocumentEntity entity) {
-        return new KnowledgeDocumentView(
-                String.valueOf(entity.getId()),
-                String.valueOf(entity.getKbId()),
-                entity.getDocName(),
-                entity.getSourceType(),
-                entity.getSourceLocation(),
-                entity.getScheduleEnabled(),
-                entity.getScheduleCron(),
-                entity.getEnabled() != null && entity.getEnabled() == 1,
-                entity.getChunkCount(),
-                entity.getFileUrl(),
-                entity.getFileType(),
-                entity.getFileSize(),
-                entity.getChunkStrategy(),
-                entity.getProcessMode(),
-                entity.getChunkConfig(),
-                entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()),
-                entity.getStatus(),
-                entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()),
-                entity.getUpdatedBy() == null ? null : String.valueOf(entity.getUpdatedBy()),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
+    public KnowledgeDocumentVO toKnowledgeDocumentView(KnowledgeDocumentEntity entity) {
+        KnowledgeDocumentVO vo = new KnowledgeDocumentVO();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setKbId(String.valueOf(entity.getKbId()));
+        vo.setDocName(entity.getDocName());
+        vo.setSourceType(entity.getSourceType());
+        vo.setSourceLocation(entity.getSourceLocation());
+        vo.setScheduleEnabled(entity.getScheduleEnabled());
+        vo.setScheduleCron(entity.getScheduleCron());
+        vo.setEnabled(entity.getEnabled() != null && entity.getEnabled() == 1);
+        vo.setChunkCount(entity.getChunkCount());
+        vo.setFileUrl(entity.getFileUrl());
+        vo.setFileType(entity.getFileType());
+        vo.setFileSize(entity.getFileSize());
+        vo.setChunkStrategy(entity.getChunkStrategy());
+        vo.setProcessMode(entity.getProcessMode());
+        vo.setChunkConfig(entity.getChunkConfig());
+        vo.setPipelineId(entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()));
+        vo.setStatus(entity.getStatus());
+        vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
+        vo.setUpdatedBy(entity.getUpdatedBy() == null ? null : String.valueOf(entity.getUpdatedBy()));
+        vo.setCreateTime(entity.getCreatedAt());
+        vo.setUpdateTime(entity.getUpdatedAt());
+        return vo;
     }
 
-    public KnowledgeDocumentSearchView toKnowledgeDocumentSearchView(KnowledgeDocumentEntity entity) {
-        return new KnowledgeDocumentSearchView(
-                String.valueOf(entity.getId()),
-                String.valueOf(entity.getKbId()),
-                entity.getDocName(),
-                null
-        );
+    public KnowledgeDocumentSearchVO toKnowledgeDocumentSearchView(KnowledgeDocumentEntity entity) {
+        KnowledgeDocumentSearchVO vo = new KnowledgeDocumentSearchVO();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setKbId(String.valueOf(entity.getKbId()));
+        vo.setDocName(entity.getDocName());
+        vo.setKbName(null);
+        return vo;
     }
 
-    public KnowledgeDocumentChunkLogView toKnowledgeDocumentChunkLogView(KnowledgeDocumentChunkLogEntity entity) {
-        return new KnowledgeDocumentChunkLogView(
-                String.valueOf(entity.getId()),
-                String.valueOf(entity.getDocId()),
-                entity.getStatus(),
-                entity.getProcessMode(),
-                entity.getChunkStrategy(),
-                entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()),
-                null,
-                entity.getExtractDuration(),
-                entity.getChunkDuration(),
-                entity.getEmbedDuration(),
-                entity.getPersistDuration(),
-                null,
-                entity.getTotalDuration(),
-                entity.getChunkCount(),
-                entity.getErrorMessage(),
-                toDate(entity.getStartedAt()),
-                toDate(entity.getEndedAt()),
-                toDate(entity.getCreatedAt())
-        );
+    public KnowledgeDocumentChunkLogVO toKnowledgeDocumentChunkLogView(KnowledgeDocumentChunkLogEntity entity) {
+        KnowledgeDocumentChunkLogVO vo = new KnowledgeDocumentChunkLogVO();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setDocId(String.valueOf(entity.getDocId()));
+        vo.setStatus(entity.getStatus());
+        vo.setProcessMode(entity.getProcessMode());
+        vo.setChunkStrategy(entity.getChunkStrategy());
+        vo.setPipelineId(entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()));
+        vo.setPipelineName(null);
+        vo.setExtractDuration(entity.getExtractDuration());
+        vo.setChunkDuration(entity.getChunkDuration());
+        vo.setEmbedDuration(entity.getEmbedDuration());
+        vo.setPersistDuration(entity.getPersistDuration());
+        vo.setOtherDuration(null);
+        vo.setTotalDuration(entity.getTotalDuration());
+        vo.setChunkCount(entity.getChunkCount());
+        vo.setErrorMessage(entity.getErrorMessage());
+        vo.setStartTime(toDate(entity.getStartedAt()));
+        vo.setEndTime(toDate(entity.getEndedAt()));
+        vo.setCreateTime(toDate(entity.getCreatedAt()));
+        return vo;
     }
 
-    public KnowledgeChunkView toKnowledgeChunkView(KnowledgeChunkEntity entity) {
-        return new KnowledgeChunkView(
-                String.valueOf(entity.getId()),
-                String.valueOf(entity.getKbId()),
-                String.valueOf(entity.getDocId()),
-                entity.getChunkIndex(),
-                entity.getContent(),
-                entity.getContentHash(),
-                entity.getCharCount(),
-                entity.getTokenCount(),
-                entity.getEnabled(),
-                entity.getCreatedAt(),
-                entity.getUpdatedAt()
-        );
+    public KnowledgeChunkVO toKnowledgeChunkView(KnowledgeChunkEntity entity) {
+        KnowledgeChunkVO vo = new KnowledgeChunkVO();
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setKbId(String.valueOf(entity.getKbId()));
+        vo.setDocId(String.valueOf(entity.getDocId()));
+        vo.setChunkIndex(entity.getChunkIndex());
+        vo.setContent(entity.getContent());
+        vo.setContentHash(entity.getContentHash());
+        vo.setCharCount(entity.getCharCount());
+        vo.setTokenCount(entity.getTokenCount());
+        vo.setEnabled(entity.getEnabled());
+        vo.setCreateTime(entity.getCreatedAt());
+        vo.setUpdateTime(entity.getUpdatedAt());
+        return vo;
     }
 
     private Date toDate(LocalDateTime value) {
@@ -140,14 +140,14 @@ public class KnowledgeAdminSupport {
         return Date.from(value.atZone(java.time.ZoneId.systemDefault()).toInstant());
     }
 
-    public List<ChunkStrategyOption> chunkStrategyOptions() {
+    public List<ChunkStrategyVO> chunkStrategyOptions() {
         return List.of(
-                new ChunkStrategyOption(
+                new ChunkStrategyVO(
                         ChunkingMode.STRUCTURE_AWARE.getValue(),
                         ChunkingMode.STRUCTURE_AWARE.getLabel(),
                         ChunkingMode.STRUCTURE_AWARE.getDefaultConfig()
                 ),
-                new ChunkStrategyOption(
+                new ChunkStrategyVO(
                         ChunkingMode.FIXED_SIZE.getValue(),
                         ChunkingMode.FIXED_SIZE.getLabel(),
                         ChunkingMode.FIXED_SIZE.getDefaultConfig()

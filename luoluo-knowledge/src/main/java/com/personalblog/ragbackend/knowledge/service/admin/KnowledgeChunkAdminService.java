@@ -11,7 +11,7 @@ import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkBatchReques
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkPageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkVO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
@@ -60,7 +60,7 @@ public class KnowledgeChunkAdminService {
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
     }
 
-    public IPage<KnowledgeChunkView> page(Long documentId, KnowledgeChunkPageRequest request) {
+    public IPage<KnowledgeChunkVO> page(Long documentId, KnowledgeChunkPageRequest request) {
         requireDocument(documentId);
         IPage<KnowledgeChunkEntity> page = knowledgeChunkMapper.selectPage(
                 support.newPage(request.getCurrent(), request.getSize()),
@@ -74,7 +74,7 @@ public class KnowledgeChunkAdminService {
     }
 
     @Transactional
-    public KnowledgeChunkView create(Long documentId, KnowledgeChunkCreateRequest request) {
+    public KnowledgeChunkVO create(Long documentId, KnowledgeChunkCreateRequest request) {
         KnowledgeDocumentEntity document = requireDocument(documentId);
         String content = requireContent(request.getContent());
         int chunkIndex = resolveChunkIndex(documentId, request.getIndex());

@@ -5,11 +5,11 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyOption;
+import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseCreateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseVO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
@@ -85,14 +85,14 @@ public class KnowledgeBaseAdminService {
         knowledgeBaseMapper.deleteById(kbId);
     }
 
-    public KnowledgeBaseView get(Long kbId) {
+    public KnowledgeBaseVO get(Long kbId) {
         KnowledgeBaseEntity entity = requireKnowledgeBase(kbId);
         long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                 .eq(KnowledgeDocumentEntity::getKbId, kbId));
         return support.toKnowledgeBaseView(entity, documentCount);
     }
 
-    public IPage<KnowledgeBaseView> page(KnowledgeBasePageRequest request) {
+    public IPage<KnowledgeBaseVO> page(KnowledgeBasePageRequest request) {
         IPage<KnowledgeBaseEntity> entityPage = knowledgeBaseMapper.selectPage(
                 support.newPage(request.getCurrent(), request.getSize()),
                 new LambdaQueryWrapper<KnowledgeBaseEntity>()
@@ -108,13 +108,13 @@ public class KnowledgeBaseAdminService {
                         .in(KnowledgeDocumentEntity::getKbId, kbIds))
                 .stream()
                 .collect(Collectors.groupingBy(KnowledgeDocumentEntity::getKbId, Collectors.counting()));
-        List<KnowledgeBaseView> records = entityPage.getRecords().stream()
+        List<KnowledgeBaseVO> records = entityPage.getRecords().stream()
                 .map(entity -> support.toKnowledgeBaseView(entity, documentCountByKb.getOrDefault(entity.getId(), 0L)))
                 .toList();
         return support.mapPage(entityPage, records);
     }
 
-    public List<ChunkStrategyOption> listChunkStrategies() {
+    public List<ChunkStrategyVO> listChunkStrategies() {
         return support.chunkStrategyOptions();
     }
 

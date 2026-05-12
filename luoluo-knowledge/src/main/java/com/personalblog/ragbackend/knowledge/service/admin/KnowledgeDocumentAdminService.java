@@ -9,12 +9,12 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUploadRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentView;
+import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
@@ -87,7 +87,7 @@ public class KnowledgeDocumentAdminService {
     }
 
     @Transactional
-    public KnowledgeDocumentView upload(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
+    public KnowledgeDocumentVO upload(Long kbId, KnowledgeDocumentUploadRequest request, MultipartFile file) {
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(kbId);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("file is required");
@@ -172,7 +172,7 @@ public class KnowledgeDocumentAdminService {
         deleteStoredFileQuietly(fileUrl);
     }
 
-    public KnowledgeDocumentView get(Long documentId) {
+    public KnowledgeDocumentVO get(Long documentId) {
         return support.toKnowledgeDocumentView(requireDocument(documentId));
     }
 
@@ -208,7 +208,7 @@ public class KnowledgeDocumentAdminService {
         knowledgeDocumentMapper.updateById(entity);
     }
 
-    public IPage<KnowledgeDocumentView> page(Long kbId, KnowledgeDocumentPageRequest request) {
+    public IPage<KnowledgeDocumentVO> page(Long kbId, KnowledgeDocumentPageRequest request) {
         requireKnowledgeBase(kbId);
         IPage<KnowledgeDocumentEntity> page = knowledgeDocumentMapper.selectPage(
                 support.newPage(request.getCurrent(), request.getSize()),
@@ -224,7 +224,7 @@ public class KnowledgeDocumentAdminService {
         return support.mapPage(page, page.getRecords().stream().map(support::toKnowledgeDocumentView).toList());
     }
 
-    public List<KnowledgeDocumentSearchView> search(String keyword, int limit) {
+    public List<KnowledgeDocumentSearchVO> search(String keyword, int limit) {
         List<KnowledgeDocumentEntity> documents = knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                         .and(StringUtils.hasText(keyword), wrapper -> wrapper
                                 .like(KnowledgeDocumentEntity::getDocName, keyword)
@@ -244,16 +244,18 @@ public class KnowledgeDocumentAdminService {
                         KnowledgeBaseEntity::getName
                 ));
         return documents.stream()
-                .map(entity -> new KnowledgeDocumentSearchView(
-                        String.valueOf(entity.getId()),
-                        String.valueOf(entity.getKbId()),
-                        entity.getDocName(),
-                        kbNameMap.get(String.valueOf(entity.getKbId()))
-                ))
+                .map(entity -> {
+                    KnowledgeDocumentSearchVO vo = new KnowledgeDocumentSearchVO();
+                    vo.setId(String.valueOf(entity.getId()));
+                    vo.setKbId(String.valueOf(entity.getKbId()));
+                    vo.setDocName(entity.getDocName());
+                    vo.setKbName(kbNameMap.get(String.valueOf(entity.getKbId())));
+                    return vo;
+                })
                 .toList();
     }
 
-    public IPage<KnowledgeDocumentChunkLogView> pageChunkLogs(Long documentId, long current, long size) {
+    public IPage<KnowledgeDocumentChunkLogVO> pageChunkLogs(Long documentId, long current, long size) {
         requireDocument(documentId);
         IPage<KnowledgeDocumentChunkLogEntity> page = knowledgeDocumentChunkLogMapper.selectPage(
                 support.newPage(current, size),
