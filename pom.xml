@@ -31,6 +31,7 @@
         <aliyun-java-sdk-core.version>4.6.0</aliyun-java-sdk-core.version>
         <aliyun-dysmsapi.version>2.2.1</aliyun-dysmsapi.version>
         <hutool-all.version>5.8.37</hutool-all.version>
+        <aws-sdk-s3.version>2.40.2</aws-sdk-s3.version>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
     </properties>
 
@@ -121,6 +122,11 @@
                 <groupId>org.redisson</groupId>
                 <artifactId>redisson-spring-boot-starter</artifactId>
                 <version>${redisson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${aws-sdk-s3.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

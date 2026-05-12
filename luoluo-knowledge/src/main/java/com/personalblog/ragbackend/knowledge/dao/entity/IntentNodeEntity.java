@@ -47,8 +47,8 @@ public class IntentNodeEntity {
     @TableLogic
     @TableField("deleted")
     public Integer deleted;
-    @TableField("created_at")
+    @TableField("create_time")
     public LocalDateTime createdAt;
-    @TableField("updated_at")
+    @TableField("update_time")
     public LocalDateTime updatedAt;
 }

@@ -40,6 +40,16 @@ spring:
       database: 0
       timeout: 3s
 
+rustfs:
+  url: http://localhost:9000
+  access-key-id: rustfsadmin
+  secret-access-key: rustfsadmin
+
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    group: luoluo-admin-producer
+
 sa-token:
   token-name: Authorization
   token-prefix: Bearer
@@ -132,6 +142,8 @@ app:
     # 正式知识库配置；当前 luoluo-admin 与 luoluo-rag-mcp 都走这套链路
     enabled: true
     default-base-code: default
+    storage:
+      bucket-prefix: knowledge
     jdbc:
       # 当前正式检索默认先走 JDBC 检索器；关闭后会回退到空检索实现
       enabled: true

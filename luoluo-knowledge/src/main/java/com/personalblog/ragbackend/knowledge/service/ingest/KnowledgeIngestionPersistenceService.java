@@ -174,12 +174,12 @@ public class KnowledgeIngestionPersistenceService {
 
         if (existing == null) {
             KnowledgeDocumentEntity entity = new KnowledgeDocumentEntity();
-            fillDocumentEntity(entity, baseEntity.getId(), docName, file, contentHash);
+            fillDocumentEntity(entity, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash);
             knowledgeDocumentMapper.insert(entity);
             return entity;
         }
 
-        fillDocumentEntity(existing, baseEntity.getId(), docName, file, contentHash);
+        fillDocumentEntity(existing, baseEntity.getId(), baseEntity.getCollectionName(), docName, file, contentHash);
         knowledgeDocumentMapper.updateById(existing);
         return existing;
     }
@@ -229,6 +229,7 @@ public class KnowledgeIngestionPersistenceService {
 
     private void fillDocumentEntity(KnowledgeDocumentEntity entity,
                                     Long kbId,
+                                    String collectionName,
                                     String docName,
                                     MultipartFile file,
                                     String contentHash) {
@@ -236,7 +237,7 @@ public class KnowledgeIngestionPersistenceService {
         entity.setDocName(docName);
         entity.setEnabled(1);
         entity.setChunkCount(0);
-        entity.setFileUrl(knowledgeFileStorageService.store(file, kbId, docName));
+        entity.setFileUrl(knowledgeFileStorageService.store(file, collectionName, docName));
         entity.setFileType(file == null ? null : file.getContentType());
         entity.setFileSize(file == null ? null : file.getSize());
         entity.setProcessMode("pipeline");

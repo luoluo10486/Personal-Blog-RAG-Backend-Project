@@ -11,6 +11,7 @@ import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseCreateReques
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseUpdateRequest;
 import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseView;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
@@ -30,17 +31,20 @@ public class KnowledgeBaseAdminService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeAdminSupport support;
+    private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider;
 
     public KnowledgeBaseAdminService(KnowledgeProperties knowledgeProperties,
                                      KnowledgeBaseMapper knowledgeBaseMapper,
                                      KnowledgeDocumentMapper knowledgeDocumentMapper,
                                      KnowledgeAdminSupport support,
+                                     KnowledgeFileStorageService knowledgeFileStorageService,
                                      ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider) {
         this.knowledgeProperties = knowledgeProperties;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.support = support;
+        this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.vectorStoreAdminProvider = vectorStoreAdminProvider;
     }
 
@@ -57,6 +61,9 @@ public class KnowledgeBaseAdminService {
         entity.setVisibility(defaultIfBlank(request.getVisibility(), "PRIVATE"));
         entity.setStatus(defaultIfBlank(request.getStatus(), "ACTIVE"));
         knowledgeBaseMapper.insert(entity);
+        knowledgeFileStorageService.ensureBucketExists(
+                knowledgeFileStorageService.resolveBucketName(collectionName)
+        );
         return entity.getId();
     }
 

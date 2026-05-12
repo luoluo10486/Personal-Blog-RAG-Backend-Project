@@ -101,7 +101,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
 
         appendBaseFilter(sql, params, baseCode);
         appendTokenFilter(sql, params, tokens);
-        sql.append(" order by c.updated_at desc limit ?");
+        sql.append(" order by c.update_time desc limit ?");
         params.add(Math.max(topK * Math.max(knowledgeProperties.getSearch().getTopKMultiplier(), 1), topK));
 
         return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> new KnowledgeChunk(

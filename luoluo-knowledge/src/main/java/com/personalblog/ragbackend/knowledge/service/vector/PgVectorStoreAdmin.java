@@ -40,8 +40,8 @@ public class PgVectorStoreAdmin implements VectorStoreAdmin {
                     embedding vector(%d) not null,
                     created_by bigint,
                     deleted smallint not null default 0,
-                    created_at timestamp not null default current_timestamp,
-                    updated_at timestamp not null default current_timestamp
+                    create_time timestamp not null default current_timestamp,
+                    update_time timestamp not null default current_timestamp
                 )
                 """.formatted(qualifiedTable, vectorSpace.dimension()));
         jdbcTemplate.execute("""

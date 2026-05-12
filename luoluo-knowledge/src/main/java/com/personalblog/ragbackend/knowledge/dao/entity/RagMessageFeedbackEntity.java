@@ -35,10 +35,10 @@ public class RagMessageFeedbackEntity {
     @TableField("deleted")
     private Integer deleted;
 
-    @TableField("created_at")
+    @TableField("create_time")
     private LocalDateTime createdAt;
 
-    @TableField("updated_at")
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() {

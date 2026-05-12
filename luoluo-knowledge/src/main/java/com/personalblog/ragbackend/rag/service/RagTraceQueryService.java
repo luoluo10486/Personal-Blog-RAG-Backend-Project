@@ -32,7 +32,7 @@ public class RagTraceQueryService {
                         .eq(request.getConversationId() != null && !request.getConversationId().isBlank(), "conversation_id", request.getConversationId())
                         .eq(request.getTaskId() != null && !request.getTaskId().isBlank(), "task_id", request.getTaskId())
                         .eq(request.getStatus() != null && !request.getStatus().isBlank(), "status", request.getStatus())
-                        .orderByDesc("created_at")
+                        .orderByDesc("create_time")
         );
         return mapPage(page, page.getRecords().stream().map(this::toRunView).toList());
     }

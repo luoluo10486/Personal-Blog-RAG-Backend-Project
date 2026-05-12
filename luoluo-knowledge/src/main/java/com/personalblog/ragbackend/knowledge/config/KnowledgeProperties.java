@@ -30,6 +30,8 @@ public class KnowledgeProperties {
     @Valid
     private TraceProperties trace = new TraceProperties();
     @Valid
+    private StorageProperties storage = new StorageProperties();
+    @Valid
     private List<ProviderProperties> providers = new ArrayList<>();
 
     public boolean isEnabled() {
@@ -94,6 +96,14 @@ public class KnowledgeProperties {
 
     public void setTrace(TraceProperties trace) {
         this.trace = trace;
+    }
+
+    public StorageProperties getStorage() {
+        return storage;
+    }
+
+    public void setStorage(StorageProperties storage) {
+        this.storage = storage;
     }
 
     public List<ProviderProperties> getProviders() {
@@ -493,6 +503,19 @@ public class KnowledgeProperties {
 
         public void setMaxErrorLength(int maxErrorLength) {
             this.maxErrorLength = maxErrorLength;
+        }
+    }
+
+    public static class StorageProperties {
+        @NotBlank
+        private String bucketPrefix = "knowledge";
+
+        public String getBucketPrefix() {
+            return bucketPrefix;
+        }
+
+        public void setBucketPrefix(String bucketPrefix) {
+            this.bucketPrefix = bucketPrefix;
         }
     }
 

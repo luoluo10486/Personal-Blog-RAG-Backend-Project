@@ -82,7 +82,7 @@ public class IngestionPipelineService {
                 new QueryWrapper<IngestionPipelineEntity>()
                         .eq("deleted", 0)
                         .and(StringUtils.hasText(keyword), wrapper -> wrapper.like("name", keyword).or().like("description", keyword))
-                        .orderByDesc("updated_at")
+                        .orderByDesc("update_time")
         );
         Page<IngestionPipelineView> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         result.setRecords(page.getRecords().stream().map(this::toViewWithFreshNodes).toList());

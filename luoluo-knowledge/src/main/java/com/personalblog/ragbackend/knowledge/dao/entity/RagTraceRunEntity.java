@@ -28,9 +28,9 @@ public class RagTraceRunEntity {
     public String status;
     @TableField("error_message")
     public String errorMessage;
-    @TableField("started_at")
+    @TableField("start_time")
     public LocalDateTime startedAt;
-    @TableField("ended_at")
+    @TableField("end_time")
     public LocalDateTime endedAt;
     @TableField("duration_ms")
     public Long durationMs;
@@ -39,8 +39,8 @@ public class RagTraceRunEntity {
     @TableLogic
     @TableField("deleted")
     public Integer deleted;
-    @TableField("created_at")
+    @TableField("create_time")
     public LocalDateTime createdAt;
-    @TableField("updated_at")
+    @TableField("update_time")
     public LocalDateTime updatedAt;
 }

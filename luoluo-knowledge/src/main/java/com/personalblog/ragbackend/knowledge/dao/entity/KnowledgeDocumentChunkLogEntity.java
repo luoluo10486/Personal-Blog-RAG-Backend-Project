@@ -35,13 +35,13 @@ public class KnowledgeDocumentChunkLogEntity {
     private Integer chunkCount;
     @TableField("error_message")
     private String errorMessage;
-    @TableField("started_at")
+    @TableField("start_time")
     private LocalDateTime startedAt;
-    @TableField("ended_at")
+    @TableField("end_time")
     private LocalDateTime endedAt;
-    @TableField("created_at")
+    @TableField("create_time")
     private LocalDateTime createdAt;
-    @TableField("updated_at")
+    @TableField("update_time")
     private LocalDateTime updatedAt;
 
     public Long getId() { return id; }

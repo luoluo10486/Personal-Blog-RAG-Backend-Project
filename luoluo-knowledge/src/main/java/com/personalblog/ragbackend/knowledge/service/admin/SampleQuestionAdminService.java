@@ -33,7 +33,7 @@ public class SampleQuestionAdminService {
                         .or()
                         .like("question", keyword))
                 .orderByAsc("sort_order")
-                .orderByDesc("updated_at"));
+                .orderByDesc("update_time"));
     }
 
     public SampleQuestionEntity queryById(Long id) {

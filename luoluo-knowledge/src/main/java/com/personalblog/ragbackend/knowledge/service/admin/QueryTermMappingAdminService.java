@@ -24,7 +24,7 @@ public class QueryTermMappingAdminService {
                         .or()
                         .like("target_term", keyword))
                 .orderByAsc("priority")
-                .orderByDesc("updated_at"));
+                .orderByDesc("update_time"));
     }
 
     public QueryTermMappingEntity queryById(Long id) {

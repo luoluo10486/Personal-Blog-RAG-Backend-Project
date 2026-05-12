@@ -108,7 +108,7 @@ public class IngestionTaskService {
                 new QueryWrapper<IngestionTaskEntity>()
                         .eq("deleted", 0)
                         .eq(StringUtils.hasText(status), "status", status)
-                        .orderByDesc("created_at")
+                        .orderByDesc("create_time")
         );
         Page<IngestionTaskView> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         result.setRecords(page.getRecords().stream().map(task -> toView(task, listNodes(task.id))).toList());

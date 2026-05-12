@@ -54,7 +54,7 @@ public class PgVectorStoreService implements VectorStoreService {
                     metadata,
                     embedding,
                     deleted,
-                    updated_at
+                    update_time
                 ) values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb), cast(? as vector), 0, ?)
                 on conflict (collection_name, vector_id, deleted)
                 do update set
@@ -66,7 +66,7 @@ public class PgVectorStoreService implements VectorStoreService {
                     content = excluded.content,
                     metadata = excluded.metadata,
                     embedding = excluded.embedding,
-                    updated_at = excluded.updated_at
+                    update_time = excluded.update_time
                 """.formatted(table);
         LocalDateTime now = LocalDateTime.now();
         for (KnowledgeVectorDocument document : documents) {
@@ -97,7 +97,7 @@ public class PgVectorStoreService implements VectorStoreService {
         String placeholders = vectorIds.stream().map(ignored -> "?").reduce((left, right) -> left + ", " + right).orElse("?");
         String sql = """
                 update %s
-                set deleted = 1, updated_at = ?
+                set deleted = 1, update_time = ?
                 where collection_name = ? and deleted = 0 and vector_id in (%s)
                 """.formatted(qualifiedTable(), placeholders);
         Object[] params = new Object[vectorIds.size() + 2];
