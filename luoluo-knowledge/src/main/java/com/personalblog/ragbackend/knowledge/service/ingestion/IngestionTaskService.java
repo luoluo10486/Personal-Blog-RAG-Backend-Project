@@ -15,6 +15,7 @@ import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskResult;
 import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskView;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskNodeMapper;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNodeLog;
@@ -39,6 +40,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import software.amazon.awssdk.services.s3.S3Client;
 
 @Service
 public class IngestionTaskService {
@@ -47,18 +50,24 @@ public class IngestionTaskService {
     private final IngestionTaskNodeMapper taskNodeMapper;
     private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper;
+    private final KnowledgeFileStorageService knowledgeFileStorageService;
+    private final S3Client s3Client;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public IngestionTaskService(KnowledgeIngestionEngine knowledgeIngestionEngine,
                                 IngestionTaskMapper taskMapper,
                                 IngestionTaskNodeMapper taskNodeMapper,
                                 AuthSessionService authSessionService,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                KnowledgeFileStorageService knowledgeFileStorageService,
+                                S3Client s3Client) {
         this.knowledgeIngestionEngine = knowledgeIngestionEngine;
         this.taskMapper = taskMapper;
         this.taskNodeMapper = taskNodeMapper;
         this.authSessionService = authSessionService;
         this.objectMapper = objectMapper;
+        this.knowledgeFileStorageService = knowledgeFileStorageService;
+        this.s3Client = s3Client;
     }
 
     public IngestionTaskResult execute(IngestionTaskCreateRequest request) {
@@ -195,8 +204,14 @@ public class IngestionTaskService {
         if ("file".equals(normalizedType)) {
             return readLocalFile(source);
         }
-        if ("url".equals(normalizedType) || "feishu".equals(normalizedType)) {
+        if ("s3".equals(normalizedType)) {
+            return readS3File(source);
+        }
+        if ("url".equals(normalizedType)) {
             return downloadRemoteSource(source);
+        }
+        if ("feishu".equals(normalizedType)) {
+            return downloadFeishuSource(source);
         }
         throw new IllegalArgumentException("暂不支持的来源类型: " + source.type());
     }
@@ -239,6 +254,51 @@ public class IngestionTaskService {
         }
     }
 
+    private MultipartFile readS3File(DocumentSourceRequest source) {
+        try (InputStream inputStream = knowledgeFileStorageService.openStream(source.location())) {
+            byte[] bytes = inputStream.readAllBytes();
+            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : resolveFileNameFromUrl(source.location());
+            return new SimpleMultipartFile(fileName, fileName, "application/octet-stream", bytes);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("读取 S3 资源失败: " + exception.getMessage(), exception);
+        }
+    }
+
+    private MultipartFile downloadFeishuSource(DocumentSourceRequest source) {
+        try {
+            String accessToken = resolveFeishuAccessToken(source.credentials());
+            if (isFeishuDocxUrl(source.location())) {
+                String docToken = extractFeishuDocToken(source.location());
+                HttpRequest.Builder builder = HttpRequest.newBuilder(
+                        URI.create("https://open.feishu.cn/open-apis/docx/v1/documents/" + docToken + "/raw_content"))
+                        .GET();
+                if (StringUtils.hasText(accessToken)) {
+                    builder.header("Authorization", "Bearer " + accessToken);
+                }
+                HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+                ensureSuccess(response.statusCode(), "下载飞书文档失败");
+                String content = extractFeishuContent(response.body());
+                String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : docToken + ".txt";
+                return new SimpleMultipartFile(fileName, fileName, "text/plain", content.getBytes(StandardCharsets.UTF_8));
+            }
+
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.location())).GET();
+            if (StringUtils.hasText(accessToken)) {
+                builder.header("Authorization", "Bearer " + accessToken);
+            }
+            HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+            ensureSuccess(response.statusCode(), "下载飞书资源失败");
+            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : resolveFileNameFromUrl(source.location());
+            String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
+            return new SimpleMultipartFile(fileName, fileName, contentType, response.body());
+        } catch (IOException | InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalArgumentException("下载飞书资源失败: " + exception.getMessage(), exception);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("下载飞书资源失败: " + exception.getMessage(), exception);
+        }
+    }
+
     private String resolveFileName(DocumentSourceRequest source, MultipartFile file) {
         if (StringUtils.hasText(source.fileName())) {
             return source.fileName().trim();
@@ -270,6 +330,88 @@ public class IngestionTaskService {
 
     private boolean isHttpSource(String normalizedType) {
         return "url".equals(normalizedType) || "feishu".equals(normalizedType);
+    }
+
+    private void ensureSuccess(int statusCode, String message) {
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IllegalArgumentException(message + "，HTTP 状态码: " + statusCode);
+        }
+    }
+
+    private boolean isFeishuDocxUrl(String location) {
+        return location != null && (location.contains("/docx/") || location.contains("/docs/"));
+    }
+
+    private String extractFeishuDocToken(String location) {
+        String[] parts = location.split("/");
+        for (int i = 0; i < parts.length; i++) {
+            if ("docx".equalsIgnoreCase(parts[i]) || "docs".equalsIgnoreCase(parts[i])) {
+                if (i + 1 < parts.length) {
+                    String token = parts[i + 1];
+                    int queryIndex = token.indexOf('?');
+                    return queryIndex > 0 ? token.substring(0, queryIndex) : token;
+                }
+            }
+        }
+        throw new IllegalArgumentException("无法解析飞书文档 token");
+    }
+
+    private String resolveFeishuAccessToken(Map<String, String> credentials) throws IOException, InterruptedException {
+        if (credentials == null || credentials.isEmpty()) {
+            return null;
+        }
+        String token = firstNonBlank(credentials.get("tenantAccessToken"), credentials.get("accessToken"));
+        if (StringUtils.hasText(token)) {
+            return token;
+        }
+        String appId = credentials.get("app_id");
+        String appSecret = credentials.get("app_secret");
+        if (!StringUtils.hasText(appId) || !StringUtils.hasText(appSecret)) {
+            return null;
+        }
+        String body = "{\"app_id\":\"" + appId + "\",\"app_secret\":\"" + appSecret + "\"}";
+        HttpRequest request = HttpRequest.newBuilder(URI.create("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal/"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        ensureSuccess(response.statusCode(), "获取飞书 token 失败");
+        return extractJsonStringField(response.body(), "tenant_access_token");
+    }
+
+    private String extractFeishuContent(byte[] bytes) {
+        String json = new String(bytes, StandardCharsets.UTF_8);
+        String content = extractJsonStringField(json, "content");
+        return content == null ? json : content;
+    }
+
+    private String extractJsonStringField(String json, String field) {
+        try {
+            Map<?, ?> parsed = objectMapper.readValue(json, Map.class);
+            Object direct = parsed.get(field);
+            if (direct instanceof String value && !value.isBlank()) {
+                return value;
+            }
+            Object data = parsed.get("data");
+            if (data instanceof Map<?, ?> dataMap) {
+                Object nested = dataMap.get(field);
+                if (nested instanceof String value && !value.isBlank()) {
+                    return value;
+                }
+            }
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private void persistResult(IngestionTaskEntity task,
