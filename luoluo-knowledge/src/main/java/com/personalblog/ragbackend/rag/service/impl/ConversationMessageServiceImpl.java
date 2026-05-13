@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.rag.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -47,13 +48,8 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
         if (conversationMessage == null || StrUtil.isBlank(conversationMessage.getConversationId()) || StrUtil.isBlank(conversationMessage.getUserId())) {
             return null;
         }
-        RagConversationMessageEntity entity = new RagConversationMessageEntity();
-        entity.setConversationId(conversationMessage.getConversationId());
+        RagConversationMessageEntity entity = BeanUtil.toBean(conversationMessage, RagConversationMessageEntity.class);
         entity.setUserId(Long.valueOf(conversationMessage.getUserId()));
-        entity.setRole(conversationMessage.getRole());
-        entity.setContent(conversationMessage.getContent());
-        entity.setThinkingContent(conversationMessage.getThinkingContent());
-        entity.setThinkingDuration(conversationMessage.getThinkingDuration());
         entity.setDeleted(0);
         entity.setCreatedAt(java.time.LocalDateTime.now());
         entity.setUpdatedAt(java.time.LocalDateTime.now());
@@ -119,10 +115,8 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
         if (conversationSummary == null || StrUtil.isBlank(conversationSummary.getConversationId()) || StrUtil.isBlank(conversationSummary.getUserId())) {
             return;
         }
-        RagConversationSummaryEntity entity = new RagConversationSummaryEntity();
-        entity.setConversationId(conversationSummary.getConversationId());
+        RagConversationSummaryEntity entity = BeanUtil.toBean(conversationSummary, RagConversationSummaryEntity.class);
         entity.setUserId(Long.valueOf(conversationSummary.getUserId()));
-        entity.setContent(conversationSummary.getContent());
         entity.setLastMessageId(conversationSummary.getLastMessageId() == null ? null : Long.valueOf(conversationSummary.getLastMessageId()));
         entity.setDeleted(0);
         entity.setCreatedAt(java.time.LocalDateTime.now());

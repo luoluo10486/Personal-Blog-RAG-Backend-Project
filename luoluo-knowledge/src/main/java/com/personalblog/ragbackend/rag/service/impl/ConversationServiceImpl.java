@@ -3,7 +3,11 @@ package com.personalblog.ragbackend.rag.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
+import com.personalblog.ragbackend.infra.chat.LLMService;
+import com.personalblog.ragbackend.infra.convention.ChatMessage;
+import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.service.bo.ConversationCreateBO;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
@@ -20,22 +24,31 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ConversationServiceImpl implements ConversationService {
+    private static final String CONVERSATION_TITLE_PROMPT_PATH = "prompt/conversation-title.st";
+
     private final RagConversationMapper conversationMapper;
     private final RagConversationMessageMapper messageMapper;
     private final RagConversationSummaryMapper summaryMapper;
     private final MemoryProperties memoryProperties;
+    private final PromptTemplateLoader promptTemplateLoader;
+    private final LLMService llmService;
 
     public ConversationServiceImpl(RagConversationMapper conversationMapper,
                                    RagConversationMessageMapper messageMapper,
                                    RagConversationSummaryMapper summaryMapper,
-                                   MemoryProperties memoryProperties) {
+                                   MemoryProperties memoryProperties,
+                                   PromptTemplateLoader promptTemplateLoader,
+                                   LLMService llmService) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.summaryMapper = summaryMapper;
         this.memoryProperties = memoryProperties;
+        this.promptTemplateLoader = promptTemplateLoader;
+        this.llmService = llmService;
     }
 
     @Override
@@ -172,12 +185,27 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     private String resolveTitle(String question) {
-        if (StrUtil.isBlank(question)) {
+        int maxLength = memoryProperties.getTitleMaxLength();
+        if (maxLength <= 0) {
+            maxLength = 30;
+        }
+        String prompt = promptTemplateLoader.render(
+                CONVERSATION_TITLE_PROMPT_PATH,
+                Map.of(
+                        "title_max_chars", String.valueOf(maxLength),
+                        "question", StrUtil.blankToDefault(question, "")
+                )
+        );
+        try {
+            ChatRequest request = ChatRequest.builder()
+                    .messages(List.of(ChatMessage.user(prompt)))
+                    .temperature(0.7D)
+                    .topP(0.3D)
+                    .thinking(false)
+                    .build();
+            return llmService.chat(request);
+        } catch (Exception ignored) {
             return "New Conversation";
         }
-        String trimmed = question.trim();
-        return trimmed.length() > memoryProperties.getTitleMaxLength()
-                ? trimmed.substring(0, memoryProperties.getTitleMaxLength())
-                : trimmed;
     }
 }

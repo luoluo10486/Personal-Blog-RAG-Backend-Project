@@ -22,6 +22,7 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -59,11 +60,7 @@ public class RAGSettingsController {
                         .maxRequestSize(maxRequestSize.toBytes())
                         .build())
                 .rag(RagSettings.builder()
-                        .defaultConfig(DefaultSettings.builder()
-                                .collectionName(ragDefaultProperties.getCollectionName())
-                                .dimension(ragDefaultProperties.getDimension())
-                                .metricType(ragDefaultProperties.getMetricType())
-                                .build())
+                        .defaultConfig(toDefaultSettings())
                         .queryRewrite(QueryRewriteSettings.builder()
                                 .enabled(ragConfigProperties.getQueryRewriteEnabled())
                                 .build())
@@ -76,27 +73,39 @@ public class RAGSettingsController {
                                         .pollIntervalMs(ragRateLimitProperties.getGlobalPollIntervalMs())
                                         .build())
                                 .build())
-                        .memory(MemorySettings.builder()
-                                .historyKeepTurns(memoryProperties.getHistoryKeepTurns())
-                                .summaryEnabled(memoryProperties.getSummaryEnabled())
-                                .summaryStartTurns(memoryProperties.getSummaryStartTurns())
-                                .summaryMaxChars(memoryProperties.getSummaryMaxChars())
-                                .titleMaxLength(memoryProperties.getTitleMaxLength())
-                                .build())
+                        .memory(toMemorySettings())
                         .build())
                 .ai(toAISettings())
                 .build();
         return Results.success(response);
     }
 
+    private DefaultSettings toDefaultSettings() {
+        return DefaultSettings.builder()
+                .collectionName(ragDefaultProperties.getCollectionName())
+                .dimension(ragDefaultProperties.getDimension())
+                .metricType(ragDefaultProperties.getMetricType())
+                .build();
+    }
+
+    private MemorySettings toMemorySettings() {
+        return MemorySettings.builder()
+                .historyKeepTurns(memoryProperties.getHistoryKeepTurns())
+                .summaryEnabled(memoryProperties.getSummaryEnabled())
+                .summaryStartTurns(memoryProperties.getSummaryStartTurns())
+                .summaryMaxChars(memoryProperties.getSummaryMaxChars())
+                .titleMaxLength(memoryProperties.getTitleMaxLength())
+                .build();
+    }
+
     private AISettings toAISettings() {
-        Map<String, AISettings.ProviderConfig> providers = new java.util.LinkedHashMap<>();
+        Map<String, AISettings.ProviderConfig> providers = new HashMap<>();
         if (aiModelProperties.getProviders() != null) {
             aiModelProperties.getProviders().forEach((name, config) ->
                     providers.put(name, AISettings.ProviderConfig.builder()
                             .url(config.getUrl())
                             .apiKey(maskApiKey(config.getApiKey()))
-                            .endpoints(config.getEndpoints() == null ? Map.of() : Map.copyOf(config.getEndpoints()))
+                            .endpoints(config.getEndpoints())
                             .build()));
         }
 
@@ -105,11 +114,15 @@ public class RAGSettingsController {
                 .chat(toModelGroup(aiModelProperties.getChat()))
                 .embedding(toModelGroup(aiModelProperties.getEmbedding()))
                 .rerank(toModelGroup(aiModelProperties.getRerank()))
-                .selection(aiModelProperties.getSelection() == null ? null : AISettings.Selection.builder()
+                .selection(aiModelProperties.getSelection() == null
+                        ? null
+                        : AISettings.Selection.builder()
                         .failureThreshold(aiModelProperties.getSelection().getFailureThreshold())
                         .openDurationMs(aiModelProperties.getSelection().getOpenDurationMs())
                         .build())
-                .stream(aiModelProperties.getStream() == null ? null : AISettings.Stream.builder()
+                .stream(aiModelProperties.getStream() == null
+                        ? null
+                        : AISettings.Stream.builder()
                         .messageChunkSize(aiModelProperties.getStream().getMessageChunkSize())
                         .build())
                 .build();
@@ -122,7 +135,7 @@ public class RAGSettingsController {
         return AISettings.ModelGroup.builder()
                 .defaultModel(group.getDefaultModel())
                 .deepThinkingModel(group.getDeepThinkingModel())
-                .candidates(group.getCandidates() == null ? java.util.List.of() : group.getCandidates().stream()
+                .candidates(group.getCandidates() == null ? null : group.getCandidates().stream()
                         .map(candidate -> AISettings.ModelCandidate.builder()
                                 .id(candidate.getId())
                                 .provider(candidate.getProvider())

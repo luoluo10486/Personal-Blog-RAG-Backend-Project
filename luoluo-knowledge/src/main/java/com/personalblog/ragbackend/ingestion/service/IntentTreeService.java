@@ -22,4 +22,6 @@ public interface IntentTreeService extends IService<IntentNodeEntity> {
     void batchDisableNodes(List<String> ids);
 
     void batchDeleteNodes(List<String> ids);
+
+    int initFromFactory();
 }

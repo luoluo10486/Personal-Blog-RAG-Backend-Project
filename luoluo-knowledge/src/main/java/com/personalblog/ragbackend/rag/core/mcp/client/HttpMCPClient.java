@@ -32,7 +32,15 @@ public class HttpMCPClient implements MCPClient {
 
     @Override
     public boolean initialize() {
-        return sendRequest("initialize", Map.of("protocolVersion", "2026-02-28", "clientInfo", Map.of("name", "luoluo-knowledge", "version", "0.0.1"))) != null;
+        JsonNode result = sendRequest("initialize", Map.of(
+                "protocolVersion", "2026-02-28",
+                "clientInfo", Map.of("name", "luoluo-knowledge", "version", "0.0.1")
+        ));
+        if (result == null) {
+            return false;
+        }
+        sendInitializedNotification();
+        return true;
     }
 
     @Override
@@ -87,6 +95,22 @@ public class HttpMCPClient implements MCPClient {
             return null;
         } catch (Exception exception) {
             return null;
+        }
+    }
+
+    private void sendInitializedNotification() {
+        try {
+            Map<String, Object> notification = new LinkedHashMap<>();
+            notification.put("jsonrpc", "2.0");
+            notification.put("method", "notifications/initialized");
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(resolveMcpEndpointUrl()))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(notification)))
+                    .build();
+            httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception ignored) {
         }
     }
 

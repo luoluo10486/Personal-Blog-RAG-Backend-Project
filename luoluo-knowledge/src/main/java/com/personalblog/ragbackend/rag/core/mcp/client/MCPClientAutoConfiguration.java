@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.rag.core.mcp.client;
 
-import com.personalblog.ragbackend.rag.core.mcp.DefaultMCPToolRegistry;
 import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
+import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
 import com.personalblog.ragbackend.rag.core.mcp.RemoteMCPToolExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ public class MCPClientAutoConfiguration {
     private final MCPClientProperties properties;
     @Qualifier("aiHttpClient")
     private final HttpClient httpClient;
-    private final DefaultMCPToolRegistry toolRegistry;
+    private final MCPToolRegistry toolRegistry;
 
     @PostConstruct
     public void init() {

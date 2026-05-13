@@ -51,4 +51,164 @@ public class IntentNodeEntity {
     public LocalDateTime createdAt;
     @TableField("update_time")
     public LocalDateTime updatedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getKbId() {
+        return kbId;
+    }
+
+    public void setKbId(Long kbId) {
+        this.kbId = kbId;
+    }
+
+    public String getIntentCode() {
+        return intentCode;
+    }
+
+    public void setIntentCode(String intentCode) {
+        this.intentCode = intentCode;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Integer getLevel() {
+        return level;
+    }
+
+    public void setLevel(Integer level) {
+        this.level = level;
+    }
+
+    public String getParentCode() {
+        return parentCode;
+    }
+
+    public void setParentCode(String parentCode) {
+        this.parentCode = parentCode;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getExamples() {
+        return examples;
+    }
+
+    public void setExamples(String examples) {
+        this.examples = examples;
+    }
+
+    public String getCollectionName() {
+        return collectionName;
+    }
+
+    public void setCollectionName(String collectionName) {
+        this.collectionName = collectionName;
+    }
+
+    public Integer getTopK() {
+        return topK;
+    }
+
+    public void setTopK(Integer topK) {
+        this.topK = topK;
+    }
+
+    public String getMcpToolId() {
+        return mcpToolId;
+    }
+
+    public void setMcpToolId(String mcpToolId) {
+        this.mcpToolId = mcpToolId;
+    }
+
+    public Integer getKind() {
+        return kind;
+    }
+
+    public void setKind(Integer kind) {
+        this.kind = kind;
+    }
+
+    public String getPromptSnippet() {
+        return promptSnippet;
+    }
+
+    public void setPromptSnippet(String promptSnippet) {
+        this.promptSnippet = promptSnippet;
+    }
+
+    public String getPromptTemplate() {
+        return promptTemplate;
+    }
+
+    public void setPromptTemplate(String promptTemplate) {
+        this.promptTemplate = promptTemplate;
+    }
+
+    public String getParamPromptTemplate() {
+        return paramPromptTemplate;
+    }
+
+    public void setParamPromptTemplate(String paramPromptTemplate) {
+        this.paramPromptTemplate = paramPromptTemplate;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
+    public Integer getEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(Integer enabled) {
+        this.enabled = enabled;
+    }
+
+    public Integer getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Integer deleted) {
+        this.deleted = deleted;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }
