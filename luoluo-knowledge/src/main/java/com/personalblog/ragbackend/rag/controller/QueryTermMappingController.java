@@ -1,10 +1,13 @@
 package com.personalblog.ragbackend.rag.controller;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
-import com.personalblog.ragbackend.knowledge.dao.entity.QueryTermMappingEntity;
-import com.personalblog.ragbackend.knowledge.service.admin.QueryTermMappingAdminService;
+import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingCreateRequest;
+import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingPageRequest;
+import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingUpdateRequest;
+import com.personalblog.ragbackend.rag.controller.vo.QueryTermMappingVO;
+import com.personalblog.ragbackend.rag.service.QueryTermMappingAdminService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,7 +15,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,35 +28,28 @@ public class QueryTermMappingController {
     }
 
     @GetMapping("/mappings")
-    public R<?> pageQuery(@RequestParam(value = "pageNo", defaultValue = "1") long pageNo,
-                          @RequestParam(value = "pageSize", defaultValue = "10") long pageSize,
-                          @RequestParam(value = "domain", required = false) String domain,
-                          @RequestParam(value = "keyword", required = false) String keyword) {
-        return R.ok(queryTermMappingAdminService.pageQuery(new Page<>(pageNo, pageSize), domain, keyword));
+    public R<IPage<QueryTermMappingVO>> pageQuery(QueryTermMappingPageRequest requestParam) {
+        return R.ok(queryTermMappingAdminService.pageQuery(requestParam));
     }
 
     @GetMapping("/mappings/{id}")
-    public R<QueryTermMappingEntity> queryById(@PathVariable Long id) {
+    public R<QueryTermMappingVO> queryById(@PathVariable String id) {
         return R.ok(queryTermMappingAdminService.queryById(id));
     }
 
     @PostMapping("/mappings")
-    public R<Long> create(@RequestBody QueryTermMappingEntity request) {
-        return R.ok(queryTermMappingAdminService.create(
-                request.domain, request.sourceTerm, request.targetTerm, request.matchType, request.priority,
-                request.enabled == null ? null : request.enabled == 1, request.remark));
+    public R<String> create(@RequestBody QueryTermMappingCreateRequest requestParam) {
+        return R.ok(queryTermMappingAdminService.create(requestParam));
     }
 
     @PutMapping("/mappings/{id}")
-    public R<Void> update(@PathVariable Long id, @RequestBody QueryTermMappingEntity request) {
-        queryTermMappingAdminService.update(
-                id, request.domain, request.sourceTerm, request.targetTerm, request.matchType, request.priority,
-                request.enabled == null ? null : request.enabled == 1, request.remark);
+    public R<Void> update(@PathVariable String id, @RequestBody QueryTermMappingUpdateRequest requestParam) {
+        queryTermMappingAdminService.update(id, requestParam);
         return R.ok();
     }
 
     @DeleteMapping("/mappings/{id}")
-    public R<Void> delete(@PathVariable Long id) {
+    public R<Void> delete(@PathVariable String id) {
         queryTermMappingAdminService.delete(id);
         return R.ok();
     }

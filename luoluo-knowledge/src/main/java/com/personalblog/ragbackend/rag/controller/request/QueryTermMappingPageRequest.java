@@ -6,7 +6,6 @@ import lombok.Data;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-public class SampleQuestionPageRequest extends Page {
-
+public class QueryTermMappingPageRequest extends Page {
     private String keyword;
 }

@@ -11,11 +11,14 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SampleQuestionVO {
+public class QueryTermMappingVO {
     private String id;
-    private String title;
-    private String description;
-    private String question;
+    private String sourceTerm;
+    private String targetTerm;
+    private Integer matchType;
+    private Integer priority;
+    private Boolean enabled;
+    private String remark;
     private Date createTime;
     private Date updateTime;
 }

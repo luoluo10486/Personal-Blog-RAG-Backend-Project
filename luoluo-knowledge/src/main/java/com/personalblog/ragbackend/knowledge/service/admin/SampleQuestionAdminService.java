@@ -13,7 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Date;
 
 @Service
 public class SampleQuestionAdminService {
@@ -129,8 +131,8 @@ public class SampleQuestionAdminService {
         vo.setTitle(entity.title);
         vo.setDescription(entity.description);
         vo.setQuestion(entity.question);
-        vo.setCreateTime(entity.createdAt);
-        vo.setUpdateTime(entity.updatedAt);
+        vo.setCreateTime(entity.createdAt == null ? null : Date.from(entity.createdAt.atZone(ZoneId.systemDefault()).toInstant()));
+        vo.setUpdateTime(entity.updatedAt == null ? null : Date.from(entity.updatedAt.atZone(ZoneId.systemDefault()).toInstant()));
         return vo;
     }
 

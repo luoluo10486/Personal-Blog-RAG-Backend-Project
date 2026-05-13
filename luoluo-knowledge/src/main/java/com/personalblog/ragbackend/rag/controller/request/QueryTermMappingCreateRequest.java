@@ -9,8 +9,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SampleQuestionUpdateRequest {
-    private String title;
-    private String description;
-    private String question;
+public class QueryTermMappingCreateRequest {
+    private String sourceTerm;
+    private String targetTerm;
+    private Integer matchType;
+    private Integer priority;
+    private Boolean enabled;
+    private String remark;
 }
