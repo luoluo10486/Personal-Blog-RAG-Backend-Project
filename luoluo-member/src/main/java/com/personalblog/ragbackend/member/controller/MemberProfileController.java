@@ -1,7 +1,8 @@
 package com.personalblog.ragbackend.member.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.member.application.MemberProfileApplicationService;
 import com.personalblog.ragbackend.member.dto.profile.MemberProfileResponse;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +23,7 @@ public class MemberProfileController {
 
     @GetMapping("/me")
     @MemberLoginRequired
-    public R<MemberProfileResponse> me() {
-        return R.ok("查询成功", memberProfileApplicationService.getCurrentProfile());
+    public Result<MemberProfileResponse> me() {
+        return Results.success(memberProfileApplicationService.getCurrentProfile());
     }
 }

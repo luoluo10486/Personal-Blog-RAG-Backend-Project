@@ -4,14 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceDetailView;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceNodeView;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceRunPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceRunView;
 import com.personalblog.ragbackend.knowledge.mapper.RagTraceNodeMapper;
 import com.personalblog.ragbackend.knowledge.mapper.RagTraceRunMapper;
+import com.personalblog.ragbackend.rag.controller.request.RagTraceRunPageRequest;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceDetailVO;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceNodeVO;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceRunVO;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -24,7 +26,7 @@ public class RagTraceQueryService {
         this.ragTraceNodeMapper = ragTraceNodeMapper;
     }
 
-    public IPage<RagTraceRunView> pageRuns(RagTraceRunPageRequest request) {
+    public IPage<RagTraceRunVO> pageRuns(RagTraceRunPageRequest request) {
         IPage<RagTraceRunEntity> page = ragTraceRunMapper.selectPage(
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(request.getCurrent(), request.getSize()),
                 new QueryWrapper<RagTraceRunEntity>()
@@ -37,17 +39,17 @@ public class RagTraceQueryService {
         return mapPage(page, page.getRecords().stream().map(this::toRunView).toList());
     }
 
-    public RagTraceDetailView detail(String traceId) {
+    public RagTraceDetailVO detail(String traceId) {
         RagTraceRunEntity run = ragTraceRunMapper.selectOne(new QueryWrapper<RagTraceRunEntity>()
                 .eq("trace_id", traceId)
                 .last("limit 1"));
         if (run == null) {
             throw new IllegalArgumentException("Trace 不存在");
         }
-        return new RagTraceDetailView(toRunView(run), listNodes(traceId));
+        return new RagTraceDetailVO(toRunView(run), listNodes(traceId));
     }
 
-    public List<RagTraceNodeView> listNodes(String traceId) {
+    public List<RagTraceNodeVO> listNodes(String traceId) {
         return ragTraceNodeMapper.selectList(new QueryWrapper<RagTraceNodeEntity>()
                         .eq("trace_id", traceId)
                         .orderByAsc("id"))
@@ -56,17 +58,39 @@ public class RagTraceQueryService {
                 .toList();
     }
 
-    private RagTraceRunView toRunView(RagTraceRunEntity entity) {
-        return new RagTraceRunView(entity.id, entity.traceId, entity.traceName, entity.entryMethod,
-                entity.conversationId, entity.taskId, entity.userId, entity.status, entity.errorMessage,
-                entity.startedAt, entity.endedAt, entity.durationMs, entity.extraData, entity.createdAt, entity.updatedAt);
+    private RagTraceRunVO toRunView(RagTraceRunEntity entity) {
+        return RagTraceRunVO.builder()
+                .traceId(entity.traceId)
+                .traceName(entity.traceName)
+                .entryMethod(entity.entryMethod)
+                .conversationId(entity.conversationId)
+                .taskId(entity.taskId)
+                .userId(entity.userId == null ? null : String.valueOf(entity.userId))
+                .username(null)
+                .status(entity.status)
+                .errorMessage(entity.errorMessage)
+                .durationMs(entity.durationMs)
+                .startTime(toDate(entity.startedAt))
+                .endTime(toDate(entity.endedAt))
+                .build();
     }
 
-    private RagTraceNodeView toNodeView(RagTraceNodeEntity entity) {
-        return new RagTraceNodeView(entity.id, entity.traceId, entity.nodeId, entity.parentNodeId, entity.depth,
-                entity.nodeType, entity.nodeName, entity.className, entity.methodName, entity.status,
-                entity.errorMessage, entity.startedAt, entity.endedAt, entity.durationMs, entity.extraData,
-                entity.createdAt, entity.updatedAt);
+    private RagTraceNodeVO toNodeView(RagTraceNodeEntity entity) {
+        return RagTraceNodeVO.builder()
+                .traceId(entity.traceId)
+                .nodeId(entity.nodeId)
+                .parentNodeId(entity.parentNodeId)
+                .depth(entity.depth)
+                .nodeType(entity.nodeType)
+                .nodeName(entity.nodeName)
+                .className(entity.className)
+                .methodName(entity.methodName)
+                .status(entity.status)
+                .errorMessage(entity.errorMessage)
+                .durationMs(entity.durationMs)
+                .startTime(toDate(entity.startedAt))
+                .endTime(toDate(entity.endedAt))
+                .build();
     }
 
     private <T> IPage<T> mapPage(IPage<?> source, List<T> records) {
@@ -74,5 +98,12 @@ public class RagTraceQueryService {
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(source.getCurrent(), source.getSize(), source.getTotal());
         page.setRecords(records);
         return page;
+    }
+
+    private Date toDate(java.time.LocalDateTime time) {
+        if (time == null) {
+            return null;
+        }
+        return Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 }

@@ -1,5 +1,8 @@
 package com.personalblog.ragbackend.rag.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.lang.Assert;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
@@ -15,7 +18,6 @@ import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -43,8 +45,8 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     }
 
     @Override
-    public void submitFeedbackAsync(Long messageId, MessageFeedbackRequest request) {
-        Long userId = requireCurrentUserId();
+    public void submitFeedbackAsync(String messageId, MessageFeedbackRequest request) {
+        String userId = requireCurrentUserId();
         validateRequest(messageId, request);
 
         MessageFeedbackEvent event = new MessageFeedbackEvent();
@@ -67,8 +69,8 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     }
 
     @Override
-    public void submitFeedback(Long messageId, MessageFeedbackRequest request) {
-        Long userId = requireCurrentUserId();
+    public void submitFeedback(String messageId, MessageFeedbackRequest request) {
+        String userId = requireCurrentUserId();
         validateRequest(messageId, request);
         RagConversationMessageEntity message = loadAssistantMessage(messageId, userId);
         upsertFeedback(messageId, userId, message.getConversationId(), request.getVote(),
@@ -86,12 +88,13 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     }
 
     @Override
-    public Map<Long, Integer> getUserVotes(Long userId, List<Long> messageIds) {
-        if (userId == null || messageIds == null || messageIds.isEmpty()) {
+    public Map<String, Integer> getUserVotes(String userId, List<String> messageIds) {
+        if (StrUtil.isBlank(userId) || CollUtil.isEmpty(messageIds)) {
             return Collections.emptyMap();
         }
         return feedbackMapper.selectList(Wrappers.<RagMessageFeedbackEntity>lambdaQuery()
                         .eq(RagMessageFeedbackEntity::getUserId, userId)
+                        .eq(RagMessageFeedbackEntity::getDeleted, 0)
                         .in(RagMessageFeedbackEntity::getMessageId, messageIds))
                 .stream()
                 .collect(Collectors.toMap(
@@ -101,7 +104,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
                 ));
     }
 
-    private void upsertFeedback(Long messageId, Long userId, String conversationId,
+    private void upsertFeedback(String messageId, String userId, String conversationId,
                                 Integer vote, String reason, String comment, long submitTime) {
         validateFeedback(vote);
         LocalDateTime submitAt = LocalDateTime.ofInstant(Instant.ofEpochMilli(submitTime), ZoneId.systemDefault());
@@ -136,7 +139,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         feedbackMapper.updateById(existing);
     }
 
-    private RagConversationMessageEntity loadAssistantMessage(Long messageId, Long userId) {
+    private RagConversationMessageEntity loadAssistantMessage(String messageId, String userId) {
         RagConversationMessageEntity message = conversationMessageMapper.selectOne(Wrappers.<RagConversationMessageEntity>lambdaQuery()
                 .eq(RagConversationMessageEntity::getId, messageId)
                 .eq(RagConversationMessageEntity::getUserId, userId)
@@ -148,25 +151,17 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         return message;
     }
 
-    private Long requireCurrentUserId() {
+    private String requireCurrentUserId() {
         String userId = UserContext.getUserId();
-        if (!StringUtils.hasText(userId)) {
+        if (!StrUtil.isNotBlank(userId)) {
             throw new IllegalArgumentException("当前用户未登录");
         }
-        try {
-            return Long.valueOf(userId);
-        } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("用户ID格式错误");
-        }
+        return userId;
     }
 
-    private void validateRequest(Long messageId, MessageFeedbackRequest request) {
-        if (messageId == null) {
-            throw new IllegalArgumentException("messageId 不能为空");
-        }
-        if (request == null) {
-            throw new IllegalArgumentException("请求体不能为空");
-        }
+    private void validateRequest(String messageId, MessageFeedbackRequest request) {
+        Assert.notBlank(messageId, () -> new IllegalArgumentException("messageId 不能为空"));
+        Assert.notNull(request, () -> new IllegalArgumentException("请求体不能为空"));
         validateFeedback(request.getVote());
     }
 

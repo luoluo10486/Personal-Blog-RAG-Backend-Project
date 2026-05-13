@@ -2,12 +2,14 @@ package com.personalblog.ragbackend.rag.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionPageRequest;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionUpdateRequest;
 import com.personalblog.ragbackend.rag.controller.vo.SampleQuestionVO;
 import com.personalblog.ragbackend.rag.service.SampleQuestionService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,44 +22,40 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping
 @MemberLoginRequired
+@RequiredArgsConstructor
 public class SampleQuestionController {
     private final SampleQuestionService sampleQuestionService;
 
-    public SampleQuestionController(SampleQuestionService sampleQuestionService) {
-        this.sampleQuestionService = sampleQuestionService;
-    }
-
     @GetMapping("/rag/sample-questions")
-    public R<List<SampleQuestionVO>> listSampleQuestions() {
-        return R.ok(sampleQuestionService.listRandomQuestions());
+    public Result<List<SampleQuestionVO>> listSampleQuestions() {
+        return Results.success(sampleQuestionService.listRandomQuestions());
     }
 
     @GetMapping("/sample-questions")
-    public R<IPage<SampleQuestionVO>> pageQuery(SampleQuestionPageRequest request) {
-        return R.ok(sampleQuestionService.pageQuery(request));
+    public Result<IPage<SampleQuestionVO>> pageQuery(SampleQuestionPageRequest requestParam) {
+        return Results.success(sampleQuestionService.pageQuery(requestParam));
     }
 
     @GetMapping("/sample-questions/{id}")
-    public R<SampleQuestionVO> queryById(@PathVariable String id) {
-        return R.ok(sampleQuestionService.queryById(id));
+    public Result<SampleQuestionVO> queryById(@PathVariable String id) {
+        return Results.success(sampleQuestionService.queryById(id));
     }
 
     @PostMapping("/sample-questions")
-    public R<String> create(@RequestBody SampleQuestionCreateRequest request) {
-        return R.ok(sampleQuestionService.create(request));
+    public Result<String> create(@RequestBody SampleQuestionCreateRequest requestParam) {
+        return Results.success(sampleQuestionService.create(requestParam));
     }
 
     @PutMapping("/sample-questions/{id}")
-    public R<Void> update(@PathVariable String id, @RequestBody SampleQuestionUpdateRequest request) {
-        sampleQuestionService.update(id, request);
-        return R.ok();
+    public Result<Void> update(@PathVariable String id, @RequestBody SampleQuestionUpdateRequest requestParam) {
+        sampleQuestionService.update(id, requestParam);
+        return Results.success();
     }
 
     @DeleteMapping("/sample-questions/{id}")
-    public R<Void> delete(@PathVariable String id) {
+    public Result<Void> delete(@PathVariable String id) {
         sampleQuestionService.delete(id);
-        return R.ok();
+        return Results.success();
     }
 }

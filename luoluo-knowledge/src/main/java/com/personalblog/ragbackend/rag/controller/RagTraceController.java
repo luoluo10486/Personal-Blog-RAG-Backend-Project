@@ -2,41 +2,38 @@ package com.personalblog.ragbackend.rag.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceDetailView;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceNodeView;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceRunPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.rag.RagTraceRunView;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
+import com.personalblog.ragbackend.rag.controller.request.RagTraceRunPageRequest;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceDetailVO;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceNodeVO;
+import com.personalblog.ragbackend.rag.controller.vo.RagTraceRunVO;
 import com.personalblog.ragbackend.rag.service.RagTraceQueryService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping
 @MemberLoginRequired
+@RequiredArgsConstructor
 public class RagTraceController {
     private final RagTraceQueryService ragTraceQueryService;
 
-    public RagTraceController(RagTraceQueryService ragTraceQueryService) {
-        this.ragTraceQueryService = ragTraceQueryService;
-    }
-
     @GetMapping("/rag/traces/runs")
-    public R<IPage<RagTraceRunView>> pageRuns(RagTraceRunPageRequest request) {
-        return R.ok(ragTraceQueryService.pageRuns(request));
+    public Result<IPage<RagTraceRunVO>> pageRuns(RagTraceRunPageRequest requestParam) {
+        return Results.success(ragTraceQueryService.pageRuns(requestParam));
     }
 
     @GetMapping("/rag/traces/runs/{traceId}")
-    public R<RagTraceDetailView> detail(@PathVariable String traceId) {
-        return R.ok(ragTraceQueryService.detail(traceId));
+    public Result<RagTraceDetailVO> detail(@PathVariable String traceId) {
+        return Results.success(ragTraceQueryService.detail(traceId));
     }
 
     @GetMapping("/rag/traces/runs/{traceId}/nodes")
-    public R<List<RagTraceNodeView>> nodes(@PathVariable String traceId) {
-        return R.ok(ragTraceQueryService.listNodes(traceId));
+    public Result<List<RagTraceNodeVO>> nodes(@PathVariable String traceId) {
+        return Results.success(ragTraceQueryService.listNodes(traceId));
     }
 }

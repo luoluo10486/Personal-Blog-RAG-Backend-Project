@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.rag.controller.vo;
+package com.personalblog.ragbackend.rag.service.bo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,8 +11,9 @@ import java.util.Date;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ConversationVO {
+public class ConversationCreateBO {
     private String conversationId;
-    private String title;
+    private String userId;
+    private String question;
     private Date lastTime;
 }

@@ -5,13 +5,18 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.rag.controller.vo.ConversationMessageVO;
 import com.personalblog.ragbackend.rag.enums.ConversationMessageOrder;
+import com.personalblog.ragbackend.rag.service.bo.ConversationMessageBO;
+import com.personalblog.ragbackend.rag.service.bo.ConversationSummaryBO;
 import com.personalblog.ragbackend.rag.service.MessageFeedbackService;
 import com.personalblog.ragbackend.rag.service.ConversationMessageService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZoneId;
 import java.util.Collections;
@@ -23,14 +28,37 @@ import java.util.Map;
 public class ConversationMessageServiceImpl implements ConversationMessageService {
     private final RagConversationMessageMapper messageMapper;
     private final RagConversationMapper conversationMapper;
+    private final RagConversationSummaryMapper summaryMapper;
     private final MessageFeedbackService feedbackService;
 
     public ConversationMessageServiceImpl(RagConversationMessageMapper messageMapper,
                                           RagConversationMapper conversationMapper,
+                                          RagConversationSummaryMapper summaryMapper,
                                           MessageFeedbackService feedbackService) {
         this.messageMapper = messageMapper;
         this.conversationMapper = conversationMapper;
+        this.summaryMapper = summaryMapper;
         this.feedbackService = feedbackService;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public String addMessage(ConversationMessageBO conversationMessage) {
+        if (conversationMessage == null || StrUtil.isBlank(conversationMessage.getConversationId()) || StrUtil.isBlank(conversationMessage.getUserId())) {
+            return null;
+        }
+        RagConversationMessageEntity entity = new RagConversationMessageEntity();
+        entity.setConversationId(conversationMessage.getConversationId());
+        entity.setUserId(Long.valueOf(conversationMessage.getUserId()));
+        entity.setRole(conversationMessage.getRole());
+        entity.setContent(conversationMessage.getContent());
+        entity.setThinkingContent(conversationMessage.getThinkingContent());
+        entity.setThinkingDuration(conversationMessage.getThinkingDuration());
+        entity.setDeleted(0);
+        entity.setCreatedAt(java.time.LocalDateTime.now());
+        entity.setUpdatedAt(java.time.LocalDateTime.now());
+        messageMapper.insert(entity);
+        return entity.getId() == null ? null : String.valueOf(entity.getId());
     }
 
     @Override
@@ -65,11 +93,12 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
             Collections.reverse(records);
         }
 
-        List<Long> assistantMessageIds = records.stream()
+        List<String> assistantMessageIds = records.stream()
                 .filter(record -> "assistant".equalsIgnoreCase(record.getRole()))
                 .map(RagConversationMessageEntity::getId)
+                .map(String::valueOf)
                 .toList();
-        Map<Long, Integer> votesByMessageId = feedbackService.getUserVotes(Long.valueOf(userId), assistantMessageIds);
+        Map<String, Integer> votesByMessageId = feedbackService.getUserVotes(userId, assistantMessageIds);
 
         return records.stream()
                 .map(record -> new ConversationMessageVO(
@@ -79,9 +108,26 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
                         record.getContent(),
                         record.getThinkingContent(),
                         record.getThinkingDuration(),
-                        votesByMessageId.get(record.getId()),
+                        votesByMessageId.get(String.valueOf(record.getId())),
                         toDate(record.getCreatedAt())))
                 .toList();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public void addMessageSummary(ConversationSummaryBO conversationSummary) {
+        if (conversationSummary == null || StrUtil.isBlank(conversationSummary.getConversationId()) || StrUtil.isBlank(conversationSummary.getUserId())) {
+            return;
+        }
+        RagConversationSummaryEntity entity = new RagConversationSummaryEntity();
+        entity.setConversationId(conversationSummary.getConversationId());
+        entity.setUserId(Long.valueOf(conversationSummary.getUserId()));
+        entity.setContent(conversationSummary.getContent());
+        entity.setLastMessageId(conversationSummary.getLastMessageId() == null ? null : Long.valueOf(conversationSummary.getLastMessageId()));
+        entity.setDeleted(0);
+        entity.setCreatedAt(java.time.LocalDateTime.now());
+        entity.setUpdatedAt(java.time.LocalDateTime.now());
+        summaryMapper.insert(entity);
     }
 
     private Date toDate(java.time.LocalDateTime time) {

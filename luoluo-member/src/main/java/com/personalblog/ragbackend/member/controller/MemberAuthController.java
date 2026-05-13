@@ -1,7 +1,8 @@
 package com.personalblog.ragbackend.member.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.member.application.MemberAuthApplicationService;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginRequest;
 import com.personalblog.ragbackend.member.dto.auth.MemberLoginResponse;
@@ -25,25 +26,25 @@ public class MemberAuthController {
     }
 
     @PostMapping("/login")
-    public R<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest request, HttpServletRequest servletRequest) {
-        return R.ok("login success", memberAuthApplicationService.login(request, resolveClientIp(servletRequest)));
+    public Result<MemberLoginResponse> login(@Valid @RequestBody MemberLoginRequest requestParam, HttpServletRequest servletRequest) {
+        return Results.success(memberAuthApplicationService.login(requestParam, resolveClientIp(servletRequest)));
     }
 
     @PostMapping("/register")
-    public R<MemberLoginResponse> register(@Valid @RequestBody MemberRegisterRequest request, HttpServletRequest servletRequest) {
-        return R.ok("register success", memberAuthApplicationService.register(request, resolveClientIp(servletRequest)));
+    public Result<MemberLoginResponse> register(@Valid @RequestBody MemberRegisterRequest requestParam, HttpServletRequest servletRequest) {
+        return Results.success(memberAuthApplicationService.register(requestParam, resolveClientIp(servletRequest)));
     }
 
     @PostMapping("/logout")
     @MemberLoginRequired
-    public R<Void> logout() {
+    public Result<Void> logout() {
         memberAuthApplicationService.logout();
-        return R.ok("logout success");
+        return Results.success();
     }
 
     @PostMapping("/send-code")
-    public R<MemberSendVerifyCodeResponse> sendCode(@Valid @RequestBody MemberSendVerifyCodeRequest request) {
-        return R.ok("send code success", memberAuthApplicationService.sendCode(request));
+    public Result<MemberSendVerifyCodeResponse> sendCode(@Valid @RequestBody MemberSendVerifyCodeRequest requestParam) {
+        return Results.success(memberAuthApplicationService.sendCode(requestParam));
     }
 
     private String resolveClientIp(HttpServletRequest request) {

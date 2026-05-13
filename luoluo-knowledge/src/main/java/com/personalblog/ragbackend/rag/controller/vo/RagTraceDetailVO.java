@@ -5,14 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ConversationVO {
-    private String conversationId;
-    private String title;
-    private Date lastTime;
+public class RagTraceDetailVO {
+    private RagTraceRunVO run;
+    private List<RagTraceNodeVO> nodes;
 }

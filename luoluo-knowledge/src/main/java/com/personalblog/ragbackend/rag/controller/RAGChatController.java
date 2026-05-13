@@ -1,9 +1,11 @@
 package com.personalblog.ragbackend.rag.controller;
 
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.service.RAGChatService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,15 +19,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping
 @MemberLoginRequired
+@RequiredArgsConstructor
 public class RAGChatController {
     private final RAGChatService ragChatService;
     private final RAGDefaultProperties ragDefaultProperties;
-
-    public RAGChatController(RAGChatService ragChatService,
-                             RAGDefaultProperties ragDefaultProperties) {
-        this.ragChatService = ragChatService;
-        this.ragDefaultProperties = ragDefaultProperties;
-    }
 
     @GetMapping(value = "/rag/v3/chat", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter chat(@RequestParam String question,
@@ -37,8 +34,8 @@ public class RAGChatController {
     }
 
     @PostMapping("/rag/v3/stop")
-    public R<Void> stop(@RequestParam String taskId) {
+    public Result<Void> stop(@RequestParam String taskId) {
         ragChatService.stopTask(taskId);
-        return R.ok();
+        return Results.success();
     }
 }

@@ -5,7 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.context.LoginUser;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.member.dto.user.ChangePasswordRequest;
 import com.personalblog.ragbackend.member.dto.user.CurrentUserVO;
 import com.personalblog.ragbackend.member.dto.user.UserCreateRequest;
@@ -31,9 +32,9 @@ public class UserController {
     }
 
     @GetMapping("/user/me")
-    public R<CurrentUserVO> currentUser() {
+    public Result<CurrentUserVO> currentUser() {
         LoginUser user = UserContext.requireUser();
-        return R.ok(new CurrentUserVO(
+        return Results.success(new CurrentUserVO(
                 user.getUserId(),
                 user.getUsername(),
                 user.getRole(),
@@ -42,34 +43,34 @@ public class UserController {
     }
 
     @GetMapping("/users")
-    public R<IPage<UserVO>> pageQuery(UserPageRequest request) {
+    public Result<IPage<UserVO>> pageQuery(UserPageRequest requestParam) {
         StpUtil.checkRole("admin");
-        return R.ok(memberAdminUserService.pageQuery(request));
+        return Results.success(memberAdminUserService.pageQuery(requestParam));
     }
 
     @PostMapping("/users")
-    public R<String> create(@RequestBody UserCreateRequest request) {
+    public Result<String> create(@RequestBody UserCreateRequest requestParam) {
         StpUtil.checkRole("admin");
-        return R.ok(memberAdminUserService.create(request));
+        return Results.success(memberAdminUserService.create(requestParam));
     }
 
     @PutMapping("/users/{id}")
-    public R<Void> update(@PathVariable String id, @RequestBody UserUpdateRequest request) {
+    public Result<Void> update(@PathVariable String id, @RequestBody UserUpdateRequest requestParam) {
         StpUtil.checkRole("admin");
-        memberAdminUserService.update(id, request);
-        return R.ok();
+        memberAdminUserService.update(id, requestParam);
+        return Results.success();
     }
 
     @DeleteMapping("/users/{id}")
-    public R<Void> delete(@PathVariable String id) {
+    public Result<Void> delete(@PathVariable String id) {
         StpUtil.checkRole("admin");
         memberAdminUserService.delete(id);
-        return R.ok();
+        return Results.success();
     }
 
     @PutMapping("/user/password")
-    public R<Void> changePassword(@RequestBody ChangePasswordRequest request) {
-        memberAdminUserService.changePassword(request);
-        return R.ok();
+    public Result<Void> changePassword(@RequestBody ChangePasswordRequest requestParam) {
+        memberAdminUserService.changePassword(requestParam);
+        return Results.success();
     }
 }

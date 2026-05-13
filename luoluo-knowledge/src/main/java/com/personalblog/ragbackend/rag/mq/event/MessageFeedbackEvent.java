@@ -7,26 +7,26 @@ public class MessageFeedbackEvent implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private Long messageId;
-    private Long userId;
+    private String messageId;
+    private String userId;
     private Integer vote;
     private String reason;
     private String comment;
     private long submitTime;
 
-    public Long getMessageId() {
+    public String getMessageId() {
         return messageId;
     }
 
-    public void setMessageId(Long messageId) {
+    public void setMessageId(String messageId) {
         this.messageId = messageId;
     }
 
-    public Long getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 

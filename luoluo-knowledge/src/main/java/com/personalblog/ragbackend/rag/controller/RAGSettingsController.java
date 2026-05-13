@@ -1,9 +1,9 @@
 package com.personalblog.ragbackend.rag.controller;
 
-import com.personalblog.ragbackend.common.web.domain.R;
+import com.personalblog.ragbackend.common.web.domain.Result;
+import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.infra.config.AIModelProperties;
-import com.personalblog.ragbackend.rag.config.RagMcpProperties;
 import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.config.RagMemoryProperties;
@@ -13,20 +13,16 @@ import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.AISettings
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.DefaultSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.GlobalRateLimit;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.MemorySettings;
-import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.McpSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.QueryRewriteSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.RagSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.RateLimitSettings;
-import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.TraceSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.UploadSettings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @MemberLoginRequired
@@ -35,7 +31,6 @@ public class RAGSettingsController {
     private final RAGConfigProperties ragConfigProperties;
     private final RagRateLimitProperties ragRateLimitProperties;
     private final RagMemoryProperties memoryProperties;
-    private final RagMcpProperties ragMcpProperties;
     private final AIModelProperties aiModelProperties;
 
     @Value("${spring.servlet.multipart.max-file-size:50MB}")
@@ -48,96 +43,108 @@ public class RAGSettingsController {
                                  RAGConfigProperties ragConfigProperties,
                                  RagRateLimitProperties ragRateLimitProperties,
                                  RagMemoryProperties memoryProperties,
-                                 RagMcpProperties ragMcpProperties,
                                  AIModelProperties aiModelProperties) {
         this.ragDefaultProperties = ragDefaultProperties;
         this.ragConfigProperties = ragConfigProperties;
         this.ragRateLimitProperties = ragRateLimitProperties;
         this.memoryProperties = memoryProperties;
-        this.ragMcpProperties = ragMcpProperties;
         this.aiModelProperties = aiModelProperties;
     }
 
     @GetMapping("/rag/settings")
-    public R<SystemSettingsVO> settings() {
-        SystemSettingsVO response = new SystemSettingsVO(
-                new UploadSettings(maxFileSize.toBytes(), maxRequestSize.toBytes()),
-                new RagSettings(
-                        new DefaultSettings(
-                                ragDefaultProperties.getCollectionName(),
-                                ragDefaultProperties.getDimension(),
-                                ragDefaultProperties.getMetricType(),
-                                ragDefaultProperties.getSseTimeoutMs()
-                        ),
-                        new QueryRewriteSettings(ragConfigProperties.getQueryRewriteEnabled()),
-                        new RateLimitSettings(new GlobalRateLimit(
-                                ragRateLimitProperties.getGlobalEnabled(),
-                                ragRateLimitProperties.getGlobalMaxConcurrent(),
-                                ragRateLimitProperties.getGlobalMaxWaitSeconds(),
-                                ragRateLimitProperties.getGlobalLeaseSeconds(),
-                                ragRateLimitProperties.getGlobalPollIntervalMs()
-                        )),
-                        new MemorySettings(
-                                memoryProperties.getHistoryKeepTurns(),
-                                memoryProperties.isSummaryEnabled(),
-                                memoryProperties.getSummaryStartTurns(),
-                                memoryProperties.getSummaryMaxChars(),
-                                memoryProperties.getTitleMaxLength()
-                        ),
-                        new TraceSettings(true, 1000),
-                        new McpSettings(ragMcpProperties.getServers() == null
-                                ? List.of()
-                                : ragMcpProperties.getServers().stream()
-                                .map(server -> new SystemSettingsVO.ServerConfig(server.getName(), server.getUrl()))
-                                .toList())
-                ),
-                toAISettings()
-        );
-        return R.ok(response);
+    public Result<SystemSettingsVO> settings() {
+        SystemSettingsVO response = SystemSettingsVO.builder()
+                .upload(UploadSettings.builder()
+                        .maxFileSize(maxFileSize.toBytes())
+                        .maxRequestSize(maxRequestSize.toBytes())
+                        .build())
+                .rag(RagSettings.builder()
+                        .defaultConfig(DefaultSettings.builder()
+                                .collectionName(ragDefaultProperties.getCollectionName())
+                                .dimension(ragDefaultProperties.getDimension())
+                                .metricType(ragDefaultProperties.getMetricType())
+                                .build())
+                        .queryRewrite(QueryRewriteSettings.builder()
+                                .enabled(ragConfigProperties.getQueryRewriteEnabled())
+                                .build())
+                        .rateLimit(RateLimitSettings.builder()
+                                .global(GlobalRateLimit.builder()
+                                        .enabled(ragRateLimitProperties.getGlobalEnabled())
+                                        .maxConcurrent(ragRateLimitProperties.getGlobalMaxConcurrent())
+                                        .maxWaitSeconds(ragRateLimitProperties.getGlobalMaxWaitSeconds())
+                                        .leaseSeconds(ragRateLimitProperties.getGlobalLeaseSeconds())
+                                        .pollIntervalMs(ragRateLimitProperties.getGlobalPollIntervalMs())
+                                        .build())
+                                .build())
+                        .memory(MemorySettings.builder()
+                                .historyKeepTurns(memoryProperties.getHistoryKeepTurns())
+                                .summaryEnabled(memoryProperties.isSummaryEnabled())
+                                .summaryStartTurns(memoryProperties.getSummaryStartTurns())
+                                .summaryMaxChars(memoryProperties.getSummaryMaxChars())
+                                .titleMaxLength(memoryProperties.getTitleMaxLength())
+                                .build())
+                        .build())
+                .ai(toAISettings())
+                .build();
+        return Results.success(response);
     }
 
     private AISettings toAISettings() {
         Map<String, AISettings.ProviderConfig> providers = new java.util.LinkedHashMap<>();
         if (aiModelProperties.getProviders() != null) {
             aiModelProperties.getProviders().forEach((name, config) ->
-                    providers.put(name, new AISettings.ProviderConfig(
-                            config.getUrl(),
-                            config.getApiKey(),
-                            config.getEndpoints() == null ? Map.of() : Map.copyOf(config.getEndpoints())
-                    )));
+                    providers.put(name, AISettings.ProviderConfig.builder()
+                            .url(config.getUrl())
+                            .apiKey(maskApiKey(config.getApiKey()))
+                            .endpoints(config.getEndpoints() == null ? Map.of() : Map.copyOf(config.getEndpoints()))
+                            .build()));
         }
 
-        return new AISettings(
-                providers,
-                toModelGroup(aiModelProperties.getChat()),
-                toModelGroup(aiModelProperties.getEmbedding()),
-                toModelGroup(aiModelProperties.getRerank()),
-                new AISettings.Selection(
-                        aiModelProperties.getSelection().getFailureThreshold(),
-                        aiModelProperties.getSelection().getOpenDurationMs()
-                ),
-                new AISettings.Stream(aiModelProperties.getStream().getMessageChunkSize())
-        );
+        return AISettings.builder()
+                .providers(providers)
+                .chat(toModelGroup(aiModelProperties.getChat()))
+                .embedding(toModelGroup(aiModelProperties.getEmbedding()))
+                .rerank(toModelGroup(aiModelProperties.getRerank()))
+                .selection(aiModelProperties.getSelection() == null ? null : AISettings.Selection.builder()
+                        .failureThreshold(aiModelProperties.getSelection().getFailureThreshold())
+                        .openDurationMs(aiModelProperties.getSelection().getOpenDurationMs())
+                        .build())
+                .stream(aiModelProperties.getStream() == null ? null : AISettings.Stream.builder()
+                        .messageChunkSize(aiModelProperties.getStream().getMessageChunkSize())
+                        .build())
+                .build();
     }
 
     private AISettings.ModelGroup toModelGroup(AIModelProperties.ModelGroup group) {
         if (group == null) {
             return null;
         }
-        return new AISettings.ModelGroup(
-                group.getDefaultModel(),
-                group.getDeepThinkingModel(),
-                group.getCandidates() == null ? List.of() : group.getCandidates().stream()
-                        .map(candidate -> new AISettings.ModelCandidate(
-                                candidate.getId(),
-                                candidate.getProvider(),
-                                candidate.getModel(),
-                                candidate.getUrl(),
-                                candidate.getDimension(),
-                                candidate.getPriority(),
-                                candidate.getEnabled(),
-                                candidate.getSupportsThinking()))
-                        .collect(Collectors.toList())
-        );
+        return AISettings.ModelGroup.builder()
+                .defaultModel(group.getDefaultModel())
+                .deepThinkingModel(group.getDeepThinkingModel())
+                .candidates(group.getCandidates() == null ? java.util.List.of() : group.getCandidates().stream()
+                        .map(candidate -> AISettings.ModelCandidate.builder()
+                                .id(candidate.getId())
+                                .provider(candidate.getProvider())
+                                .model(candidate.getModel())
+                                .url(candidate.getUrl())
+                                .dimension(candidate.getDimension())
+                                .priority(candidate.getPriority())
+                                .enabled(candidate.getEnabled())
+                                .supportsThinking(candidate.getSupportsThinking())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+    private String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return null;
+        }
+        String trimmed = apiKey.trim();
+        if (trimmed.length() <= 10) {
+            return "******";
+        }
+        return trimmed.substring(0, 6) + "***" + trimmed.substring(trimmed.length() - 4);
     }
 }

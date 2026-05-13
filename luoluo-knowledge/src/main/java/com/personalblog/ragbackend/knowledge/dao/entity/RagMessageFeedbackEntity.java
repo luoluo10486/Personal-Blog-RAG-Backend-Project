@@ -14,13 +14,13 @@ public class RagMessageFeedbackEntity {
     private Long id;
 
     @TableField("message_id")
-    private Long messageId;
+    private String messageId;
 
     @TableField("conversation_id")
     private String conversationId;
 
     @TableField("user_id")
-    private Long userId;
+    private String userId;
 
     @TableField("vote")
     private Integer vote;
@@ -49,11 +49,11 @@ public class RagMessageFeedbackEntity {
         this.id = id;
     }
 
-    public Long getMessageId() {
+    public String getMessageId() {
         return messageId;
     }
 
-    public void setMessageId(Long messageId) {
+    public void setMessageId(String messageId) {
         this.messageId = messageId;
     }
 
@@ -65,11 +65,11 @@ public class RagMessageFeedbackEntity {
         this.conversationId = conversationId;
     }
 
-    public Long getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 

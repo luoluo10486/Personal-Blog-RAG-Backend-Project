@@ -29,8 +29,8 @@ public class MessageFeedbackConsumer implements RocketMQListener<MessageWrapper<
             return;
         }
         LoginUser loginUser = new LoginUser();
-        loginUser.setUserId(String.valueOf(event.getUserId()));
-        if (StringUtils.hasText(String.valueOf(event.getUserId()))) {
+        loginUser.setUserId(event.getUserId());
+        if (StringUtils.hasText(event.getUserId())) {
             UserContext.set(loginUser);
         }
         try {
