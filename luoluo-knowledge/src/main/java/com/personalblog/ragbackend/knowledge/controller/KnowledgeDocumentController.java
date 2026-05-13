@@ -3,13 +3,13 @@ package com.personalblog.ragbackend.knowledge.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.R;
-import com.personalblog.ragbackend.knowledge.application.KnowledgeAdminApplicationService;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUploadRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentPageRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentUpdateRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentUploadRequest;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentChunkLogVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentSearchVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentVO;
+import com.personalblog.ragbackend.knowledge.service.KnowledgeDocumentService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -32,65 +32,65 @@ import java.util.List;
 @Validated
 @MemberLoginRequired
 public class KnowledgeDocumentController {
-    private final KnowledgeAdminApplicationService knowledgeAdminApplicationService;
+    private final KnowledgeDocumentService knowledgeDocumentService;
 
-    public KnowledgeDocumentController(KnowledgeAdminApplicationService knowledgeAdminApplicationService) {
-        this.knowledgeAdminApplicationService = knowledgeAdminApplicationService;
+    public KnowledgeDocumentController(KnowledgeDocumentService knowledgeDocumentService) {
+        this.knowledgeDocumentService = knowledgeDocumentService;
     }
 
     @PostMapping(value = "/knowledge-base/{kb-id}/docs/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public R<KnowledgeDocumentVO> upload(@PathVariable("kb-id") String kbId,
                                            @RequestPart(value = "file", required = false) MultipartFile file,
                                            @ModelAttribute KnowledgeDocumentUploadRequest requestParam) {
-        return R.ok(knowledgeAdminApplicationService.uploadDocument(kbId, requestParam, file));
+        return R.ok(knowledgeDocumentService.upload(kbId, requestParam, file));
     }
 
     @PostMapping("/knowledge-base/docs/{doc-id}/chunk")
     public R<Void> startChunk(@PathVariable("doc-id") String docId) {
-        knowledgeAdminApplicationService.startChunk(docId);
+        knowledgeDocumentService.startChunk(docId);
         return R.ok();
     }
 
     @DeleteMapping("/knowledge-base/docs/{doc-id}")
     public R<Void> delete(@PathVariable("doc-id") String docId) {
-        knowledgeAdminApplicationService.deleteDocument(docId);
+        knowledgeDocumentService.delete(docId);
         return R.ok();
     }
 
     @GetMapping("/knowledge-base/docs/{doc-id}")
     public R<KnowledgeDocumentVO> get(@PathVariable("doc-id") String docId) {
-        return R.ok(knowledgeAdminApplicationService.getDocument(docId));
+        return R.ok(knowledgeDocumentService.get(docId));
     }
 
     @PutMapping("/knowledge-base/docs/{doc-id}")
     public R<Void> update(@PathVariable("doc-id") String docId,
                           @RequestBody KnowledgeDocumentUpdateRequest requestParam) {
-        knowledgeAdminApplicationService.updateDocument(docId, requestParam);
+        knowledgeDocumentService.update(docId, requestParam);
         return R.ok();
     }
 
     @GetMapping("/knowledge-base/{kb-id}/docs")
     public R<IPage<KnowledgeDocumentVO>> page(@PathVariable("kb-id") String kbId,
                                                 KnowledgeDocumentPageRequest requestParam) {
-        return R.ok(knowledgeAdminApplicationService.pageDocuments(kbId, requestParam));
+        return R.ok(knowledgeDocumentService.page(kbId, requestParam));
     }
 
     @GetMapping("/knowledge-base/docs/search")
     public R<List<KnowledgeDocumentSearchVO>> search(@RequestParam(value = "keyword", required = false) String keyword,
                                                        @RequestParam(value = "limit", defaultValue = "8") int limit) {
-        return R.ok(knowledgeAdminApplicationService.searchDocuments(keyword, limit));
+        return R.ok(knowledgeDocumentService.search(keyword, limit));
     }
 
     @PatchMapping("/knowledge-base/docs/{doc-id}/enable")
     public R<Void> enable(@PathVariable("doc-id") String docId,
                           @RequestParam("value") boolean enabled) {
-        knowledgeAdminApplicationService.enableDocument(docId, enabled);
+        knowledgeDocumentService.enable(docId, enabled);
         return R.ok();
     }
 
     @GetMapping("/knowledge-base/docs/{doc-id}/chunk-logs")
     public R<IPage<KnowledgeDocumentChunkLogVO>> getChunkLogs(@PathVariable("doc-id") String docId,
                                                               Page<KnowledgeDocumentChunkLogVO> page) {
-        return R.ok(knowledgeAdminApplicationService.pageChunkLogs(docId, page.getCurrent(), page.getSize()));
+        return R.ok(knowledgeDocumentService.getChunkLogs(docId, page));
     }
 }

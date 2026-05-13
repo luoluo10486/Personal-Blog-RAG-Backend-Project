@@ -7,11 +7,11 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkBatchRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkCreateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkVO;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkBatchRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkCreateRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkPageRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkUpdateRequest;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeChunkVO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
@@ -145,6 +145,27 @@ public class KnowledgeChunkAdminService {
                 deleteChunkVector(document, chunk.getId());
             }
         }
+    }
+
+    @Transactional
+    public void batchCreate(Long documentId, List<KnowledgeChunkCreateRequest> requestParams) {
+        batchCreate(documentId, requestParams, false);
+    }
+
+    @Transactional
+    public void batchCreate(Long documentId, List<KnowledgeChunkCreateRequest> requestParams, boolean writeVector) {
+        if (requestParams == null || requestParams.isEmpty()) {
+            return;
+        }
+        KnowledgeDocumentEntity document = requireDocument(documentId);
+        for (KnowledgeChunkCreateRequest request : requestParams) {
+            create(documentId, request);
+        }
+        if (!writeVector) {
+            return;
+        }
+        // Keep parity with the interface; vector write is already handled by create().
+        // This branch is intentionally a no-op.
     }
 
     private List<KnowledgeChunkEntity> loadTargetChunks(Long documentId, KnowledgeChunkBatchRequest request) {

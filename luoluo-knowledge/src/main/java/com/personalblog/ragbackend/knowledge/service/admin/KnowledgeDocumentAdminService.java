@@ -9,12 +9,12 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentPageRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentUploadRequest;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentPageRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentUpdateRequest;
+import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentUploadRequest;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentChunkLogVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentSearchVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentVO;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
@@ -200,7 +200,7 @@ public class KnowledgeDocumentAdminService {
             entity.setSourceLocation(blankToNull(request.getSourceLocation()));
         }
         if (request.getScheduleEnabled() != null) {
-            entity.setScheduleEnabled(request.getScheduleEnabled());
+            entity.setScheduleEnabled(Boolean.TRUE.equals(request.getScheduleEnabled()) ? 1 : 0);
         }
         if (request.getScheduleCron() != null) {
             entity.setScheduleCron(blankToNull(request.getScheduleCron()));

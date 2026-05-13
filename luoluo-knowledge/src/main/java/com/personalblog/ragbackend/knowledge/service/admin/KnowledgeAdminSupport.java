@@ -8,12 +8,12 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
-import com.personalblog.ragbackend.knowledge.dto.admin.ChunkStrategyVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeBaseVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeChunkVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentChunkLogVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentSearchVO;
-import com.personalblog.ragbackend.knowledge.dto.admin.KnowledgeDocumentVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.ChunkStrategyVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeBaseVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeChunkVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentChunkLogVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentSearchVO;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentVO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
