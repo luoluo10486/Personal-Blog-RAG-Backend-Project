@@ -41,7 +41,12 @@ public class RemoteFileFetcher {
             String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
             MultipartFile file = new InMemoryMultipartFile(fileName, contentType, response.body());
             String storedUrl = fileStorageService.store(file, bucketName, fileName);
-            return new StoredFileDTO(storedUrl, fileName, contentType, (long) response.body().length);
+            return StoredFileDTO.builder()
+                    .url(storedUrl)
+                    .detectedType(contentType)
+                    .size((long) response.body().length)
+                    .originalFilename(fileName)
+                    .build();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Failed to fetch remote file", exception);
