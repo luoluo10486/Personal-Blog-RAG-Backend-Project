@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
 import com.personalblog.ragbackend.common.context.UserContext;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
@@ -13,6 +12,7 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRe
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceRoot;
+import com.personalblog.ragbackend.rag.config.RagTraceProperties;
 import com.personalblog.ragbackend.rag.service.RagTraceRecordService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -37,23 +37,23 @@ public class RagTraceAspect {
     private static final String STATUS_ERROR = "ERROR";
 
     private final RagTraceRecordService traceRecordService;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RagTraceProperties traceProperties;
     private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper;
 
     public RagTraceAspect(RagTraceRecordService traceRecordService,
-                          KnowledgeProperties knowledgeProperties,
+                          RagTraceProperties traceProperties,
                           AuthSessionService authSessionService,
                           ObjectMapper objectMapper) {
         this.traceRecordService = traceRecordService;
-        this.knowledgeProperties = knowledgeProperties;
+        this.traceProperties = traceProperties;
         this.authSessionService = authSessionService;
         this.objectMapper = objectMapper;
     }
 
     @Around("@annotation(traceRoot)")
     public Object aroundRoot(ProceedingJoinPoint joinPoint, RagTraceRoot traceRoot) throws Throwable {
-        if (!knowledgeProperties.getTrace().isEnabled()) {
+        if (!traceProperties.isEnabled()) {
             return joinPoint.proceed();
         }
 
@@ -124,7 +124,7 @@ public class RagTraceAspect {
 
     @Around("@annotation(traceNode)")
     public Object aroundNode(ProceedingJoinPoint joinPoint, RagTraceNode traceNode) throws Throwable {
-        if (!knowledgeProperties.getTrace().isEnabled()) {
+        if (!traceProperties.isEnabled()) {
             return joinPoint.proceed();
         }
         String traceId = RagTraceContext.getTraceId();
@@ -277,7 +277,7 @@ public class RagTraceAspect {
             return null;
         }
         String message = throwable.getClass().getSimpleName() + ": " + StrUtil.blankToDefault(throwable.getMessage(), "");
-        int maxLength = Math.max(1, knowledgeProperties.getTrace().getMaxErrorLength());
+        int maxLength = Math.max(1, traceProperties.getMaxErrorLength());
         if (message.length() <= maxLength) {
             return message;
         }

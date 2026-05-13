@@ -8,8 +8,6 @@ import com.personalblog.ragbackend.knowledge.mapper.IntentNodeMapper;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeUpdateRequest;
 import com.personalblog.ragbackend.rag.controller.vo.IntentNodeTreeVO;
-import com.personalblog.ragbackend.rag.core.mcp.McpToolClient;
-import com.personalblog.ragbackend.rag.core.mcp.McpToolDescriptor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,14 +21,11 @@ import java.util.Map;
 @Service
 public class IntentTreeAdminService {
     private final IntentNodeMapper intentNodeMapper;
-    private final McpToolClient mcpToolClient;
     private final ObjectMapper objectMapper;
 
     public IntentTreeAdminService(IntentNodeMapper intentNodeMapper,
-                                  McpToolClient mcpToolClient,
                                   ObjectMapper objectMapper) {
         this.intentNodeMapper = intentNodeMapper;
-        this.mcpToolClient = mcpToolClient;
         this.objectMapper = objectMapper;
     }
 
@@ -50,10 +45,6 @@ public class IntentTreeAdminService {
             tree.add(buildTree(root, parentMap));
         }
         return tree;
-    }
-
-    public List<McpToolDescriptor> listMcpTools() {
-        return mcpToolClient.listTools();
     }
 
     public String create(IntentNodeCreateRequest request) {

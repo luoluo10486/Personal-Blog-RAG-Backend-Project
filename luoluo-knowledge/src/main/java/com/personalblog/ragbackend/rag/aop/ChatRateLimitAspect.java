@@ -3,10 +3,10 @@ package com.personalblog.ragbackend.rag.aop;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.common.context.UserContext;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
-import com.personalblog.ragbackend.rag.service.RagTraceRecordService;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
+import com.personalblog.ragbackend.rag.config.RagTraceProperties;
+import com.personalblog.ragbackend.rag.service.RagTraceRecordService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -30,7 +30,7 @@ public class ChatRateLimitAspect {
     private static final String STATUS_ERROR = "ERROR";
 
     private final ChatQueueLimiter chatQueueLimiter;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RagTraceProperties traceProperties;
     private final RagTraceRecordService traceRecordService;
 
     @Around("@annotation(com.personalblog.ragbackend.rag.aop.ChatRateLimit)")
@@ -61,7 +61,7 @@ public class ChatRateLimitAspect {
                                  String question,
                                  String conversationId,
                                  SseEmitter emitter) {
-        if (!knowledgeProperties.getTrace().isEnabled()) {
+        if (!traceProperties.isEnabled()) {
             invokeTarget(method, target, args, emitter);
             return;
         }
@@ -105,7 +105,7 @@ public class ChatRateLimitAspect {
                     System.currentTimeMillis() - startMillis,
                     null
             );
-            log.warn("执行流式对话失败", cause);
+            log.warn("鎵ц娴佸紡瀵硅瘽澶辫触", cause);
             emitter.completeWithError(cause);
         } finally {
             RagTraceContext.clear();
@@ -117,7 +117,7 @@ public class ChatRateLimitAspect {
             method.invoke(target, args);
         } catch (Throwable ex) {
             Throwable cause = unwrap(ex);
-            log.warn("执行流式对话失败", cause);
+            log.warn("鎵ц娴佸紡瀵硅瘽澶辫触", cause);
             emitter.completeWithError(cause);
         }
     }
@@ -135,7 +135,7 @@ public class ChatRateLimitAspect {
             return null;
         }
         String message = throwable.getClass().getSimpleName() + ": " + StrUtil.blankToDefault(throwable.getMessage(), "");
-        int maxLength = Math.max(1, knowledgeProperties.getTrace().getMaxErrorLength());
+        int maxLength = Math.max(1, traceProperties.getMaxErrorLength());
         if (message.length() <= maxLength) {
             return message;
         }

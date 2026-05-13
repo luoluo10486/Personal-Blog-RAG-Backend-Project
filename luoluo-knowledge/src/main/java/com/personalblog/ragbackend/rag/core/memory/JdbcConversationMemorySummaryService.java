@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
-import com.personalblog.ragbackend.rag.config.RagMemoryProperties;
+import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
@@ -39,7 +39,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
     private final RagConversationMessageMapper messageMapper;
     private final RagConversationSummaryMapper summaryMapper;
-    private final RagMemoryProperties memoryProperties;
+    private final MemoryProperties memoryProperties;
     private final PromptTemplateLoader promptTemplateLoader;
     private final RedissonClient redissonClient;
     private final ObjectProvider<LLMService> llmServiceProvider;
@@ -47,7 +47,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
     public JdbcConversationMemorySummaryService(RagConversationMessageMapper messageMapper,
                                                 RagConversationSummaryMapper summaryMapper,
-                                                RagMemoryProperties memoryProperties,
+                                                MemoryProperties memoryProperties,
                                                 PromptTemplateLoader promptTemplateLoader,
                                                 RedissonClient redissonClient,
                                                 ObjectProvider<LLMService> llmServiceProvider,
@@ -63,7 +63,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
     @Override
     public void compressIfNeeded(String conversationId, Long userId, ChatMessage message) {
-        if (!memoryProperties.isSummaryEnabled()) {
+        if (!Boolean.TRUE.equals(memoryProperties.getSummaryEnabled())) {
             return;
         }
         if (message == null || message.getRole() != ChatMessage.Role.ASSISTANT) {

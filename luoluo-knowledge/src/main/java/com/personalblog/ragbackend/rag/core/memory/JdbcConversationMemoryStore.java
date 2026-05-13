@@ -4,7 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
-import com.personalblog.ragbackend.rag.config.RagMemoryProperties;
+import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
@@ -21,11 +21,11 @@ import java.util.stream.Collectors;
 public class JdbcConversationMemoryStore implements ConversationMemoryStore {
     private final RagConversationMapper conversationMapper;
     private final RagConversationMessageMapper conversationMessageMapper;
-    private final RagMemoryProperties memoryProperties;
+    private final MemoryProperties memoryProperties;
 
     public JdbcConversationMemoryStore(RagConversationMapper conversationMapper,
                                        RagConversationMessageMapper conversationMessageMapper,
-                                       RagMemoryProperties memoryProperties) {
+                                       MemoryProperties memoryProperties) {
         this.conversationMapper = conversationMapper;
         this.conversationMessageMapper = conversationMessageMapper;
         this.memoryProperties = memoryProperties;

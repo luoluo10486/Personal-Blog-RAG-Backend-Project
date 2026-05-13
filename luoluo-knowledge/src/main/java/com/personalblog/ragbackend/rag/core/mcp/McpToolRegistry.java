@@ -3,12 +3,18 @@ package com.personalblog.ragbackend.rag.core.mcp;
 import java.util.List;
 import java.util.Optional;
 
-public interface McpToolRegistry {
-    void register(McpToolExecutor executor);
+public interface MCPToolRegistry {
+    void register(MCPToolExecutor executor);
 
     void unregister(String toolId);
 
-    Optional<McpToolExecutor> getExecutor(String toolId);
+    Optional<MCPToolExecutor> getExecutor(String toolId);
 
-    List<McpToolExecutor> listExecutors();
+    List<MCPTool> listAllTools();
+
+    List<MCPToolExecutor> listAllExecutors();
+
+    boolean contains(String toolId);
+
+    int size();
 }

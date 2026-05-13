@@ -7,12 +7,13 @@ import com.personalblog.ragbackend.rag.core.prompt.KnowledgeContextFormatter;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
+import com.personalblog.ragbackend.rag.core.mcp.MCPParameterExtractor;
+import com.personalblog.ragbackend.rag.core.mcp.MCPRequest;
+import com.personalblog.ragbackend.rag.core.mcp.MCPResponse;
+import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
+import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
+import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.McpContextFormatter;
-import com.personalblog.ragbackend.rag.core.mcp.McpParameterExtractor;
-import com.personalblog.ragbackend.rag.core.mcp.McpRequest;
-import com.personalblog.ragbackend.rag.core.mcp.McpToolCallResult;
-import com.personalblog.ragbackend.rag.core.mcp.McpToolExecutor;
-import com.personalblog.ragbackend.rag.core.mcp.McpToolRegistry;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -30,17 +31,17 @@ import java.util.concurrent.Executor;
 public class RetrievalEngine {
     private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
     private final KnowledgeContextFormatter knowledgeContextFormatter;
-    private final McpParameterExtractor mcpParameterExtractor;
+    private final MCPParameterExtractor mcpParameterExtractor;
     private final McpContextFormatter mcpContextFormatter;
-    private final McpToolRegistry mcpToolRegistry;
+    private final MCPToolRegistry mcpToolRegistry;
     private final Executor ragContextExecutor;
     private final Executor mcpBatchExecutor;
 
     public RetrievalEngine(KnowledgeRetrievalEngine knowledgeRetrievalEngine,
                            KnowledgeContextFormatter knowledgeContextFormatter,
-                           McpParameterExtractor mcpParameterExtractor,
+                           MCPParameterExtractor mcpParameterExtractor,
                            McpContextFormatter mcpContextFormatter,
-                           McpToolRegistry mcpToolRegistry,
+                           MCPToolRegistry mcpToolRegistry,
                            @Qualifier("ragContextThreadPoolExecutor") Executor ragContextExecutor,
                            @Qualifier("mcpBatchThreadPoolExecutor") Executor mcpBatchExecutor) {
         this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
@@ -147,17 +148,17 @@ public class RetrievalEngine {
                                        int topK,
                                        String conversationId,
                                        String userId) {
-        List<McpToolCallResult> responses = executeMcpTools(question, mcpIntents, baseCode, topK, conversationId, userId);
+        List<MCPResponse> responses = executeMcpTools(question, mcpIntents, baseCode, topK, conversationId, userId);
         return mcpContextFormatter.format(responses, mcpIntents);
     }
 
-    private List<McpToolCallResult> executeMcpTools(String question,
+    private List<MCPResponse> executeMcpTools(String question,
                                                    List<NodeScore> mcpIntents,
                                                    String baseCode,
                                                    int topK,
                                                    String conversationId,
                                                    String userId) {
-        List<CompletableFuture<McpToolCallResult>> futures = mcpIntents.stream()
+        List<CompletableFuture<MCPResponse>> futures = mcpIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
                         () -> executeSingleMcpTool(question, intent, baseCode, topK, conversationId, userId),
                         mcpBatchExecutor
@@ -169,7 +170,7 @@ public class RetrievalEngine {
                 .toList();
     }
 
-    private McpToolCallResult executeSingleMcpTool(String question,
+    private MCPResponse executeSingleMcpTool(String question,
                                                   NodeScore intent,
                                                   String baseCode,
                                                   int topK,
@@ -177,23 +178,26 @@ public class RetrievalEngine {
                                                   String userId) {
         RagIntentNode node = intent == null ? null : intent.node();
         if (node == null || StrUtil.isBlank(node.mcpToolId)) {
-            return new McpToolCallResult("", false, "", "Missing MCP tool id", Map.of());
+            return MCPResponse.error("", "MISSING_TOOL", "Missing MCP tool id");
         }
         String toolId = node.mcpToolId.trim();
-        Optional<McpToolExecutor> executorOpt = mcpToolRegistry.getExecutor(toolId);
+        Optional<MCPToolExecutor> executorOpt = mcpToolRegistry.getExecutor(toolId);
         if (executorOpt.isEmpty()) {
-            return new McpToolCallResult(toolId, false, "", "MCP tool not found: " + toolId, Map.of());
+            return MCPResponse.error(toolId, "TOOL_NOT_FOUND", "MCP tool not found: " + toolId);
         }
-        McpToolExecutor executor = executorOpt.get();
-        int effectiveTopK = node.topK != null && node.topK > 0 ? node.topK : topK;
-        Map<String, Object> params = mcpParameterExtractor.extract(
+        MCPToolExecutor executor = executorOpt.get();
+        Map<String, Object> params = mcpParameterExtractor.extractParameters(
                 question,
                 executor.getToolDefinition(),
-                node.paramPromptTemplate,
-                baseCode,
-                effectiveTopK
+                node.paramPromptTemplate
         );
-        return executor.execute(new McpRequest(toolId, question, params, userId, conversationId));
+        return executor.execute(MCPRequest.builder()
+                .toolId(toolId)
+                .userQuestion(question)
+                .parameters(params)
+                .userId(userId)
+                .conversationId(conversationId)
+                .build());
     }
 
     private List<NodeScore> filterKb(List<NodeScore> nodeScores) {

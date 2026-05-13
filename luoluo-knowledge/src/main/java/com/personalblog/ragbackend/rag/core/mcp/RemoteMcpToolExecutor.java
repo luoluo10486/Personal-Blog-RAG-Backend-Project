@@ -1,39 +1,49 @@
 package com.personalblog.ragbackend.rag.core.mcp;
 
-import cn.hutool.core.util.StrUtil;
+import com.personalblog.ragbackend.rag.core.mcp.client.MCPClient;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.Map;
+@Slf4j
+@RequiredArgsConstructor
+public class RemoteMCPToolExecutor implements MCPToolExecutor {
 
-public class RemoteMcpToolExecutor implements McpToolExecutor {
-    private final McpToolClient client;
-    private final McpToolDescriptor tool;
+    private final MCPClient mcpClient;
+    private final MCPTool toolDefinition;
 
-    public RemoteMcpToolExecutor(McpToolClient client, McpToolDescriptor tool) {
-        this.client = client;
-        this.tool = tool;
+    @Override
+    public MCPTool getToolDefinition() {
+        return toolDefinition;
     }
 
     @Override
     public String getToolId() {
-        return tool == null ? "" : StrUtil.blankToDefault(tool.toolId(), "");
+        return toolDefinition.getToolId();
     }
 
     @Override
-    public McpToolDescriptor getToolDefinition() {
-        return tool;
-    }
+    public MCPResponse execute(MCPRequest request) {
+        long start = System.currentTimeMillis();
+        try {
+            String result = mcpClient.callTool(toolDefinition.getToolId(), request.getParameters());
+            long costMs = System.currentTimeMillis() - start;
 
-    @Override
-    public McpToolCallResult execute(McpRequest request) {
-        Map<String, Object> arguments = request == null || request.parameters() == null
-                ? Map.of()
-                : request.parameters();
-        return client.callTool(
-                getToolId(),
-                arguments,
-                request == null ? "" : request.userId(),
-                request == null ? "" : request.conversationId(),
-                request == null ? "" : request.userQuestion()
-        );
+            if (result == null) {
+                MCPResponse response = MCPResponse.error(request.getToolId(), "REMOTE_CALL_FAILED", "remote tool call failed");
+                response.setCostMs(costMs);
+                return response;
+            }
+
+            MCPResponse response = MCPResponse.success(request.getToolId(), result);
+            response.setCostMs(costMs);
+            return response;
+        } catch (Exception e) {
+            long costMs = System.currentTimeMillis() - start;
+            String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            log.warn("remote MCP tool call failed, toolId={}, reason={}", request.getToolId(), reason);
+            MCPResponse response = MCPResponse.error(request.getToolId(), "REMOTE_CALL_ERROR", reason);
+            response.setCostMs(costMs);
+            return response;
+        }
     }
 }

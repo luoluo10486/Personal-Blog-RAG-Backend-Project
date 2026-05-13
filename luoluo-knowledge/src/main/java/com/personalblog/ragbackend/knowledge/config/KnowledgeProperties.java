@@ -28,8 +28,6 @@ public class KnowledgeProperties {
     @Valid
     private SearchProperties search = new SearchProperties();
     @Valid
-    private TraceProperties trace = new TraceProperties();
-    @Valid
     private StorageProperties storage = new StorageProperties();
     @Valid
     private List<ProviderProperties> providers = new ArrayList<>();
@@ -88,14 +86,6 @@ public class KnowledgeProperties {
 
     public void setSearch(SearchProperties search) {
         this.search = search;
-    }
-
-    public TraceProperties getTrace() {
-        return trace;
-    }
-
-    public void setTrace(TraceProperties trace) {
-        this.trace = trace;
     }
 
     public StorageProperties getStorage() {
@@ -481,28 +471,6 @@ public class KnowledgeProperties {
 
         public void setProvider(String provider) {
             this.provider = provider;
-        }
-    }
-
-    public static class TraceProperties {
-        private boolean enabled = true;
-        @Min(1)
-        private int maxErrorLength = 1000;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getMaxErrorLength() {
-            return maxErrorLength;
-        }
-
-        public void setMaxErrorLength(int maxErrorLength) {
-            this.maxErrorLength = maxErrorLength;
         }
     }
 

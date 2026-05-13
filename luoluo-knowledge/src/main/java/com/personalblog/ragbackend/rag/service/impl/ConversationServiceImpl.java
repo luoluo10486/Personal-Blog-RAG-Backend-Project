@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.rag.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
-import com.personalblog.ragbackend.rag.config.RagMemoryProperties;
+import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.rag.service.bo.ConversationCreateBO;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
@@ -26,12 +26,12 @@ public class ConversationServiceImpl implements ConversationService {
     private final RagConversationMapper conversationMapper;
     private final RagConversationMessageMapper messageMapper;
     private final RagConversationSummaryMapper summaryMapper;
-    private final RagMemoryProperties memoryProperties;
+    private final MemoryProperties memoryProperties;
 
     public ConversationServiceImpl(RagConversationMapper conversationMapper,
                                    RagConversationMessageMapper messageMapper,
                                    RagConversationSummaryMapper summaryMapper,
-                                   RagMemoryProperties memoryProperties) {
+                                   MemoryProperties memoryProperties) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.summaryMapper = summaryMapper;

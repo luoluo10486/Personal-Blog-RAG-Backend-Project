@@ -14,8 +14,8 @@ import java.util.stream.Collectors;
 @Service
 public class McpContextFormatter {
 
-    public String format(List<McpToolCallResult> responses, List<NodeScore> mcpIntents) {
-        if (CollUtil.isEmpty(responses) || responses.stream().noneMatch(McpToolCallResult::success)) {
+    public String format(List<MCPResponse> responses, List<NodeScore> mcpIntents) {
+        if (CollUtil.isEmpty(responses) || responses.stream().noneMatch(MCPResponse::isSuccess)) {
             return "";
         }
         if (CollUtil.isEmpty(mcpIntents)) {
@@ -31,14 +31,14 @@ public class McpContextFormatter {
             toolToIntent.putIfAbsent(node.mcpToolId, node);
         }
 
-        Map<String, List<McpToolCallResult>> grouped = responses.stream()
-                .filter(McpToolCallResult::success)
-                .filter(result -> StrUtil.isNotBlank(result.toolId()))
-                .collect(Collectors.groupingBy(McpToolCallResult::toolId, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<MCPResponse>> grouped = responses.stream()
+                .filter(MCPResponse::isSuccess)
+                .filter(result -> StrUtil.isNotBlank(result.getToolId()))
+                .collect(Collectors.groupingBy(MCPResponse::getToolId, LinkedHashMap::new, Collectors.toList()));
 
         return toolToIntent.entrySet().stream()
                 .map(entry -> {
-                    List<McpToolCallResult> toolResponses = grouped.get(entry.getKey());
+                    List<MCPResponse> toolResponses = grouped.get(entry.getKey());
                     if (CollUtil.isEmpty(toolResponses)) {
                         return "";
                     }
@@ -54,13 +54,13 @@ public class McpContextFormatter {
                 .collect(Collectors.joining("\n\n"));
     }
 
-    private String mergeResponsesToText(List<McpToolCallResult> responses) {
+    private String mergeResponsesToText(List<MCPResponse> responses) {
         StringBuilder builder = new StringBuilder();
         int index = 1;
-        for (McpToolCallResult response : responses) {
-            if (response.success() && StrUtil.isNotBlank(response.text())) {
+        for (MCPResponse response : responses) {
+            if (response.isSuccess() && StrUtil.isNotBlank(response.getTextResult())) {
                 builder.append("[M").append(index++).append("]\n")
-                        .append(response.text().trim())
+                        .append(response.getTextResult().trim())
                         .append("\n\n");
             }
         }

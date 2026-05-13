@@ -6,7 +6,7 @@ import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired
 import com.personalblog.ragbackend.infra.config.AIModelProperties;
 import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
-import com.personalblog.ragbackend.rag.config.RagMemoryProperties;
+import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.rag.config.RagRateLimitProperties;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.AISettings;
@@ -30,7 +30,7 @@ public class RAGSettingsController {
     private final RAGDefaultProperties ragDefaultProperties;
     private final RAGConfigProperties ragConfigProperties;
     private final RagRateLimitProperties ragRateLimitProperties;
-    private final RagMemoryProperties memoryProperties;
+    private final MemoryProperties memoryProperties;
     private final AIModelProperties aiModelProperties;
 
     @Value("${spring.servlet.multipart.max-file-size:50MB}")
@@ -42,7 +42,7 @@ public class RAGSettingsController {
     public RAGSettingsController(RAGDefaultProperties ragDefaultProperties,
                                  RAGConfigProperties ragConfigProperties,
                                  RagRateLimitProperties ragRateLimitProperties,
-                                 RagMemoryProperties memoryProperties,
+                                 MemoryProperties memoryProperties,
                                  AIModelProperties aiModelProperties) {
         this.ragDefaultProperties = ragDefaultProperties;
         this.ragConfigProperties = ragConfigProperties;
@@ -78,7 +78,7 @@ public class RAGSettingsController {
                                 .build())
                         .memory(MemorySettings.builder()
                                 .historyKeepTurns(memoryProperties.getHistoryKeepTurns())
-                                .summaryEnabled(memoryProperties.isSummaryEnabled())
+                                .summaryEnabled(memoryProperties.getSummaryEnabled())
                                 .summaryStartTurns(memoryProperties.getSummaryStartTurns())
                                 .summaryMaxChars(memoryProperties.getSummaryMaxChars())
                                 .titleMaxLength(memoryProperties.getTitleMaxLength())

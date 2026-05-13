@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
-public class RagThreadPoolExecutorConfig {
+public class ThreadPoolExecutorConfig {
     private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
 
     @Bean

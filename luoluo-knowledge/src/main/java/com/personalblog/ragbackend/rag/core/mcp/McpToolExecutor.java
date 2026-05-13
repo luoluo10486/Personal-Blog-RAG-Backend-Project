@@ -1,9 +1,9 @@
 package com.personalblog.ragbackend.rag.core.mcp;
 
-public interface McpToolExecutor {
+public interface MCPToolExecutor {
     String getToolId();
 
-    McpToolDescriptor getToolDefinition();
+    MCPTool getToolDefinition();
 
-    McpToolCallResult execute(McpRequest request);
+    MCPResponse execute(MCPRequest request);
 }
