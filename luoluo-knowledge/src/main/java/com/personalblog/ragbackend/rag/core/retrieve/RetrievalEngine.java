@@ -246,7 +246,7 @@ public class RetrievalEngine {
             return "";
         }
         if (node.id != null) {
-            return String.valueOf(node.id);
+            return node.id;
         }
         return firstNotBlank(node.intentCode, node.collectionName, node.name);
     }

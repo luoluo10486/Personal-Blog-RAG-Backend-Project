@@ -25,8 +25,6 @@ import java.util.UUID;
 @Service
 public class KnowledgeFileStorageService {
     private static final Tika TIKA = new Tika();
-    private static final String DEFAULT_BUCKET_PREFIX = "knowledge";
-
     private final S3Client s3Client;
     private final RustfsProperties rustfsProperties;
 
@@ -100,19 +98,10 @@ public class KnowledgeFileStorageService {
     }
 
     public String resolveBucketName(String collectionName) {
-        String prefix = sanitizeBucketSegment(DEFAULT_BUCKET_PREFIX);
-        String source = StringUtils.hasText(collectionName)
-                ? collectionName
-                : "rag_default_store";
-        String segment = sanitizeBucketSegment(source);
-        String candidate = prefix + "-" + segment;
-        if (candidate.length() <= 63) {
-            return candidate;
+        if (StringUtils.hasText(collectionName)) {
+            return collectionName.trim();
         }
-        String hash = Integer.toHexString(candidate.hashCode());
-        int keepLength = Math.max(1, 63 - hash.length() - 1);
-        String trimmed = candidate.substring(0, keepLength).replaceAll("[-.]+$", "");
-        return trimmed + "-" + hash;
+        return "rag_default_store";
     }
 
     public void ensureBucketExists(String bucketName) {
@@ -163,14 +152,6 @@ public class KnowledgeFileStorageService {
             throw new IllegalArgumentException("Invalid s3 url: " + fileUrl);
         }
         return new S3Location(value.substring(0, slashIndex), value.substring(slashIndex + 1));
-    }
-
-    private String sanitizeBucketSegment(String value) {
-        String sanitized = StringUtils.hasText(value)
-                ? value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9-]+", "-")
-                : "default";
-        sanitized = sanitized.replaceAll("-+", "-").replaceAll("^-|-$", "");
-        return StringUtils.hasText(sanitized) ? sanitized : "default";
     }
 
     private String sanitizeFileName(String value) {

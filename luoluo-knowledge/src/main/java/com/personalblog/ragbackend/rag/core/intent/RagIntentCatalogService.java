@@ -39,12 +39,12 @@ public class RagIntentCatalogService {
         }
         for (List<RagIntentNode> children : childrenByParent.values()) {
             children.sort(Comparator.comparing((RagIntentNode n) -> n.sortOrder == null ? 0 : n.sortOrder)
-                    .thenComparing(n -> n.id == null ? Long.MAX_VALUE : n.id));
+                    .thenComparing(n -> n.id == null ? "" : n.id));
         }
         List<RagIntentNode> roots = byCode.values().stream()
                 .filter(node -> StrUtil.isBlank(node.parentCode) || !byCode.containsKey(node.parentCode))
                 .sorted(Comparator.comparing((RagIntentNode n) -> n.sortOrder == null ? 0 : n.sortOrder)
-                        .thenComparing(n -> n.id == null ? Long.MAX_VALUE : n.id))
+                        .thenComparing(n -> n.id == null ? "" : n.id))
                 .toList();
         fillFullPath(roots, childrenByParent, null);
         return byCode.values().stream()

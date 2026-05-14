@@ -19,6 +19,7 @@ import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceId;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.common.context.UserContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,9 +53,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Transactional
     public String create(KnowledgeBaseCreateRequest requestParam) {
         String name = requireText(requestParam.getName(), "knowledge base name is required");
+        String normalizedName = name.replaceAll("\\s+", "");
+        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
+                .eq(KnowledgeBaseEntity::getName, normalizedName)
+                .eq(KnowledgeBaseEntity::getDeleted, 0));
+        if (nameCount > 0) {
+            throw new IllegalArgumentException("knowledge base name already exists");
+        }
         String collectionName = StringUtils.hasText(requestParam.getCollectionName())
                 ? requestParam.getCollectionName().trim()
-                : "rag_default_store";
+                : ragDefaultProperties.getCollectionName();
         assertCollectionAvailable(collectionName, null);
 
         KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
@@ -63,8 +71,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 ? requestParam.getEmbeddingModel().trim()
                 : "Qwen/Qwen3-Embedding-8B");
         entity.setCollectionName(collectionName);
-        entity.setCreatedBy(null);
-        entity.setUpdatedBy(null);
+        entity.setOwnerUserId(parseUserId(UserContext.getUserId()));
+        entity.setCreatedBy(parseUserId(UserContext.getUserId()));
+        entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         entity.setDeleted(0);
         knowledgeBaseMapper.insert(entity);
         knowledgeFileStorageService.ensureBucketExists(knowledgeFileStorageService.resolveBucketName(collectionName));
@@ -86,12 +95,30 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     public void update(KnowledgeBaseUpdateRequest requestParam) {
         KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(requestParam.getId()));
         if (StringUtils.hasText(requestParam.getName())) {
+            String name = requestParam.getName().trim().replaceAll("\\s+", "");
+            long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
+                    .eq(KnowledgeBaseEntity::getName, name)
+                    .eq(KnowledgeBaseEntity::getDeleted, 0)
+                    .ne(KnowledgeBaseEntity::getId, entity.getId()));
+            if (nameCount > 0) {
+                throw new IllegalArgumentException("knowledge base name already exists");
+            }
             entity.setName(requestParam.getName().trim());
         }
         if (StringUtils.hasText(requestParam.getEmbeddingModel())) {
-            entity.setEmbeddingModel(requestParam.getEmbeddingModel().trim());
+            String embeddingModel = requestParam.getEmbeddingModel().trim();
+            if (!embeddingModel.equals(entity.getEmbeddingModel())) {
+                long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
+                        .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
+                        .gt(KnowledgeDocumentEntity::getChunkCount, 0)
+                        .eq(KnowledgeDocumentEntity::getDeleted, 0));
+                if (documentCount > 0) {
+                    throw new IllegalArgumentException("knowledge base already has vectorized documents, embedding model cannot be changed");
+                }
+            }
+            entity.setEmbeddingModel(embeddingModel);
         }
-        entity.setUpdatedBy(null);
+        entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeBaseMapper.updateById(entity);
     }
 
@@ -102,8 +129,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (!StringUtils.hasText(requestParam.getName())) {
             throw new IllegalArgumentException("knowledge base name is required");
         }
+        String name = requestParam.getName().trim().replaceAll("\\s+", "");
+        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
+                .eq(KnowledgeBaseEntity::getName, name)
+                .eq(KnowledgeBaseEntity::getDeleted, 0)
+                .ne(KnowledgeBaseEntity::getId, entity.getId()));
+        if (nameCount > 0) {
+            throw new IllegalArgumentException("knowledge base name already exists");
+        }
         entity.setName(requestParam.getName().trim());
-        entity.setUpdatedBy(null);
+        entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeBaseMapper.updateById(entity);
     }
 
@@ -112,7 +147,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     public void delete(String kbId) {
         KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(kbId));
         long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                .eq(KnowledgeDocumentEntity::getKbId, entity.getId()));
+                .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
+                .eq(KnowledgeDocumentEntity::getDeleted, 0));
         if (documentCount > 0) {
             throw new IllegalArgumentException("knowledge base still has documents");
         }
@@ -128,7 +164,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         vo.setEmbeddingModel(entity.getEmbeddingModel());
         vo.setCollectionName(entity.getCollectionName());
         vo.setDocumentCount(knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                .eq(KnowledgeDocumentEntity::getKbId, entity.getId())));
+                .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
+                .eq(KnowledgeDocumentEntity::getDeleted, 0)));
         vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
         vo.setCreateTime(entity.getCreatedAt() == null ? null : java.util.Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
         vo.setUpdateTime(entity.getUpdatedAt() == null ? null : java.util.Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
@@ -148,7 +185,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         Map<Long, Long> documentCountMap = kbIds.isEmpty()
                 ? Map.of()
                 : knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                        .in(KnowledgeDocumentEntity::getKbId, kbIds))
+                        .in(KnowledgeDocumentEntity::getKbId, kbIds)
+                        .eq(KnowledgeDocumentEntity::getDeleted, 0))
                 .stream()
                 .collect(Collectors.groupingBy(KnowledgeDocumentEntity::getKbId, Collectors.counting()));
         return result.convert(entity -> {
@@ -165,7 +203,6 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         });
     }
 
-    @Override
     public List<ChunkStrategyVO> listChunkStrategies() {
         return List.of(
                 new ChunkStrategyVO("structure_aware", "结构感知", java.util.Map.of("targetChars", 1400, "overlapChars", 0, "maxChars", 1800, "minChars", 600)),
@@ -204,9 +241,20 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
         VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
         if (vectorStoreAdmin != null
-                && vectorStoreAdmin.vectorSpaceExists(null)
+                && vectorStoreAdmin.vectorSpaceExists(new KnowledgeVectorSpaceId(collectionName, "public"))
                 && existing == null) {
             throw new IllegalArgumentException("collection already occupied");
+        }
+    }
+
+    private Long parseUserId(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(userId.trim());
+        } catch (NumberFormatException exception) {
+            return null;
         }
     }
 }

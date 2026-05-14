@@ -4,7 +4,6 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.personalblog.ragbackend.knowledge.dao.entity.SampleQuestionEntity;
 import com.personalblog.ragbackend.knowledge.mapper.SampleQuestionMapper;
@@ -37,7 +36,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         record.description = StrUtil.trimToNull(requestParam.getDescription());
         record.question = question;
         sampleQuestionMapper.insert(record);
-        return String.valueOf(record.id);
+        return record.id;
     }
 
     @Override
@@ -71,11 +70,8 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
 
     @Override
     public IPage<SampleQuestionVO> pageQuery(SampleQuestionPageRequest requestParam) {
-        String keyword = requestParam == null ? null : StrUtil.trimToNull(requestParam.getKeyword());
-        Page<SampleQuestionEntity> page = new Page<>(
-                requestParam == null ? 1 : Math.max(requestParam.getCurrent(), 1),
-                requestParam == null ? 10 : Math.max(requestParam.getSize(), 1)
-        );
+        String keyword = StrUtil.trimToNull(requestParam.getKeyword());
+        Page<SampleQuestionEntity> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
         IPage<SampleQuestionEntity> result = sampleQuestionMapper.selectPage(
                 page,
                 new QueryWrapper<SampleQuestionEntity>()
@@ -109,6 +105,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
                 new QueryWrapper<SampleQuestionEntity>()
                         .eq("id", id)
                         .eq("deleted", 0)
+                        .last("limit 1")
         );
         Assert.notNull(record, () -> new IllegalArgumentException("示例问题不存在"));
         return record;
@@ -116,7 +113,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
 
     private SampleQuestionVO toVO(SampleQuestionEntity record) {
         return SampleQuestionVO.builder()
-                .id(String.valueOf(record.id))
+                .id(record.id)
                 .title(record.title)
                 .description(record.description)
                 .question(record.question)

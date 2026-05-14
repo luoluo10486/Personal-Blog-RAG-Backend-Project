@@ -17,7 +17,7 @@ public class IntentNode {
     private static final Type STRING_LIST_TYPE = new TypeToken<List<String>>() {
     }.getType();
 
-    public Long id;
+    public String id;
     public String intentCode;
     public String name;
     public Integer level;

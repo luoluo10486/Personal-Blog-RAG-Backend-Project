@@ -10,10 +10,10 @@ import java.time.LocalDateTime;
 
 @TableName("t_intent_node")
 public class IntentNodeEntity {
-    @TableId(value = "id", type = IdType.AUTO)
-    public Long id;
+    @TableId(value = "id", type = IdType.ASSIGN_ID)
+    public String id;
     @TableField("kb_id")
-    public Long kbId;
+    public String kbId;
     @TableField("intent_code")
     public String intentCode;
     @TableField("name")
@@ -44,6 +44,10 @@ public class IntentNodeEntity {
     public Integer sortOrder;
     @TableField("enabled")
     public Integer enabled;
+    @TableField("create_by")
+    public String createBy;
+    @TableField("update_by")
+    public String updateBy;
     @TableLogic
     @TableField("deleted")
     public Integer deleted;
@@ -52,19 +56,19 @@ public class IntentNodeEntity {
     @TableField("update_time")
     public LocalDateTime updatedAt;
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
-    public Long getKbId() {
+    public String getKbId() {
         return kbId;
     }
 
-    public void setKbId(Long kbId) {
+    public void setKbId(String kbId) {
         this.kbId = kbId;
     }
 
@@ -186,6 +190,22 @@ public class IntentNodeEntity {
 
     public void setEnabled(Integer enabled) {
         this.enabled = enabled;
+    }
+
+    public String getCreateBy() {
+        return createBy;
+    }
+
+    public void setCreateBy(String createBy) {
+        this.createBy = createBy;
+    }
+
+    public String getUpdateBy() {
+        return updateBy;
+    }
+
+    public void setUpdateBy(String updateBy) {
+        this.updateBy = updateBy;
     }
 
     public Integer getDeleted() {

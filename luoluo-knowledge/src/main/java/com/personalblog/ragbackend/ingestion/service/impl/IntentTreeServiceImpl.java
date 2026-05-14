@@ -8,7 +8,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.ingestion.service.IntentTreeService;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
+import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IntentNodeMapper;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeUpdateRequest;
@@ -17,6 +19,7 @@ import com.personalblog.ragbackend.rag.core.intent.IntentTreeCacheManager;
 import com.personalblog.ragbackend.rag.core.intent.IntentTreeFactory;
 import com.personalblog.ragbackend.rag.enums.IntentKind;
 import com.personalblog.ragbackend.rag.enums.IntentLevel;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,13 +35,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentNodeEntity> implements IntentTreeService {
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final IntentTreeCacheManager intentTreeCacheManager;
     private static final Gson GSON = new Gson();
-
-    public IntentTreeServiceImpl(IntentTreeCacheManager intentTreeCacheManager) {
-        this.intentTreeCacheManager = intentTreeCacheManager;
-    }
 
     @Override
     public List<IntentNodeTreeVO> getFullTree() {
@@ -76,10 +77,18 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
             throw new IllegalArgumentException("TOPIC level KB intent must provide kbId");
         }
 
+        KnowledgeBaseEntity kbEntity = null;
+        if (StrUtil.isNotBlank(requestParam.getKbId())) {
+            kbEntity = knowledgeBaseMapper.selectById(requestParam.getKbId());
+            if (kbEntity == null || kbEntity.getDeleted() != null && kbEntity.getDeleted() == 1) {
+                throw new IllegalArgumentException("knowledge base not found: " + requestParam.getKbId());
+            }
+        }
+
         IntentNodeEntity node = new IntentNodeEntity();
         node.intentCode = requestParam.getIntentCode();
-        node.kbId = StrUtil.isNotBlank(requestParam.getKbId()) ? Long.valueOf(requestParam.getKbId()) : null;
-        node.collectionName = null;
+        node.kbId = StrUtil.isNotBlank(requestParam.getKbId()) ? requestParam.getKbId() : null;
+        node.collectionName = kbEntity == null ? null : kbEntity.getCollectionName();
         node.name = requestParam.getName();
         node.level = requestParam.getLevel();
         node.parentCode = requestParam.getParentCode();
@@ -90,6 +99,8 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         node.kind = requestParam.getKind() == null ? 0 : requestParam.getKind();
         node.sortOrder = requestParam.getSortOrder() == null ? 0 : requestParam.getSortOrder();
         node.enabled = requestParam.getEnabled() == null ? 1 : requestParam.getEnabled();
+        node.createBy = UserContext.getUsername();
+        node.updateBy = UserContext.getUsername();
         node.paramPromptTemplate = requestParam.getParamPromptTemplate();
         node.promptSnippet = requestParam.getPromptSnippet();
         node.promptTemplate = requestParam.getPromptTemplate();
@@ -99,7 +110,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
 
         this.save(node);
         intentTreeCacheManager.clearIntentTreeCache();
-        return String.valueOf(node.id);
+        return node.id;
     }
 
     @Override
@@ -148,6 +159,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         if (req.getParamPromptTemplate() != null) {
             node.paramPromptTemplate = req.getParamPromptTemplate();
         }
+        node.updateBy = UserContext.getUsername();
         node.updatedAt = java.time.LocalDateTime.now();
         this.updateById(node);
         intentTreeCacheManager.clearIntentTreeCache();
@@ -165,7 +177,10 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
     public void batchEnableNodes(List<String> ids) {
         List<IntentNodeEntity> targetNodes = listAndValidateTargetNodes(ids);
         String operator = UserContext.getUsername();
-        targetNodes.forEach(node -> node.enabled = 1);
+        targetNodes.forEach(node -> {
+            node.enabled = 1;
+            node.updateBy = operator;
+        });
         this.updateBatchById(targetNodes);
         intentTreeCacheManager.clearIntentTreeCache();
     }
@@ -176,18 +191,21 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         List<IntentNodeEntity> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeEntity> allActiveNodes = listActiveNodes();
         Map<String, List<IntentNodeEntity>> childrenMap = buildChildrenMap(allActiveNodes);
-        Set<String> targetIdSet = targetNodes.stream().map(node -> String.valueOf(node.id)).collect(Collectors.toSet());
+        Set<String> targetIdSet = targetNodes.stream().map(node -> node.id).collect(Collectors.toSet());
         for (IntentNodeEntity targetNode : targetNodes) {
             List<IntentNodeEntity> descendants = collectDescendants(targetNode.intentCode, childrenMap);
             List<IntentNodeEntity> enabledButNotSelected = descendants.stream()
-                    .filter(item -> Objects.equals(item.enabled, 1) && !targetIdSet.contains(String.valueOf(item.id)))
+                    .filter(item -> Objects.equals(item.enabled, 1) && !targetIdSet.contains(item.id))
                     .collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(enabledButNotSelected)) {
                 throw new IllegalArgumentException("Cannot disable node with enabled descendants: " + targetNode.name);
             }
         }
         String operator = UserContext.getUsername();
-        targetNodes.forEach(node -> node.enabled = 0);
+        targetNodes.forEach(node -> {
+            node.enabled = 0;
+            node.updateBy = operator;
+        });
         this.updateBatchById(targetNodes);
         intentTreeCacheManager.clearIntentTreeCache();
     }
@@ -198,11 +216,11 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         List<IntentNodeEntity> targetNodes = listAndValidateTargetNodes(ids);
         List<IntentNodeEntity> allActiveNodes = listActiveNodes();
         Map<String, List<IntentNodeEntity>> childrenMap = buildChildrenMap(allActiveNodes);
-        Set<String> targetIdSet = targetNodes.stream().map(node -> String.valueOf(node.id)).collect(Collectors.toSet());
+        Set<String> targetIdSet = targetNodes.stream().map(node -> node.id).collect(Collectors.toSet());
         for (IntentNodeEntity targetNode : targetNodes) {
             List<IntentNodeEntity> descendants = collectDescendants(targetNode.intentCode, childrenMap);
             List<IntentNodeEntity> notSelectedDescendants = descendants.stream()
-                    .filter(item -> !targetIdSet.contains(String.valueOf(item.id)))
+                    .filter(item -> !targetIdSet.contains(item.id))
                     .collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(notSelectedDescendants)) {
                 List<IntentNodeEntity> enabledDescendants = notSelectedDescendants.stream()
@@ -269,7 +287,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
 
     private IntentNodeTreeVO buildTree(IntentNodeEntity current, Map<String, List<IntentNodeEntity>> parentMap) {
         IntentNodeTreeVO result = BeanUtil.toBean(current, IntentNodeTreeVO.class);
-        result.setId(current.id == null ? null : String.valueOf(current.id));
+        result.setId(current.id);
         List<IntentNodeEntity> children = parentMap.getOrDefault(current.intentCode, Collections.emptyList());
         if (!children.isEmpty()) {
             List<IntentNodeTreeVO> childVOs = new ArrayList<>();
@@ -345,5 +363,16 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
 
     private int mapKind(IntentKind kind) {
         return kind == null ? 0 : kind.getCode();
+    }
+
+    private Long parseUserId(String userId) {
+        if (!StrUtil.isNotBlank(userId)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userId.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 }

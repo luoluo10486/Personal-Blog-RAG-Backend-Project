@@ -57,38 +57,38 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final KnowledgeVectorRefMapper knowledgeVectorRefMapper;
     private final KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper;
     private final KnowledgeIngestionEngine knowledgeIngestionEngine;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final KnowledgeDocumentScheduleService knowledgeDocumentScheduleService;
+    private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
     private final RocketMQTemplate rocketMQTemplate;
     private final RemoteFileFetcher remoteFileFetcher;
 
     public KnowledgeDocumentServiceImpl(KnowledgeBaseMapper knowledgeBaseMapper,
                                         KnowledgeDocumentMapper knowledgeDocumentMapper,
-                                        KnowledgeChunkMapper knowledgeChunkMapper,
                                         KnowledgeVectorRefMapper knowledgeVectorRefMapper,
                                         KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper,
                                         KnowledgeIngestionEngine knowledgeIngestionEngine,
                                         KnowledgeVectorSpaceResolver vectorSpaceResolver,
                                         KnowledgeFileStorageService knowledgeFileStorageService,
                                         KnowledgeDocumentScheduleService knowledgeDocumentScheduleService,
+                                        KnowledgeChunkMapper knowledgeChunkMapper,
                                         ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
                                         RocketMQTemplate rocketMQTemplate,
                                         RemoteFileFetcher remoteFileFetcher) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
-        this.knowledgeChunkMapper = knowledgeChunkMapper;
         this.knowledgeVectorRefMapper = knowledgeVectorRefMapper;
         this.knowledgeDocumentChunkLogMapper = knowledgeDocumentChunkLogMapper;
         this.knowledgeIngestionEngine = knowledgeIngestionEngine;
         this.vectorSpaceResolver = vectorSpaceResolver;
         this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.knowledgeDocumentScheduleService = knowledgeDocumentScheduleService;
+        this.knowledgeChunkMapper = knowledgeChunkMapper;
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
         this.rocketMQTemplate = rocketMQTemplate;
         this.remoteFileFetcher = remoteFileFetcher;
@@ -112,7 +112,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         entity.setFileType(file.getContentType());
         entity.setFileSize(file.getSize());
         entity.setProcessMode(blankToNull(requestParam.getProcessMode()));
-        entity.setStatus("running");
+        entity.setStatus("pending");
         entity.setSourceType(blankToNull(requestParam.getSourceType()));
         entity.setSourceLocation(blankToNull(requestParam.getSourceLocation()));
         entity.setScheduleEnabled(Boolean.TRUE.equals(requestParam.getScheduleEnabled()) ? 1 : 0);
@@ -120,8 +120,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         entity.setChunkStrategy(blankToNull(requestParam.getChunkStrategy()));
         entity.setChunkConfig(blankToNull(requestParam.getChunkConfig()));
         entity.setPipelineId(parseLong(requestParam.getPipelineId()));
-        entity.setCreatedBy(null);
-        entity.setUpdatedBy(null);
+        entity.setCreatedBy(parseUserId(UserContext.getUserId()));
+        entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeDocumentMapper.insert(entity);
         knowledgeDocumentScheduleService.syncScheduleIfExists(entity);
         return get(String.valueOf(entity.getId()));
@@ -161,7 +161,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
         MultipartFile file = knowledgeFileStorageService.restore(document.getFileUrl(), document.getDocName(), document.getFileType());
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Document restore failed");
+            return;
         }
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
@@ -186,6 +186,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Transactional
     public void delete(String docId) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        if ("running".equalsIgnoreCase(document.getStatus())) {
+            throw new IllegalArgumentException("document is already running");
+        }
         deleteDocumentArtifacts(document);
         knowledgeDocumentMapper.deleteById(document.getId());
         knowledgeDocumentScheduleService.deleteByDocId(String.valueOf(document.getId()));
@@ -201,6 +204,12 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Transactional
     public void update(String docId, KnowledgeDocumentUpdateRequest requestParam) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        if ("running".equalsIgnoreCase(document.getStatus())) {
+            throw new IllegalArgumentException("document is already running");
+        }
+        if (requestParam == null || !StringUtils.hasText(requestParam.getDocName())) {
+            throw new IllegalArgumentException("document name is required");
+        }
         if (StringUtils.hasText(requestParam.getDocName())) {
             document.setDocName(requestParam.getDocName().trim());
         }
@@ -225,6 +234,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         if (requestParam.getScheduleCron() != null) {
             document.setScheduleCron(blankToNull(requestParam.getScheduleCron()));
         }
+        document.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeDocumentMapper.updateById(document);
         knowledgeDocumentScheduleService.syncScheduleIfExists(document);
     }
@@ -248,6 +258,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     public void enable(String docId, boolean enabled) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        if ("running".equalsIgnoreCase(document.getStatus())) {
+            throw new IllegalArgumentException("document is already running");
+        }
         document.setEnabled(enabled ? 1 : 0);
         knowledgeDocumentMapper.updateById(document);
         knowledgeDocumentScheduleService.syncScheduleIfExists(document);
@@ -255,6 +268,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     @Override
     public List<KnowledgeDocumentSearchVO> search(String keyword, int limit) {
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
         int size = Math.min(Math.max(limit, 1), 20);
         IPage<KnowledgeDocumentEntity> result = knowledgeDocumentMapper.selectPage(
                 new Page<>(1, size),
@@ -385,6 +401,17 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             throw new IllegalArgumentException("document not found");
         }
         return entity;
+    }
+
+    private Long parseUserId(String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(userId.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private Long parseId(String value) {

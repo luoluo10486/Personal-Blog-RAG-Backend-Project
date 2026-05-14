@@ -2,16 +2,18 @@ package com.personalblog.ragbackend.mcp.tools;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.personalblog.ragbackend.mcp.catalog.McpCapabilityCatalog;
-import com.personalblog.ragbackend.knowledge.application.KnowledgeDocumentApplicationService;
-import com.personalblog.ragbackend.knowledge.application.KnowledgeRagApplicationService;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskRequest;
-import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
-import com.personalblog.ragbackend.rag.core.retrieve.KnowledgeRetriever;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
+import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentChunkLogVO;
+import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
+import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
+import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
+import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
+import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
+import com.personalblog.ragbackend.mcp.catalog.McpCapabilityCatalog;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.rag.core.retrieve.KnowledgeRetriever;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,53 +26,48 @@ public class RagMcpTools {
     private static final int DEFAULT_TOP_K = 5;
 
     private final ObjectMapper objectMapper;
-    private final KnowledgeProperties knowledgeProperties;
-    private final KnowledgeRagApplicationService knowledgeRagApplicationService;
+    private final RAGDefaultProperties ragDefaultProperties;
+    private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
     private final KnowledgeRetriever knowledgeRetriever;
     private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
-    private final KnowledgeDocumentApplicationService knowledgeDocumentApplicationService;
     private final McpCapabilityCatalog mcpCapabilityCatalog;
 
     public RagMcpTools(ObjectMapper objectMapper,
-                       KnowledgeProperties knowledgeProperties,
-                       KnowledgeRagApplicationService knowledgeRagApplicationService,
+                       RAGDefaultProperties ragDefaultProperties,
+                       KnowledgeDocumentChunkService knowledgeDocumentChunkService,
                        KnowledgeRetriever knowledgeRetriever,
                        KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
-                       KnowledgeDocumentApplicationService knowledgeDocumentApplicationService,
                        McpCapabilityCatalog mcpCapabilityCatalog) {
         this.objectMapper = objectMapper;
-        this.knowledgeProperties = knowledgeProperties;
-        this.knowledgeRagApplicationService = knowledgeRagApplicationService;
+        this.ragDefaultProperties = ragDefaultProperties;
+        this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
         this.knowledgeRetriever = knowledgeRetriever;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
-        this.knowledgeDocumentApplicationService = knowledgeDocumentApplicationService;
         this.mcpCapabilityCatalog = mcpCapabilityCatalog;
     }
 
     public String getRagStatus() {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("health", knowledgeRagApplicationService.health());
-        payload.put("defaultTopK", knowledgeProperties.getSearch().getTopK());
-        payload.put("topKMultiplier", knowledgeProperties.getSearch().getTopKMultiplier());
-        payload.put("confidenceThreshold", knowledgeProperties.getSearch().getConfidenceThreshold());
-        payload.put("rerankEnabled", knowledgeProperties.getSearch().getRerank().isEnabled());
-        payload.put("vectorType", knowledgeProperties.getVector().getType());
-        payload.put("pgEnabled", knowledgeProperties.getVector().getPg().isEnabled());
-        payload.put("pgSchema", knowledgeProperties.getVector().getPg().getSchema());
-        payload.put("vectorTable", knowledgeProperties.getVector().getPg().getTableName());
-        payload.put("collectionPrefix", knowledgeProperties.getVector().getPg().getCollectionPrefix());
+        payload.put("health", new KnowledgeHealthResponse(
+                true,
+                ragDefaultProperties.getCollectionName(),
+                "pg",
+                ragDefaultProperties.getCollectionName(),
+                null,
+                null
+        ));
+        payload.put("defaultTopK", DEFAULT_TOP_K);
+        payload.put("vectorType", "pg");
+        payload.put("collectionName", ragDefaultProperties.getCollectionName());
+        payload.put("dimension", ragDefaultProperties.getDimension());
         return toJson(payload);
     }
 
-    public String searchKnowledgeBase(
-            String query,
-            Integer topK,
-            String baseCode
-    ) {
+    public String searchKnowledgeBase(String query, Integer topK, String baseCode) {
         requireText(query, "检索问题");
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
-        List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("baseCode", normalizedBaseCode);
@@ -81,43 +78,48 @@ public class RagMcpTools {
         return toJson(payload);
     }
 
-    public String generateKnowledgeAnswer(
-            String query,
-            Integer topK,
-            String baseCode
-    ) {
+    public String generateKnowledgeAnswer(String query, Integer topK, String baseCode) {
         requireText(query, "用户问题");
-        return toJson(knowledgeRagApplicationService.ask(
-                new KnowledgeAskRequest(query, normalizeBaseCode(baseCode), normalizeTopK(topK))
-        ));
-    }
-
-    public String chunkPlainText(
-            String content
-    ) {
-        requireText(content, "需要切块的原始文本内容");
-        DocumentChunkResponse response = knowledgeDocumentApplicationService.chunkText(content);
+        String normalizedBaseCode = normalizeBaseCode(baseCode);
+        KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
+        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        List<KnowledgeCitation> citations = chunks.stream()
+                .map(this::toCitation)
+                .toList();
+        KnowledgeAskResponse response = new KnowledgeAskResponse(
+                buildAnswer(query, chunks),
+                normalizedBaseCode,
+                citations,
+                new KnowledgeTrace(
+                        null,
+                        null,
+                        "mcp-tools",
+                        vectorSpace.vectorType(),
+                        vectorSpace.collectionName(),
+                        normalizeTopK(topK),
+                        query,
+                        query,
+                        List.of("retrieved:" + chunks.size())
+                ),
+                null,
+                null
+        );
         return toJson(response);
     }
 
-    public String previewKnowledgeCitations(
-            String query,
-            Integer topK,
-            String baseCode
-    ) {
+    public String chunkPlainText(String content) {
+        requireText(content, "需要切块的原始文本内容");
+        return toJson(knowledgeDocumentChunkService.chunkText(content));
+    }
+
+    public String previewKnowledgeCitations(String query, Integer topK, String baseCode) {
         requireText(query, "检索问题");
-        List<KnowledgeChunk> chunks = knowledgeRetriever.retrieve(normalizeBaseCode(baseCode), query, normalizeTopK(topK));
-        List<Map<String, Object>> payload = new ArrayList<>();
-        for (KnowledgeChunk chunk : chunks) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("documentId", chunk.documentId());
-            item.put("title", chunk.title());
-            item.put("chunkIndex", chunk.chunkIndex());
-            item.put("score", chunk.score());
-            item.put("content", chunk.content());
-            payload.add(item);
-        }
-        return toJson(payload);
+        String normalizedBaseCode = normalizeBaseCode(baseCode);
+        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        List<KnowledgeCitation> citations = chunks.stream()
+                .map(this::toCitation)
+                .toList();
+        return toJson(citations);
     }
 
     public String describeMcpCapabilities() {
@@ -126,7 +128,7 @@ public class RagMcpTools {
 
     private String normalizeBaseCode(String baseCode) {
         if (baseCode == null || baseCode.isBlank()) {
-            return knowledgeProperties.getDefaultBaseCode();
+            return ragDefaultProperties.getCollectionName();
         }
         return knowledgeVectorSpaceResolver.normalizeBaseCode(baseCode);
     }
@@ -136,6 +138,33 @@ public class RagMcpTools {
             return DEFAULT_TOP_K;
         }
         return Math.max(1, Math.min(20, topK));
+    }
+
+    private KnowledgeCitation toCitation(RetrievedChunk chunk) {
+        if (chunk == null) {
+            return new KnowledgeCitation(null, null, null, 0, 0.0D, null);
+        }
+        return new KnowledgeCitation(
+                chunk.getId(),
+                null,
+                null,
+                0,
+                chunk.getScore() == null ? 0.0D : chunk.getScore(),
+                chunk.getText()
+        );
+    }
+
+    private String buildAnswer(String query, List<RetrievedChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return "未检索到相关知识片段";
+        }
+        RetrievedChunk first = chunks.get(0);
+        String preview = first.getText();
+        if (preview != null && preview.length() > 200) {
+            preview = preview.substring(0, 200) + "...";
+        }
+        return "已检索到 " + chunks.size() + " 条相关知识片段，" +
+                "可优先参考最相关内容：" + (preview == null ? "" : preview);
     }
 
     private String toJson(Object payload) {
