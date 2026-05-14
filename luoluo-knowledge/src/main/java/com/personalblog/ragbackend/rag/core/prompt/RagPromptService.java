@@ -12,6 +12,7 @@ import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -26,23 +27,22 @@ public class RAGPromptService {
         this.promptTemplateLoader = promptTemplateLoader;
     }
 
-    public ChatRequest buildChatRequest(PromptContext context,
-                                        List<ChatMessage> history,
-                                        boolean deepThinking) {
-        return buildChatRequest(context, history, List.of(), deepThinking);
-    }
-
-    public ChatRequest buildChatRequest(PromptContext context,
-                                        List<ChatMessage> history,
-                                        List<String> subQuestions,
-                                        boolean deepThinking) {
-        PromptScene scene = resolveScene(context);
-        return ChatRequest.builder()
-                .messages(buildStructuredMessages(context, history, context == null ? null : context.getQuestion(), subQuestions))
-                .thinking(deepThinking)
-                .temperature(resolveTemperature(scene))
-                .topP(resolveTopP(scene))
-                .build();
+    public String buildSystemPrompt(PromptContext context) {
+        PromptPlan plan = planPrompt(context == null ? List.of() : context.getKbIntents(),
+                context == null ? Map.of() : context.getIntentChunks());
+        String template;
+        if (context == null) {
+            template = "";
+        } else if (context.hasMcp() && !context.hasKb()) {
+            template = resolveMcpOnlyTemplate(context);
+        } else if (!context.hasMcp() && context.hasKb()) {
+            template = plan.getBaseTemplate() != null ? plan.getBaseTemplate() : defaultTemplate(PromptScene.KB_ONLY);
+        } else if (context.hasMcp() && context.hasKb()) {
+            template = defaultTemplate(PromptScene.MIXED);
+        } else {
+            template = "";
+        }
+        return StrUtil.isBlank(template) ? "" : PromptTemplateUtils.cleanupPrompt(template);
     }
 
     public List<ChatMessage> buildStructuredMessages(PromptContext context,
@@ -54,10 +54,10 @@ public class RAGPromptService {
         if (StrUtil.isNotBlank(systemPrompt)) {
             messages.add(ChatMessage.system(systemPrompt));
         }
-        if (context != null && StrUtil.isNotBlank(context.getMcpContext())) {
+        if (StrUtil.isNotBlank(context.getMcpContext())) {
             messages.add(ChatMessage.system(formatEvidence(MCP_CONTEXT_HEADER, context.getMcpContext())));
         }
-        if (context != null && StrUtil.isNotBlank(context.getKbContext())) {
+        if (StrUtil.isNotBlank(context.getKbContext())) {
             messages.add(ChatMessage.user(formatEvidence(KB_CONTEXT_HEADER, context.getKbContext())));
         }
         if (CollUtil.isNotEmpty(history)) {
@@ -76,96 +76,107 @@ public class RAGPromptService {
         return messages;
     }
 
-    private String buildSystemPrompt(PromptContext context) {
-        PromptScene scene = resolveScene(context);
-        String customTemplate = switch (scene) {
-            case KB_ONLY -> resolveSingleIntentTemplate(
-                    context == null ? List.of() : context.getKbIntents(),
-                    context == null ? Map.of() : context.getIntentChunks(),
-                    RAGConstant.RAG_ENTERPRISE_PROMPT_PATH
-            );
-            case MCP_ONLY -> resolveSingleIntentTemplate(
-                    context == null ? List.of() : context.getMcpIntents(),
-                    Map.of(),
-                    RAGConstant.MCP_ONLY_PROMPT_PATH
-            );
-            case MIXED -> promptTemplateLoader.load(RAGConstant.MCP_KB_MIXED_PROMPT_PATH);
-            case EMPTY -> promptTemplateLoader.load(RAGConstant.CHAT_SYSTEM_PROMPT_PATH);
-        };
-        return PromptTemplateUtils.cleanupPrompt(normalizeTemplate(customTemplate));
-    }
-
-    private PromptScene resolveScene(PromptContext context) {
+    private PromptBuildPlan plan(PromptContext context) {
         if (context == null) {
-            return PromptScene.EMPTY;
+            return PromptBuildPlan.builder().scene(PromptScene.EMPTY).build();
         }
-        boolean hasKb = context.hasKb();
-        boolean hasMcp = context.hasMcp();
-        if (hasKb && hasMcp) {
-            return PromptScene.MIXED;
+        if (context.hasMcp() && !context.hasKb()) {
+            return planMcpOnly(context);
         }
-        if (hasMcp) {
-            return PromptScene.MCP_ONLY;
+        if (!context.hasMcp() && context.hasKb()) {
+            return planKbOnly(context);
         }
-        if (hasKb) {
-            return PromptScene.KB_ONLY;
+        if (context.hasMcp() && context.hasKb()) {
+            return planMixed(context);
         }
-        return PromptScene.EMPTY;
+        return PromptBuildPlan.builder().scene(PromptScene.EMPTY).build();
     }
 
-    private String resolveSingleIntentTemplate(List<NodeScore> intents,
-                                               Map<String, List<RetrievedChunk>> intentChunks,
-                                               String defaultPath) {
-        List<NodeScore> retained = retainHitIntents(intents, intentChunks);
-        if (CollUtil.isEmpty(retained) || retained.size() != 1 || retained.get(0) == null || retained.get(0).node() == null) {
-            return promptTemplateLoader.load(defaultPath);
-        }
-        IntentNode node = retained.get(0).node();
-        if (StrUtil.isNotBlank(node.getPromptTemplate())) {
-            return node.getPromptTemplate();
-        }
-        if (StrUtil.isNotBlank(node.getPromptSnippet())) {
-            return node.getPromptSnippet();
-        }
-        return promptTemplateLoader.load(defaultPath);
+    private PromptBuildPlan planKbOnly(PromptContext context) {
+        PromptPlan plan = planPrompt(context.getKbIntents(), context.getIntentChunks());
+        return PromptBuildPlan.builder()
+                .scene(PromptScene.KB_ONLY)
+                .baseTemplate(plan.getBaseTemplate())
+                .mcpContext(context.getMcpContext())
+                .kbContext(context.getKbContext())
+                .question(context.getQuestion())
+                .build();
     }
 
-    private double resolveTemperature(PromptScene scene) {
+    private PromptBuildPlan planMcpOnly(PromptContext context) {
+        List<NodeScore> intents = context.getMcpIntents();
+        String baseTemplate = null;
+        if (CollUtil.isNotEmpty(intents) && intents.size() == 1) {
+            IntentNode node = intents.get(0).node();
+            if (node != null && StrUtil.isNotBlank(node.getPromptTemplate())) {
+                baseTemplate = node.getPromptTemplate();
+            }
+        }
+        return PromptBuildPlan.builder()
+                .scene(PromptScene.MCP_ONLY)
+                .baseTemplate(baseTemplate)
+                .mcpContext(context.getMcpContext())
+                .kbContext(context.getKbContext())
+                .question(context.getQuestion())
+                .build();
+    }
+
+    private PromptBuildPlan planMixed(PromptContext context) {
+        return PromptBuildPlan.builder()
+                .scene(PromptScene.MIXED)
+                .mcpContext(context.getMcpContext())
+                .kbContext(context.getKbContext())
+                .question(context.getQuestion())
+                .build();
+    }
+
+    private String resolveMcpOnlyTemplate(PromptContext context) {
+        List<NodeScore> intents = context.getMcpIntents();
+        if (CollUtil.isNotEmpty(intents) && intents.size() == 1) {
+            IntentNode node = intents.get(0).node();
+            if (node != null && StrUtil.isNotBlank(node.getPromptTemplate())) {
+                return node.getPromptTemplate();
+            }
+        }
+        return defaultTemplate(PromptScene.MCP_ONLY);
+    }
+
+    private PromptPlan planPrompt(List<NodeScore> intents, Map<String, List<RetrievedChunk>> intentChunks) {
+        List<NodeScore> safeIntents = intents == null ? Collections.emptyList() : intents;
+        List<NodeScore> retained = safeIntents.stream()
+                .filter(ns -> {
+                    IntentNode node = ns == null ? null : ns.node();
+                    String key = nodeKey(node);
+                    List<RetrievedChunk> chunks = intentChunks == null ? null : intentChunks.get(key);
+                    return CollUtil.isNotEmpty(chunks);
+                })
+                .toList();
+
+        if (retained.isEmpty()) {
+            return new PromptPlan(Collections.emptyList(), null);
+        }
+        if (retained.size() == 1) {
+            IntentNode only = retained.get(0).node();
+            String tpl = only == null ? "" : StrUtil.emptyIfNull(only.getPromptTemplate()).trim();
+            if (StrUtil.isNotBlank(tpl)) {
+                return new PromptPlan(retained, tpl);
+            }
+            return new PromptPlan(retained, null);
+        }
+        return new PromptPlan(retained, null);
+    }
+
+    private String defaultTemplate(PromptScene scene) {
         return switch (scene) {
-            case MCP_ONLY, MIXED -> 0.3D;
-            case KB_ONLY -> 0D;
-            case EMPTY -> 0.7D;
-        };
-    }
-
-    private double resolveTopP(PromptScene scene) {
-        return switch (scene) {
-            case MCP_ONLY, MIXED -> 0.8D;
-            case KB_ONLY, EMPTY -> 1D;
+            case KB_ONLY -> promptTemplateLoader.load(RAGConstant.RAG_ENTERPRISE_PROMPT_PATH);
+            case MCP_ONLY -> promptTemplateLoader.load(RAGConstant.MCP_ONLY_PROMPT_PATH);
+            case MIXED -> promptTemplateLoader.load(RAGConstant.MCP_KB_MIXED_PROMPT_PATH);
+            case EMPTY -> "";
         };
     }
 
     private String formatEvidence(String header, String body) {
         return header + "\n" + StrUtil.blankToDefault(body, "").trim();
-    }
-
-    private String normalizeTemplate(String template) {
-        if (StrUtil.isBlank(template)) {
-            return "";
-        }
-        return template.replace("\r\n", "\n").trim();
-    }
-
-    private List<NodeScore> retainHitIntents(List<NodeScore> intents, Map<String, List<RetrievedChunk>> intentChunks) {
-        if (CollUtil.isEmpty(intents)) {
-            return List.of();
-        }
-        if (intentChunks == null || intentChunks.isEmpty()) {
-            return intents;
-        }
-        return intents.stream()
-                .filter(intent -> intent != null && intent.node() != null && CollUtil.isNotEmpty(intentChunks.get(nodeKey(intent.node()))))
-                .toList();
     }
 
     private String nodeKey(IntentNode node) {

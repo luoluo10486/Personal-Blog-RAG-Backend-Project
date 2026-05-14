@@ -162,7 +162,6 @@ public class StreamChatPipeline {
             return false;
         }
         StreamChatEventHandler callback = ctx.getCallback();
-        callback.updateEvidenceMetadata(ctx.getBaseCode(), 0);
         callback.onContent("未检索到与问题相关的文档内容。");
         callback.onComplete();
         return true;
@@ -171,28 +170,47 @@ public class StreamChatPipeline {
     private void streamRagResponse(StreamChatContext ctx, RetrievalContext retrievalContext) {
         IntentGroup mergedGroup = intentResolver.mergeIntentGroup(ctx.getSubIntents());
         List<String> subQuestions = ctx.getRewriteResult().subQuestions();
-        ChatRequest chatRequest = promptBuilder.buildChatRequest(
-                PromptContext.builder()
-                        .question(ctx.getRewriteResult().rewrittenQuestion())
-                        .mcpContext(retrievalContext.mcpContext())
-                        .kbContext(retrievalContext.kbContext())
-                        .mcpIntents(mergedGroup.mcpIntents())
-                        .kbIntents(mergedGroup.kbIntents())
-                        .intentChunks(retrievalContext.intentChunks())
-                        .build(),
+        PromptContext promptContext = PromptContext.builder()
+                .question(ctx.getRewriteResult().rewrittenQuestion())
+                .mcpContext(retrievalContext.getMcpContext())
+                .kbContext(retrievalContext.getKbContext())
+                .mcpIntents(mergedGroup.mcpIntents())
+                .kbIntents(mergedGroup.kbIntents())
+                .intentChunks(retrievalContext.getIntentChunks())
+                .build();
+        List<ChatMessage> messages = promptBuilder.buildStructuredMessages(
+                promptContext,
                 ctx.getHistory(),
-                subQuestions,
-                ctx.isDeepThinking()
+                ctx.getRewriteResult().rewrittenQuestion(),
+                subQuestions
         );
-        ctx.getCallback().updateEvidenceMetadata(ctx.getBaseCode(), retrievalContext.allChunks().size());
+        ChatRequest chatRequest = ChatRequest.builder()
+                .messages(messages)
+                .thinking(ctx.isDeepThinking())
+                .temperature(retrievalContext.hasMcp() ? 0.3D : 0D)
+                .topP(retrievalContext.hasMcp() ? 0.8D : 1D)
+                .build();
         LLMService llmService = llmServiceProvider.getIfAvailable();
         if (llmService == null) {
-            ctx.getCallback().onContent(retrievalContext.hasKb() ? retrievalContext.kbContext() : retrievalContext.mcpContext());
+            ctx.getCallback().onContent(retrievalContext.hasKb() ? retrievalContext.getKbContext() : retrievalContext.getMcpContext());
             ctx.getCallback().onComplete();
             return;
         }
         StreamCancellationHandle handle = llmService.streamChat(chatRequest, ctx.getCallback());
         taskManager.bindHandle(ctx.getTaskId(), handle);
+    }
+
+    private int countChunks(RetrievalContext retrievalContext) {
+        if (retrievalContext == null || retrievalContext.getIntentChunks() == null || retrievalContext.getIntentChunks().isEmpty()) {
+            return 0;
+        }
+        return (int) retrievalContext.getIntentChunks().values().stream()
+                .filter(CollUtil::isNotEmpty)
+                .flatMap(List::stream)
+                .filter(chunk -> chunk != null && StrUtil.isNotBlank(chunk.getId()))
+                .map(RetrievedChunk -> RetrievedChunk.getId())
+                .distinct()
+                .count();
     }
 
     private StreamCancellationHandle streamSystemResponse(String question,

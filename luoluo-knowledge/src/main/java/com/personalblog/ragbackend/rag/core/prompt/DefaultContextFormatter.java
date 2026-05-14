@@ -67,10 +67,10 @@ public class DefaultContextFormatter implements ContextFormatter {
                     }
                     StringBuilder block = new StringBuilder();
                     if (StrUtil.isNotBlank(snippet)) {
-                        block.append("#### 回答规则\n").append(snippet).append("\n");
+                        block.append("#### 意图规则\n").append(snippet).append("\n");
                     }
                     block.append("#### 动态数据片段\n").append(body);
-                    return block.toString().trim();
+                    return block.toString();
                 })
                 .filter(StrUtil::isNotBlank)
                 .collect(Collectors.joining("\n\n"));
@@ -79,21 +79,21 @@ public class DefaultContextFormatter implements ContextFormatter {
     private String formatSingleIntentContext(NodeScore nodeScore,
                                              Map<String, List<RetrievedChunk>> rerankedByIntent,
                                              int topK) {
-        String key = nodeKey(nodeScore == null ? null : nodeScore.node());
-        List<RetrievedChunk> chunks = rerankedByIntent.get(key);
+        if (nodeScore == null || nodeScore.node() == null) {
+            return "";
+        }
+        List<RetrievedChunk> chunks = rerankedByIntent.get(nodeScore.node().getId());
         if (CollUtil.isEmpty(chunks)) {
             return "";
         }
-        String snippet = nodeScore != null && nodeScore.node() != null
-                ? StrUtil.emptyIfNull(nodeScore.node().getPromptSnippet()).trim()
-                : "";
+        String snippet = StrUtil.emptyIfNull(nodeScore.node().getPromptSnippet()).trim();
         String body = chunks.stream()
                 .limit(topK)
                 .map(RetrievedChunk::getText)
                 .collect(Collectors.joining("\n"));
         StringBuilder block = new StringBuilder();
         if (StrUtil.isNotBlank(snippet)) {
-            block.append("#### 回答规则\n").append(snippet).append("\n\n");
+            block.append("#### 意图规则\n").append(snippet).append("\n\n");
         }
         block.append("#### 知识库片段\n````text\n").append(body).append("\n````");
         return block.toString();
@@ -112,7 +112,7 @@ public class DefaultContextFormatter implements ContextFormatter {
                 .toList();
 
         if (!snippets.isEmpty()) {
-            result.append("#### 回答规则\n");
+            result.append("#### 意图规则\n");
             for (int i = 0; i < snippets.size(); i++) {
                 result.append(i + 1).append(". ").append(snippets.get(i)).append("\n");
             }
@@ -161,31 +161,34 @@ public class DefaultContextFormatter implements ContextFormatter {
     }
 
     private String mergeResponsesToText(List<MCPResponse> responses) {
-        StringBuilder builder = new StringBuilder();
-        int index = 1;
-        for (MCPResponse response : responses) {
-            if (response.isSuccess() && StrUtil.isNotBlank(response.getTextResult())) {
-                builder.append("[M").append(index++).append("]\n")
-                        .append(response.getTextResult().trim())
-                        .append("\n\n");
-            }
-        }
-        return builder.toString().trim();
-    }
-
-    private String nodeKey(IntentNode node) {
-        if (node == null) {
+        if (responses == null || responses.isEmpty()) {
             return "";
         }
-        if (StrUtil.isNotBlank(node.getId())) {
-            return node.getId();
+
+        List<String> successResults = new ArrayList<>();
+        List<String> errorResults = new ArrayList<>();
+
+        for (MCPResponse response : responses) {
+            if (response.isSuccess() && StrUtil.isNotBlank(response.getTextResult())) {
+                successResults.add(response.getTextResult().trim());
+            } else if (!response.isSuccess()) {
+                errorResults.add(String.format("工具 %s 调用失败: %s",
+                        response.getToolId(), response.getErrorMessage()));
+            }
         }
-        if (StrUtil.isNotBlank(node.getIntentCode())) {
-            return node.getIntentCode().trim();
+
+        StringBuilder sb = new StringBuilder();
+        if (!successResults.isEmpty()) {
+            for (String result : successResults) {
+                sb.append(result).append("\n\n");
+            }
         }
-        if (StrUtil.isNotBlank(node.getCollectionName())) {
-            return node.getCollectionName().trim();
+        if (!errorResults.isEmpty()) {
+            sb.append("【部分查询失败】\n");
+            for (String error : errorResults) {
+                sb.append("- ").append(error).append("\n");
+            }
         }
-        return StrUtil.blankToDefault(node.getName(), "").trim();
+        return sb.toString().trim();
     }
 }
