@@ -2,7 +2,6 @@ package com.personalblog.ragbackend.knowledge.service.admin;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseCreateRequest;
@@ -25,20 +24,17 @@ import java.util.stream.Collectors;
 
 @Service
 public class KnowledgeBaseAdminService {
-    private final KnowledgeProperties knowledgeProperties;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeAdminSupport support;
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider;
 
-    public KnowledgeBaseAdminService(KnowledgeProperties knowledgeProperties,
-                                     KnowledgeBaseMapper knowledgeBaseMapper,
+    public KnowledgeBaseAdminService(KnowledgeBaseMapper knowledgeBaseMapper,
                                      KnowledgeDocumentMapper knowledgeDocumentMapper,
                                      KnowledgeAdminSupport support,
                                      KnowledgeFileStorageService knowledgeFileStorageService,
                                      ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider) {
-        this.knowledgeProperties = knowledgeProperties;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.support = support;
@@ -145,7 +141,7 @@ public class KnowledgeBaseAdminService {
         }
         VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
         if (vectorStoreAdmin != null
-                && vectorStoreAdmin.vectorSpaceExists(null, collectionName)
+                && vectorStoreAdmin.vectorSpaceExists(null)
                 && existing == null) {
             throw new IllegalArgumentException("collection already occupied");
         }
@@ -155,7 +151,7 @@ public class KnowledgeBaseAdminService {
         if (StringUtils.hasText(embeddingModel)) {
             return embeddingModel.trim();
         }
-        return knowledgeProperties.getDefaults().getEmbeddingModel();
+        return "Qwen/Qwen3-Embedding-8B";
     }
 
     private String requireText(String value, String message) {

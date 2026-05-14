@@ -11,13 +11,13 @@ public class RagRateLimitProperties {
     @Value("${rag.rate-limit.global.enabled:true}")
     private Boolean globalEnabled;
 
-    @Value("${rag.rate-limit.global.max-concurrent:50}")
+    @Value("${rag.rate-limit.global.max-concurrent:1}")
     private Integer globalMaxConcurrent;
 
-    @Value("${rag.rate-limit.global.max-wait-seconds:20}")
+    @Value("${rag.rate-limit.global.max-wait-seconds:3}")
     private Integer globalMaxWaitSeconds;
 
-    @Value("${rag.rate-limit.global.lease-seconds:600}")
+    @Value("${rag.rate-limit.global.lease-seconds:30}")
     private Integer globalLeaseSeconds;
 
     @Value("${rag.rate-limit.global.poll-interval-ms:200}")

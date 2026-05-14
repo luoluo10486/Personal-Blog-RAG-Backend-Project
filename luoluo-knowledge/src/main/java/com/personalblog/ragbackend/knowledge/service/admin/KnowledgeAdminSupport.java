@@ -2,8 +2,8 @@ package com.personalblog.ragbackend.knowledge.service.admin;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
@@ -30,10 +30,13 @@ import java.util.stream.Collectors;
 
 @Component
 public class KnowledgeAdminSupport {
-    private final KnowledgeProperties knowledgeProperties;
+    private static final String DEFAULT_COLLECTION_PREFIX = "kb_";
+    private static final int DEFAULT_CHUNK_SIZE = 512;
+    private static final int DEFAULT_CHUNK_OVERLAP = 128;
+    private final RAGDefaultProperties ragDefaultProperties;
 
-    public KnowledgeAdminSupport(KnowledgeProperties knowledgeProperties) {
-        this.knowledgeProperties = knowledgeProperties;
+    public KnowledgeAdminSupport(RAGDefaultProperties ragDefaultProperties) {
+        this.ragDefaultProperties = ragDefaultProperties;
     }
 
     public <T> Page<T> newPage(long current, long size) {
@@ -158,10 +161,10 @@ public class KnowledgeAdminSupport {
     public String defaultCollectionName(String name) {
         String normalized = normalizeCode(name);
         if (!StringUtils.hasText(normalized)
-                || normalized.equals(knowledgeProperties.getDefaultBaseCode())) {
-            return knowledgeProperties.getDefaults().getCollectionName();
+                || normalized.equals(ragDefaultProperties.getCollectionName())) {
+            return ragDefaultProperties.getCollectionName();
         }
-        return knowledgeProperties.getVector().getPg().getCollectionPrefix() + normalized;
+        return DEFAULT_COLLECTION_PREFIX + normalized;
     }
 
     public String defaultChunkConfig(String strategy) {
@@ -169,8 +172,8 @@ public class KnowledgeAdminSupport {
         ChunkingMode mode = ChunkingMode.from(strategy);
         payload.put("strategy", mode.getValue());
         if (mode == ChunkingMode.FIXED_SIZE) {
-            payload.put("chunkSize", knowledgeProperties.getChunking().getChunkSize());
-            payload.put("overlapSize", knowledgeProperties.getChunking().getChunkOverlap());
+            payload.put("chunkSize", DEFAULT_CHUNK_SIZE);
+            payload.put("overlapSize", DEFAULT_CHUNK_OVERLAP);
         } else {
             payload.put("targetChars", 1400);
             payload.put("overlapChars", 0);

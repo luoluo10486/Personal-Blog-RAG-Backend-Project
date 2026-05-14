@@ -6,7 +6,6 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.chat.StreamCancellationHandle;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
@@ -43,7 +42,6 @@ public class StreamChatPipeline {
     private final RAGPromptService promptBuilder;
     private final PromptTemplateLoader promptTemplateLoader;
     private final StreamTaskManager taskManager;
-    private final KnowledgeProperties knowledgeProperties;
 
     public StreamChatPipeline(ConversationMemoryService memoryService,
                               QueryRewriteService queryRewriteService,
@@ -53,8 +51,7 @@ public class StreamChatPipeline {
                               ObjectProvider<LLMService> llmServiceProvider,
                               RAGPromptService promptBuilder,
                               PromptTemplateLoader promptTemplateLoader,
-                              StreamTaskManager taskManager,
-                              KnowledgeProperties knowledgeProperties) {
+                              StreamTaskManager taskManager) {
         this.memoryService = memoryService;
         this.queryRewriteService = queryRewriteService;
         this.intentResolver = intentResolver;
@@ -64,7 +61,6 @@ public class StreamChatPipeline {
         this.promptBuilder = promptBuilder;
         this.promptTemplateLoader = promptTemplateLoader;
         this.taskManager = taskManager;
-        this.knowledgeProperties = knowledgeProperties;
     }
 
     @RagTraceNode(name = "stream-chat-pipeline", type = "PIPELINE")
@@ -241,7 +237,7 @@ public class StreamChatPipeline {
     }
 
     private int resolveTopK(List<SubQuestionIntent> subIntents, int fallbackTopK) {
-        int defaultTopK = fallbackTopK > 0 ? fallbackTopK : knowledgeProperties.getSearch().getTopK();
+        int defaultTopK = fallbackTopK > 0 ? fallbackTopK : 10;
         return subIntents.stream()
                 .flatMap(intent -> intent.nodeScores().stream())
                 .map(NodeScore::node)

@@ -2,7 +2,6 @@ package com.personalblog.ragbackend.knowledge.service.vector;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.service.vector.model.KnowledgeVectorDocument;
 import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -24,14 +23,13 @@ public class PgVectorStoreService implements VectorStoreService {
     };
 
     private final JdbcTemplate jdbcTemplate;
-    private final KnowledgeProperties knowledgeProperties;
+    private static final String SCHEMA = "public";
+    private static final String TABLE_NAME = "t_knowledge_vector";
     private final ObjectMapper objectMapper;
 
     public PgVectorStoreService(JdbcTemplate jdbcTemplate,
-                                KnowledgeProperties knowledgeProperties,
                                 ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
-        this.knowledgeProperties = knowledgeProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -139,9 +137,9 @@ public class PgVectorStoreService implements VectorStoreService {
     }
 
     private String qualifiedTable() {
-        return identifier(knowledgeProperties.getVector().getPg().getSchema())
+        return identifier(SCHEMA)
                 + "."
-                + identifier(knowledgeProperties.getVector().getPg().getTableName());
+                + identifier(TABLE_NAME);
     }
 
     private String identifier(String value) {

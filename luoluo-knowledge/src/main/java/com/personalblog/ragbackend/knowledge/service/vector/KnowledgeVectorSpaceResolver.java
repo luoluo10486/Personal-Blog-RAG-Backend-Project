@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.knowledge.service.vector;
 
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,17 +11,21 @@ import org.springframework.util.StringUtils;
 
 @Component
 public class KnowledgeVectorSpaceResolver {
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
+    private final SearchChannelProperties searchChannelProperties;
     private final ObjectProvider<KnowledgeBaseMapper> knowledgeBaseMapperProvider;
 
-    public KnowledgeVectorSpaceResolver(KnowledgeProperties knowledgeProperties) {
-        this(knowledgeProperties, null);
+    public KnowledgeVectorSpaceResolver(RAGDefaultProperties ragDefaultProperties,
+                                        SearchChannelProperties searchChannelProperties) {
+        this(ragDefaultProperties, searchChannelProperties, null);
     }
 
     @Autowired
-    public KnowledgeVectorSpaceResolver(KnowledgeProperties knowledgeProperties,
+    public KnowledgeVectorSpaceResolver(RAGDefaultProperties ragDefaultProperties,
+                                        SearchChannelProperties searchChannelProperties,
                                         ObjectProvider<KnowledgeBaseMapper> knowledgeBaseMapperProvider) {
-        this.knowledgeProperties = knowledgeProperties;
+        this.ragDefaultProperties = ragDefaultProperties;
+        this.searchChannelProperties = searchChannelProperties;
         this.knowledgeBaseMapperProvider = knowledgeBaseMapperProvider;
     }
 
@@ -30,11 +35,11 @@ public class KnowledgeVectorSpaceResolver {
             return new KnowledgeVectorSpace(
                     new KnowledgeVectorSpaceId(String.valueOf(knowledgeBase.getId()), resolveNamespace()),
                     knowledgeBase.getCollectionName(),
-                    knowledgeProperties.getVector().getType(),
+                    resolveVectorType(),
                     StringUtils.hasText(knowledgeBase.getEmbeddingModel())
                             ? knowledgeBase.getEmbeddingModel().trim()
-                            : knowledgeProperties.getDefaults().getEmbeddingModel(),
-                    knowledgeProperties.getDefaults().getDimension()
+                            : "Qwen/Qwen3-Embedding-8B",
+                    ragDefaultProperties.getDimension()
             );
         }
 
@@ -42,14 +47,14 @@ public class KnowledgeVectorSpaceResolver {
         return new KnowledgeVectorSpace(
                 new KnowledgeVectorSpaceId(normalizedBaseCode, resolveNamespace()),
                 resolveCollectionName(normalizedBaseCode),
-                knowledgeProperties.getVector().getType(),
-                knowledgeProperties.getDefaults().getEmbeddingModel(),
-                knowledgeProperties.getDefaults().getDimension()
+                resolveVectorType(),
+                "Qwen/Qwen3-Embedding-8B",
+                ragDefaultProperties.getDimension()
         );
     }
 
     public String normalizeBaseCode(String baseCode) {
-        String fallback = knowledgeProperties.getDefaultBaseCode();
+        String fallback = ragDefaultProperties.getCollectionName();
         if (baseCode == null || baseCode.isBlank()) {
             return fallback;
         }
@@ -60,10 +65,10 @@ public class KnowledgeVectorSpaceResolver {
     }
 
     private String resolveCollectionName(String normalizedBaseCode) {
-        if (knowledgeProperties.getDefaultBaseCode().equals(normalizedBaseCode)) {
-            return knowledgeProperties.getDefaults().getCollectionName();
+        if (ragDefaultProperties.getCollectionName() != null && ragDefaultProperties.getCollectionName().equals(normalizedBaseCode)) {
+            return ragDefaultProperties.getCollectionName();
         }
-        return knowledgeProperties.getVector().getPg().getCollectionPrefix() + normalizedBaseCode;
+        return "kb_" + normalizedBaseCode;
     }
 
     private KnowledgeBaseEntity findKnowledgeBase(String baseCode) {
@@ -102,20 +107,20 @@ public class KnowledgeVectorSpaceResolver {
     }
 
     private String resolveNamespace() {
-        String vectorType = knowledgeProperties.getVector().getType();
+        String vectorType = resolveVectorType();
         if (vectorType == null || vectorType.isBlank()) {
             return "";
         }
         if ("milvus".equalsIgnoreCase(vectorType)) {
-            return blankToEmpty(knowledgeProperties.getVector().getMilvus().getDatabaseName());
+            return "default";
         }
-        if ("pgvector".equalsIgnoreCase(vectorType) || "pg".equalsIgnoreCase(vectorType)) {
-            return blankToEmpty(knowledgeProperties.getVector().getPg().getSchema());
+        if ("pg".equalsIgnoreCase(vectorType)) {
+            return "public";
         }
         return "";
     }
 
-    private String blankToEmpty(String value) {
-        return value == null ? "" : value.trim();
+    private String resolveVectorType() {
+        return "pg";
     }
 }

@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.knowledge.service.vector;
 
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,17 +10,17 @@ import org.springframework.stereotype.Component;
 @ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
 public class PgVectorStoreAdmin implements VectorStoreAdmin {
     private final JdbcTemplate jdbcTemplate;
-    private final KnowledgeProperties knowledgeProperties;
+    private static final String SCHEMA = "public";
+    private static final String TABLE_NAME = "t_knowledge_vector";
 
-    public PgVectorStoreAdmin(JdbcTemplate jdbcTemplate, KnowledgeProperties knowledgeProperties) {
+    public PgVectorStoreAdmin(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
-        this.knowledgeProperties = knowledgeProperties;
     }
 
     @Override
     public void ensureVectorSpace(KnowledgeVectorSpace vectorSpace) {
-        String schema = identifier(knowledgeProperties.getVector().getPg().getSchema());
-        String table = identifier(knowledgeProperties.getVector().getPg().getTableName());
+        String schema = identifier(SCHEMA);
+        String table = identifier(TABLE_NAME);
         String qualifiedTable = schema + "." + table;
         jdbcTemplate.execute("create schema if not exists " + schema);
         jdbcTemplate.execute("create extension if not exists vector");
@@ -67,9 +66,9 @@ public class PgVectorStoreAdmin implements VectorStoreAdmin {
     }
 
     @Override
-    public boolean vectorSpaceExists(KnowledgeVectorSpaceId spaceId, String collectionName) {
-        String schema = knowledgeProperties.getVector().getPg().getSchema();
-        String tableName = knowledgeProperties.getVector().getPg().getTableName();
+    public boolean vectorSpaceExists(KnowledgeVectorSpaceId spaceId) {
+        String schema = SCHEMA;
+        String tableName = TABLE_NAME;
         Integer count = jdbcTemplate.queryForObject("""
                 select count(*)
                 from information_schema.tables

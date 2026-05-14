@@ -5,8 +5,8 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.rag.config.RagRateLimitProperties;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.dto.stream.CompletionPayload;
 import com.personalblog.ragbackend.knowledge.dto.stream.MessageDelta;
 import com.personalblog.ragbackend.knowledge.dto.stream.MetaPayload;
@@ -57,7 +57,7 @@ public class ChatQueueLimiter {
     private final RedissonClient redissonClient;
     private final RagRateLimitProperties rateLimitProperties;
     private final RagConversationService ragConversationService;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
     @Qualifier("chatEntryExecutor")
     private final Executor chatEntryExecutor;
     private final String claimLua = loadLuaScript();
@@ -297,7 +297,7 @@ public class ChatQueueLimiter {
                 actualConversationId,
                 question,
                 REJECT_MESSAGE,
-                knowledgeProperties.getDefaultBaseCode(),
+                ragDefaultProperties.getCollectionName(),
                 0
         );
         String title = result == null ? null : result.conversationTitle();

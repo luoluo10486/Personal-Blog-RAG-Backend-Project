@@ -7,7 +7,8 @@ import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
 import com.personalblog.ragbackend.infra.config.AIModelProperties;
 import com.personalblog.ragbackend.rag.aop.ChatRateLimit;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.service.pipeline.StreamChatContext;
 import com.personalblog.ragbackend.rag.service.pipeline.StreamChatPipeline;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
@@ -18,20 +19,20 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class RAGChatServiceImpl implements RAGChatService {
     private final StreamChatPipeline chatPipeline;
     private final AIModelProperties aiModelProperties;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
     private final StreamTaskManager streamTaskManager;
     private final RagConversationService ragConversationService;
     private final StreamCallbackFactory streamCallbackFactory;
 
     public RAGChatServiceImpl(StreamChatPipeline chatPipeline,
                               AIModelProperties aiModelProperties,
-                              KnowledgeProperties knowledgeProperties,
+                              RAGDefaultProperties ragDefaultProperties,
                               StreamTaskManager streamTaskManager,
                               RagConversationService ragConversationService,
                               StreamCallbackFactory streamCallbackFactory) {
         this.chatPipeline = chatPipeline;
         this.aiModelProperties = aiModelProperties;
-        this.knowledgeProperties = knowledgeProperties;
+        this.ragDefaultProperties = ragDefaultProperties;
         this.streamTaskManager = streamTaskManager;
         this.ragConversationService = ragConversationService;
         this.streamCallbackFactory = streamCallbackFactory;
@@ -56,7 +57,7 @@ public class RAGChatServiceImpl implements RAGChatService {
                         ragConversationService,
                         loginUser,
                         question,
-                        knowledgeProperties.getDefaultBaseCode(),
+                        ragDefaultProperties.getCollectionName(),
                         0,
                         Math.max(1, aiModelProperties.getStream().getMessageChunkSize()),
                         streamTaskManager,
@@ -71,8 +72,8 @@ public class RAGChatServiceImpl implements RAGChatService {
                 .deepThinking(Boolean.TRUE.equals(deepThinking))
                 .userId(resolveUserId(userIdText))
                 .userIdText(userIdText)
-                .baseCode(knowledgeProperties.getDefaultBaseCode())
-                .topK(knowledgeProperties.getSearch().getTopK())
+                .baseCode(ragDefaultProperties.getCollectionName())
+                .topK(RAGConstant.DEFAULT_TOP_K)
                 .callback(callback)
                 .build();
 

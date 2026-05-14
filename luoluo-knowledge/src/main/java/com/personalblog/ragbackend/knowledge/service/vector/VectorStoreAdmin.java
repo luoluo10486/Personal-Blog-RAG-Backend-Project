@@ -4,5 +4,5 @@ public interface VectorStoreAdmin {
 
     void ensureVectorSpace(KnowledgeVectorSpace vectorSpace);
 
-    boolean vectorSpaceExists(KnowledgeVectorSpaceId spaceId, String collectionName);
+    boolean vectorSpaceExists(KnowledgeVectorSpaceId spaceId);
 }

@@ -6,7 +6,6 @@ import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
@@ -16,6 +15,7 @@ import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
 import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -26,18 +26,18 @@ import java.util.List;
 
 @Service
 public class RagQueryPipeline {
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
     private final QueryRewriteService queryRewriteService;
     private final RagIntentResolver ragIntentResolver;
     private final IntentGuidanceService guidanceService;
     private final ObjectProvider<LLMService> llmServiceProvider;
 
-    public RagQueryPipeline(KnowledgeProperties knowledgeProperties,
+    public RagQueryPipeline(RAGDefaultProperties ragDefaultProperties,
                             QueryRewriteService queryRewriteService,
                             RagIntentResolver ragIntentResolver,
                             IntentGuidanceService guidanceService,
                             ObjectProvider<LLMService> llmServiceProvider) {
-        this.knowledgeProperties = knowledgeProperties;
+        this.ragDefaultProperties = ragDefaultProperties;
         this.queryRewriteService = queryRewriteService;
         this.ragIntentResolver = ragIntentResolver;
         this.guidanceService = guidanceService;
@@ -63,7 +63,7 @@ public class RagQueryPipeline {
                     question,
                     rewriteResult.rewrittenQuestion(),
                     normalizedBaseCode,
-                    knowledgeProperties.getSearch().getTopK(),
+                    10,
                     subIntents,
                     ragIntentResolver.mergeIntentGroup(subIntents),
                     guidanceDecision,
@@ -82,7 +82,7 @@ public class RagQueryPipeline {
                     question,
                     rewriteResult.rewrittenQuestion(),
                     normalizedBaseCode,
-                    knowledgeProperties.getSearch().getTopK(),
+                    10,
                     subIntents,
                     intentGroup,
                     guidanceDecision,
@@ -173,7 +173,7 @@ public class RagQueryPipeline {
 
     private int selectTopK(IntentGroup intentGroup) {
         if (intentGroup == null || CollUtil.isEmpty(intentGroup.kbIntents())) {
-            return knowledgeProperties.getSearch().getTopK();
+            return 10;
         }
         return intentGroup.kbIntents().stream()
                 .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
@@ -181,12 +181,12 @@ public class RagQueryPipeline {
                 .filter(node -> node != null && node.topK != null && node.topK > 0)
                 .mapToInt(node -> node.topK)
                 .findFirst()
-                .orElse(knowledgeProperties.getSearch().getTopK());
+                .orElse(10);
     }
 
     private String normalizeBaseCode(String baseCode) {
         if (StrUtil.isBlank(baseCode)) {
-            return knowledgeProperties.getDefaultBaseCode();
+            return ragDefaultProperties.getCollectionName();
         }
         return baseCode.trim();
     }

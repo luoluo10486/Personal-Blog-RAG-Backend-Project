@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
 import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingStrategyFactory;
 import com.personalblog.ragbackend.knowledge.core.chunk.TextChunkingOptions;
@@ -14,12 +13,9 @@ import java.util.Map;
 
 @Service
 public class KnowledgeDocumentChunkService {
-    private final KnowledgeProperties knowledgeProperties;
     private final ChunkingStrategyFactory chunkingStrategyFactory;
 
-    public KnowledgeDocumentChunkService(KnowledgeProperties knowledgeProperties,
-                                         ChunkingStrategyFactory chunkingStrategyFactory) {
-        this.knowledgeProperties = knowledgeProperties;
+    public KnowledgeDocumentChunkService(ChunkingStrategyFactory chunkingStrategyFactory) {
         this.chunkingStrategyFactory = chunkingStrategyFactory;
     }
 
@@ -51,7 +47,7 @@ public class KnowledgeDocumentChunkService {
                                               Map<String, String> metadata,
                                               int contentLength,
                                               TextChunkingOptions options) {
-        ChunkingMode mode = ChunkingMode.from(knowledgeProperties.getChunking().getStrategy());
+        ChunkingMode mode = ChunkingMode.STRUCTURE_AWARE;
         List<DocumentChunk> chunks = chunkingStrategyFactory.requireStrategy(mode).chunk(content, options);
         return DocumentChunkResponse.success(
                 mimeType,
@@ -65,10 +61,10 @@ public class KnowledgeDocumentChunkService {
     }
 
     private TextChunkingOptions buildChunkingOptions() {
-        int targetChunkSize = Math.max(1, knowledgeProperties.getChunking().getChunkSize());
-        int overlapSize = Math.max(0, knowledgeProperties.getChunking().getChunkOverlap());
+        int targetChunkSize = 512;
+        int overlapSize = 128;
         int maxChunkSize = Math.max(targetChunkSize, targetChunkSize + Math.max(overlapSize, 300));
-        int maxChunkCount = Math.max(1, knowledgeProperties.getChunking().getMaxChunkCount());
+        int maxChunkCount = 1000;
         return new TextChunkingOptions(targetChunkSize, maxChunkSize, overlapSize, maxChunkCount);
     }
 }

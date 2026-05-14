@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.personalblog.ragbackend.common.context.UserContext;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseCreateRequest;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseUpdateRequest;
@@ -16,7 +15,10 @@ import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeBaseService;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
+import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
+import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceId;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,22 +30,22 @@ import java.util.stream.Collectors;
 
 @Service
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
-    private final KnowledgeProperties knowledgeProperties;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider;
+    private final RAGDefaultProperties ragDefaultProperties;
 
-    public KnowledgeBaseServiceImpl(KnowledgeProperties knowledgeProperties,
-                                    KnowledgeBaseMapper knowledgeBaseMapper,
+    public KnowledgeBaseServiceImpl(KnowledgeBaseMapper knowledgeBaseMapper,
                                     KnowledgeDocumentMapper knowledgeDocumentMapper,
                                     KnowledgeFileStorageService knowledgeFileStorageService,
-                                    ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider) {
-        this.knowledgeProperties = knowledgeProperties;
+                                    ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider,
+                                    RAGDefaultProperties ragDefaultProperties) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.vectorStoreAdminProvider = vectorStoreAdminProvider;
+        this.ragDefaultProperties = ragDefaultProperties;
     }
 
     @Override
@@ -52,20 +54,30 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String name = requireText(requestParam.getName(), "knowledge base name is required");
         String collectionName = StringUtils.hasText(requestParam.getCollectionName())
                 ? requestParam.getCollectionName().trim()
-                : knowledgeProperties.getDefaults().getCollectionName();
+                : "rag_default_store";
         assertCollectionAvailable(collectionName, null);
 
         KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
         entity.setName(name);
         entity.setEmbeddingModel(StringUtils.hasText(requestParam.getEmbeddingModel())
                 ? requestParam.getEmbeddingModel().trim()
-                : knowledgeProperties.getDefaults().getEmbeddingModel());
+                : "Qwen/Qwen3-Embedding-8B");
         entity.setCollectionName(collectionName);
         entity.setCreatedBy(null);
         entity.setUpdatedBy(null);
         entity.setDeleted(0);
         knowledgeBaseMapper.insert(entity);
         knowledgeFileStorageService.ensureBucketExists(knowledgeFileStorageService.resolveBucketName(collectionName));
+        VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
+        if (vectorStoreAdmin != null) {
+            vectorStoreAdmin.ensureVectorSpace(new KnowledgeVectorSpace(
+                    new KnowledgeVectorSpaceId(collectionName, "public"),
+                    collectionName,
+                    "pg",
+                    entity.getEmbeddingModel(),
+                    ragDefaultProperties.getDimension() == null ? 1536 : ragDefaultProperties.getDimension()
+            ));
+        }
         return String.valueOf(entity.getId());
     }
 
@@ -156,8 +168,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public List<ChunkStrategyVO> listChunkStrategies() {
         return List.of(
-                new ChunkStrategyVO("structure-aware", "Structure Aware", java.util.Map.of("strategy", 1)),
-                new ChunkStrategyVO("fixed-size", "Fixed Size", java.util.Map.of("strategy", 1))
+                new ChunkStrategyVO("structure_aware", "结构感知", java.util.Map.of("targetChars", 1400, "overlapChars", 0, "maxChars", 1800, "minChars", 600)),
+                new ChunkStrategyVO("fixed_size", "固定大小", java.util.Map.of("chunkSize", 512, "overlapSize", 128))
         );
     }
 
@@ -192,7 +204,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
         VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
         if (vectorStoreAdmin != null
-                && vectorStoreAdmin.vectorSpaceExists(null, collectionName)
+                && vectorStoreAdmin.vectorSpaceExists(null)
                 && existing == null) {
             throw new IllegalArgumentException("collection already occupied");
         }

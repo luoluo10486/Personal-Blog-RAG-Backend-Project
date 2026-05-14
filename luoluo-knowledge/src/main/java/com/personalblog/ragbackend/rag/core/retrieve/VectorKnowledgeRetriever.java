@@ -2,7 +2,8 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
@@ -20,20 +21,23 @@ import java.util.Map;
 
 @Service
 public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
+    private final SearchChannelProperties searchChannelProperties;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
     private final ObjectProvider<EmbeddingService> embeddingServiceProvider;
     private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
     private final ObjectProvider<KnowledgeChunkMapper> knowledgeChunkMapperProvider;
     private final ObjectProvider<KnowledgeDocumentMapper> knowledgeDocumentMapperProvider;
 
-    public VectorKnowledgeRetriever(KnowledgeProperties knowledgeProperties,
+    public VectorKnowledgeRetriever(RAGDefaultProperties ragDefaultProperties,
+                                    SearchChannelProperties searchChannelProperties,
                                     KnowledgeVectorSpaceResolver vectorSpaceResolver,
                                     ObjectProvider<EmbeddingService> embeddingServiceProvider,
                                     ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
                                     ObjectProvider<KnowledgeChunkMapper> knowledgeChunkMapperProvider,
                                     ObjectProvider<KnowledgeDocumentMapper> knowledgeDocumentMapperProvider) {
-        this.knowledgeProperties = knowledgeProperties;
+        this.ragDefaultProperties = ragDefaultProperties;
+        this.searchChannelProperties = searchChannelProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
         this.embeddingServiceProvider = embeddingServiceProvider;
         this.vectorStoreServiceProvider = vectorStoreServiceProvider;
@@ -53,7 +57,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
 
     @Override
     public boolean isEnabled(RetrieveRequest request) {
-        return knowledgeProperties.isEnabled()
+        return true
                 && embeddingServiceProvider.getIfAvailable() != null
                 && vectorStoreServiceProvider.getIfAvailable() != null
                 && request.question() != null
@@ -73,7 +77,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
             KnowledgeVectorSpace vectorSpace = vectorSpaceResolver.resolve(request.baseCode());
             int candidateLimit = Math.max(
                     request.topK(),
-                    request.topK() * Math.max(knowledgeProperties.getSearch().getTopKMultiplier(), 1)
+                    request.topK() * Math.max(searchChannelProperties.getChannels().getVectorGlobal().getTopKMultiplier(), 1)
             );
             List<Float> queryVector = embeddingService.embed(request.question());
             List<VectorSearchHit> hits = vectorStoreService.search(vectorSpace, queryVector, request.topK(), candidateLimit);

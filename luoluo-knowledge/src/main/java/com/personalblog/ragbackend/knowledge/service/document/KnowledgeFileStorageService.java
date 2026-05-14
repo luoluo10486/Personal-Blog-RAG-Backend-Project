@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.knowledge.config.RustfsProperties;
 import org.apache.tika.Tika;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,14 +25,15 @@ import java.util.UUID;
 @Service
 public class KnowledgeFileStorageService {
     private static final Tika TIKA = new Tika();
+    private static final String DEFAULT_BUCKET_PREFIX = "knowledge";
 
     private final S3Client s3Client;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RustfsProperties rustfsProperties;
 
     public KnowledgeFileStorageService(S3Client s3Client,
-                                       KnowledgeProperties knowledgeProperties) {
+                                       RustfsProperties rustfsProperties) {
         this.s3Client = s3Client;
-        this.knowledgeProperties = knowledgeProperties;
+        this.rustfsProperties = rustfsProperties;
     }
 
     public String store(MultipartFile file, String collectionName, String docName) {
@@ -99,10 +100,10 @@ public class KnowledgeFileStorageService {
     }
 
     public String resolveBucketName(String collectionName) {
-        String prefix = sanitizeBucketSegment(knowledgeProperties.getStorage().getBucketPrefix());
+        String prefix = sanitizeBucketSegment(DEFAULT_BUCKET_PREFIX);
         String source = StringUtils.hasText(collectionName)
                 ? collectionName
-                : knowledgeProperties.getDefaultBaseCode();
+                : "rag_default_store";
         String segment = sanitizeBucketSegment(source);
         String candidate = prefix + "-" + segment;
         if (candidate.length() <= 63) {

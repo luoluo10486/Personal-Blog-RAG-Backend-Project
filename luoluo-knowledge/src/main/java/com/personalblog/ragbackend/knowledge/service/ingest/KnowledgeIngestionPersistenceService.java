@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.knowledge.service.ingest;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
@@ -17,6 +16,7 @@ import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentChunkLogMap
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeVectorRefMapper;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +37,10 @@ import java.util.Map;
 @Service
 @ConditionalOnBean(DataSource.class)
 public class KnowledgeIngestionPersistenceService {
-    private final KnowledgeProperties knowledgeProperties;
+    private static final String DEFAULT_CHUNK_STRATEGY = "structure_aware";
+    private static final int DEFAULT_CHUNK_SIZE = 512;
+    private static final int DEFAULT_CHUNK_OVERLAP = 128;
+    private static final int DEFAULT_MAX_CHUNK_COUNT = 1000;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
@@ -46,7 +49,7 @@ public class KnowledgeIngestionPersistenceService {
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final ObjectMapper objectMapper;
 
-    public KnowledgeIngestionPersistenceService(KnowledgeProperties knowledgeProperties,
+    public KnowledgeIngestionPersistenceService(RAGDefaultProperties ignored,
                                                 KnowledgeBaseMapper knowledgeBaseMapper,
                                                 KnowledgeDocumentMapper knowledgeDocumentMapper,
                                                 KnowledgeChunkMapper knowledgeChunkMapper,
@@ -54,7 +57,6 @@ public class KnowledgeIngestionPersistenceService {
                                                 KnowledgeDocumentChunkLogMapper knowledgeDocumentChunkLogMapper,
                                                 KnowledgeFileStorageService knowledgeFileStorageService,
                                                 ObjectMapper objectMapper) {
-        this.knowledgeProperties = knowledgeProperties;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeChunkMapper = knowledgeChunkMapper;
@@ -255,7 +257,7 @@ public class KnowledgeIngestionPersistenceService {
         entity.setContentHash(contentHash);
         entity.setScheduleEnabled(0);
         entity.setScheduleCron(null);
-        entity.setChunkStrategy(knowledgeProperties.getChunking().getStrategy());
+        entity.setChunkStrategy(DEFAULT_CHUNK_STRATEGY);
         entity.setChunkConfig(buildChunkConfigJson());
         entity.setPipelineId(null);
     }
@@ -268,7 +270,7 @@ public class KnowledgeIngestionPersistenceService {
         entity.setDocId(context.getDocumentId());
         entity.setStatus(status);
         entity.setProcessMode(context.getPlan() == null ? null : "pipeline");
-        entity.setChunkStrategy(context.getPlan() == null ? null : context.getPlan().chunkingOptions() == null ? null : knowledgeProperties.getChunking().getStrategy());
+        entity.setChunkStrategy(context.getPlan() == null ? null : context.getPlan().chunkingOptions() == null ? null : DEFAULT_CHUNK_STRATEGY);
         entity.setPipelineId(null);
         entity.setChunkCount(context.getPersistedChunks().size());
         entity.setErrorMessage(errorMessage);
@@ -299,10 +301,10 @@ public class KnowledgeIngestionPersistenceService {
 
     private String buildChunkConfigJson() {
         Map<String, Object> config = new LinkedHashMap<>();
-        config.put("strategy", knowledgeProperties.getChunking().getStrategy());
-        config.put("chunkSize", knowledgeProperties.getChunking().getChunkSize());
-        config.put("chunkOverlap", knowledgeProperties.getChunking().getChunkOverlap());
-        config.put("maxChunkCount", knowledgeProperties.getChunking().getMaxChunkCount());
+        config.put("strategy", DEFAULT_CHUNK_STRATEGY);
+        config.put("chunkSize", DEFAULT_CHUNK_SIZE);
+        config.put("chunkOverlap", DEFAULT_CHUNK_OVERLAP);
+        config.put("maxChunkCount", DEFAULT_MAX_CHUNK_COUNT);
         return writeJson(config);
     }
 

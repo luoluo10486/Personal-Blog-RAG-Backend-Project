@@ -1,7 +1,8 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
+import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
+import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -24,14 +25,17 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
     private static final int MAX_QUERY_TOKENS = 8;
 
     private final JdbcTemplate jdbcTemplate;
-    private final KnowledgeProperties knowledgeProperties;
+    private final RAGDefaultProperties ragDefaultProperties;
+    private final SearchChannelProperties searchChannelProperties;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
 
     public JdbcKnowledgeRetriever(JdbcTemplate jdbcTemplate,
-                                  KnowledgeProperties knowledgeProperties,
+                                  RAGDefaultProperties ragDefaultProperties,
+                                  SearchChannelProperties searchChannelProperties,
                                   KnowledgeVectorSpaceResolver vectorSpaceResolver) {
         this.jdbcTemplate = jdbcTemplate;
-        this.knowledgeProperties = knowledgeProperties;
+        this.ragDefaultProperties = ragDefaultProperties;
+        this.searchChannelProperties = searchChannelProperties;
         this.vectorSpaceResolver = vectorSpaceResolver;
     }
 
@@ -47,7 +51,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
 
     @Override
     public boolean isEnabled(RetrieveRequest request) {
-        return knowledgeProperties.isEnabled();
+        return true;
     }
 
     @Override
@@ -61,7 +65,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
         String baseCode = request.baseCode();
         String question = request.question();
         int topK = request.topK();
-        if (!knowledgeProperties.isEnabled() || question == null || question.isBlank()) {
+        if (question == null || question.isBlank()) {
             return List.of();
         }
 
@@ -102,7 +106,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
         appendBaseFilter(sql, params, baseCode);
         appendTokenFilter(sql, params, tokens);
         sql.append(" order by c.update_time desc limit ?");
-        params.add(Math.max(topK * Math.max(knowledgeProperties.getSearch().getTopKMultiplier(), 1), topK));
+        params.add(Math.max(topK * Math.max(searchChannelProperties.getChannels().getVectorGlobal().getTopKMultiplier(), 1), topK));
 
         return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> RetrievedChunk.builder()
                 .id(String.valueOf(rs.getLong("chunk_id")))
@@ -179,7 +183,7 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
 
     private String normalizeBaseCode(String baseCode) {
         if (baseCode == null || baseCode.isBlank()) {
-            return knowledgeProperties.getDefaultBaseCode();
+            return ragDefaultProperties.getCollectionName();
         }
         return baseCode.trim();
     }
