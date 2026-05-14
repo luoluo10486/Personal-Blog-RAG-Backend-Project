@@ -1,14 +1,14 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.SearchResultPostProcessor;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -29,8 +29,8 @@ public class KnowledgeRetrievalEngine {
     }
 
     @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
-    public List<KnowledgeChunk> retrieve(RetrieveRequest request) {
-        List<KnowledgeChunk> processed = retrieveCandidates(request);
+    public List<RetrievedChunk> retrieve(RetrieveRequest request) {
+        List<RetrievedChunk> processed = retrieveCandidates(request);
         for (SearchResultPostProcessor processor : postProcessors) {
             if (!processor.isEnabled(request)) {
                 continue;
@@ -40,12 +40,12 @@ public class KnowledgeRetrievalEngine {
         return processed.stream().limit(request.topK()).toList();
     }
 
-    private List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
+    private List<RetrievedChunk> retrieveCandidates(RetrieveRequest request) {
         if (candidateRetrievers.isEmpty()) {
             return List.of();
         }
 
-        List<KnowledgeChunk> merged = new ArrayList<>();
+        List<RetrievedChunk> merged = new ArrayList<>();
         int enabledCount = 0;
         for (KnowledgeCandidateRetriever retriever : candidateRetrievers) {
             if (!retriever.isEnabled(request)) {
@@ -53,7 +53,7 @@ public class KnowledgeRetrievalEngine {
             }
             enabledCount++;
             try {
-                List<KnowledgeChunk> candidates = retriever.retrieveCandidates(request);
+                List<RetrievedChunk> candidates = retriever.retrieveCandidates(request);
                 if (candidates == null || candidates.isEmpty()) {
                     continue;
                 }
@@ -68,7 +68,7 @@ public class KnowledgeRetrievalEngine {
         }
 
         return merged.stream()
-                .sorted(Comparator.comparingDouble(KnowledgeChunk::score).reversed())
+                .sorted(Comparator.comparingDouble((RetrievedChunk chunk) -> chunk.getScore() == null ? 0D : chunk.getScore()).reversed())
                 .toList();
     }
 }

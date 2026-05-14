@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -17,28 +17,23 @@ public class PgRetrieverService implements RetrieverService {
     private final EmbeddingService embeddingService;
 
     @Override
-    public List<KnowledgeChunk> retrieve(RetrieveRequest request) {
+    public List<RetrievedChunk> retrieve(RetrieveRequest request) {
         List<Float> embedding = embeddingService.embed(request.question());
         float[] vector = normalize(toArray(embedding));
         return retrieveByVector(vector, request);
     }
 
     @Override
-    public List<KnowledgeChunk> retrieveByVector(float[] vector, RetrieveRequest request) {
+    public List<RetrievedChunk> retrieveByVector(float[] vector, RetrieveRequest request) {
         jdbcTemplate.execute("SET hnsw.ef_search = 200");
         String vectorLiteral = toVectorLiteral(vector);
         return jdbcTemplate.query(
                 "SELECT id, content, 1 - (embedding <=> ?::vector) AS score FROM t_knowledge_vector WHERE metadata->>'collection_name' = ? ORDER BY embedding <=> ?::vector LIMIT ?",
-                (rs, rowNum) -> new KnowledgeChunk(
-                        String.valueOf(rs.getLong("id")),
-                        request.collectionName(),
-                        "",
-                        "",
-                        "",
-                        0,
-                        rs.getString("content"),
-                        rs.getFloat("score")
-                ),
+                (rs, rowNum) -> RetrievedChunk.builder()
+                        .id(String.valueOf(rs.getLong("id")))
+                        .text(rs.getString("content"))
+                        .score(rs.getFloat("score"))
+                        .build(),
                 vectorLiteral,
                 request.collectionName(),
                 vectorLiteral,

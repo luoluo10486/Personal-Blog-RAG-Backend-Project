@@ -15,6 +15,10 @@ public class RetrievedChunk {
         this.score = score;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public String getId() {
         return id;
     }
@@ -37,5 +41,30 @@ public class RetrievedChunk {
 
     public void setScore(Float score) {
         this.score = score;
+    }
+
+    public static final class Builder {
+        private String id;
+        private String text;
+        private Float score;
+
+        public Builder id(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder text(String text) {
+            this.text = text;
+            return this;
+        }
+
+        public Builder score(Float score) {
+            this.score = score;
+            return this;
+        }
+
+        public RetrievedChunk build() {
+            return new RetrievedChunk(id, text, score);
+        }
     }
 }

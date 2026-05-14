@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 
 import java.util.List;
 
@@ -16,5 +16,5 @@ public interface KnowledgeCandidateRetriever {
         return true;
     }
 
-    List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request);
+    List<RetrievedChunk> retrieveCandidates(RetrieveRequest request);
 }

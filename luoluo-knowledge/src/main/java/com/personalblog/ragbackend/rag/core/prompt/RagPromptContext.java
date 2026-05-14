@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.rag.core.prompt;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 
 import java.util.List;
@@ -10,16 +10,16 @@ import java.util.Map;
 
 public record RagPromptContext(
         String question,
-        List<KnowledgeChunk> chunks,
+        List<RetrievedChunk> chunks,
         List<NodeScore> kbIntents,
         List<NodeScore> mcpIntents,
         String mcpContext,
         List<String> subQuestions,
         String kbContext,
-        Map<String, List<KnowledgeChunk>> intentChunks
+        Map<String, List<RetrievedChunk>> intentChunks
 ) {
     public RagPromptContext(String question,
-                            List<KnowledgeChunk> chunks,
+                            List<RetrievedChunk> chunks,
                             List<NodeScore> kbIntents,
                             List<NodeScore> mcpIntents,
                             String mcpContext,

@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.rag.core.retrieve.postprocessor;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.rerank.RerankService;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -40,7 +39,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
     }
 
     @Override
-    public List<KnowledgeChunk> process(List<KnowledgeChunk> chunks, RetrieveRequest request) {
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, RetrieveRequest request) {
         if (chunks.isEmpty()) {
             return chunks;
         }
@@ -51,34 +50,14 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
         }
 
         try {
-            Map<String, KnowledgeChunk> byId = new LinkedHashMap<>();
+            Map<String, RetrievedChunk> byId = new LinkedHashMap<>();
             List<RetrievedChunk> candidates = chunks.stream()
-                    .peek(chunk -> byId.put(chunk.id(), chunk))
-                    .map(chunk -> new RetrievedChunk(chunk.id(), chunk.content(), (float) chunk.score()))
+                    .peek(chunk -> byId.put(chunk.getId(), chunk))
                     .toList();
 
-            return rerankService.rerank(request.question(), candidates, request.topK()).stream()
-                    .map(result -> toKnowledgeChunk(byId.get(result.getId()), result.getScore()))
-                    .filter(Objects::nonNull)
-                    .toList();
+            return rerankService.rerank(request.question(), candidates, request.topK());
         } catch (RuntimeException ex) {
             return chunks.stream().limit(request.topK()).toList();
         }
-    }
-
-    private KnowledgeChunk toKnowledgeChunk(KnowledgeChunk source, Float score) {
-        if (source == null) {
-            return null;
-        }
-        return new KnowledgeChunk(
-                source.id(),
-                source.baseCode(),
-                source.documentId(),
-                source.title(),
-                source.sourceUrl(),
-                source.chunkIndex(),
-                source.content(),
-                score == null ? source.score() : score
-        );
     }
 }

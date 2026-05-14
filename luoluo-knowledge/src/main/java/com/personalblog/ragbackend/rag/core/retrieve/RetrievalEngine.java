@@ -2,18 +2,18 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
-import com.personalblog.ragbackend.rag.core.prompt.KnowledgeContextFormatter;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.mcp.MCPParameterExtractor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPRequest;
 import com.personalblog.ragbackend.rag.core.mcp.MCPResponse;
+import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
-import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.McpContextFormatter;
+import com.personalblog.ragbackend.rag.core.prompt.KnowledgeContextFormatter;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -77,7 +77,7 @@ public class RetrievalEngine {
 
         StringBuilder kbBuilder = new StringBuilder();
         StringBuilder mcpBuilder = new StringBuilder();
-        Map<String, List<KnowledgeChunk>> mergedIntentChunks = new LinkedHashMap<>();
+        Map<String, List<RetrievedChunk>> mergedIntentChunks = new LinkedHashMap<>();
         for (SubQuestionContext context : contexts) {
             if (StrUtil.isNotBlank(context.kbContext())) {
                 appendSection(kbBuilder, context.question(), context.kbContext());
@@ -122,12 +122,12 @@ public class RetrievalEngine {
                                        String fallbackBaseCode,
                                        int topK) {
         String baseCode = selectBaseCode(fallbackBaseCode, kbIntents);
-        List<KnowledgeChunk> chunks = knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, question, topK));
+        List<RetrievedChunk> chunks = knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, question, topK));
         if (CollUtil.isEmpty(chunks)) {
             return KbResult.empty();
         }
 
-        Map<String, List<KnowledgeChunk>> intentChunks = new LinkedHashMap<>();
+        Map<String, List<RetrievedChunk>> intentChunks = new LinkedHashMap<>();
         if (CollUtil.isEmpty(kbIntents)) {
             intentChunks.put("multi_channel", chunks);
         } else {
@@ -153,11 +153,11 @@ public class RetrievalEngine {
     }
 
     private List<MCPResponse> executeMcpTools(String question,
-                                                   List<NodeScore> mcpIntents,
-                                                   String baseCode,
-                                                   int topK,
-                                                   String conversationId,
-                                                   String userId) {
+                                              List<NodeScore> mcpIntents,
+                                              String baseCode,
+                                              int topK,
+                                              String conversationId,
+                                              String userId) {
         List<CompletableFuture<MCPResponse>> futures = mcpIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
                         () -> executeSingleMcpTool(question, intent, baseCode, topK, conversationId, userId),
@@ -171,11 +171,11 @@ public class RetrievalEngine {
     }
 
     private MCPResponse executeSingleMcpTool(String question,
-                                                  NodeScore intent,
-                                                  String baseCode,
-                                                  int topK,
-                                                  String conversationId,
-                                                  String userId) {
+                                             NodeScore intent,
+                                             String baseCode,
+                                             int topK,
+                                             String conversationId,
+                                             String userId) {
         RagIntentNode node = intent == null ? null : intent.node();
         if (node == null || StrUtil.isBlank(node.mcpToolId)) {
             return MCPResponse.error("", "MISSING_TOOL", "Missing MCP tool id");
@@ -264,7 +264,7 @@ public class RetrievalEngine {
         return "";
     }
 
-    private record KbResult(String context, Map<String, List<KnowledgeChunk>> intentChunks) {
+    private record KbResult(String context, Map<String, List<RetrievedChunk>> intentChunks) {
         private static KbResult empty() {
             return new KbResult("", Map.of());
         }
@@ -273,6 +273,6 @@ public class RetrievalEngine {
     private record SubQuestionContext(String question,
                                       String kbContext,
                                       String mcpContext,
-                                      Map<String, List<KnowledgeChunk>> intentChunks) {
+                                      Map<String, List<RetrievedChunk>> intentChunks) {
     }
 }

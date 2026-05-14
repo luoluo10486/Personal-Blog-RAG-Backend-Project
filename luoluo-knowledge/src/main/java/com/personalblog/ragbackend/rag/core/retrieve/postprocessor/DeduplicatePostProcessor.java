@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.core.retrieve.postprocessor;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
 import org.springframework.stereotype.Component;
 
@@ -22,15 +22,15 @@ public class DeduplicatePostProcessor implements SearchResultPostProcessor {
     }
 
     @Override
-    public List<KnowledgeChunk> process(List<KnowledgeChunk> chunks, RetrieveRequest request) {
-        Map<String, KnowledgeChunk> deduplicated = new LinkedHashMap<>();
-        for (KnowledgeChunk chunk : chunks) {
-            String key = chunk.id();
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, RetrieveRequest request) {
+        Map<String, RetrievedChunk> deduplicated = new LinkedHashMap<>();
+        for (RetrievedChunk chunk : chunks) {
+            String key = chunk.getId();
             if (key == null || key.isBlank()) {
-                key = chunk.documentId() + "#" + chunk.chunkIndex();
+                key = chunk.getText() == null ? "" : String.valueOf(chunk.getText().hashCode());
             }
-            KnowledgeChunk existing = deduplicated.get(key);
-            if (existing == null || chunk.score() > existing.score()) {
+            RetrievedChunk existing = deduplicated.get(key);
+            if (existing == null || (chunk.getScore() != null && (existing.getScore() == null || chunk.getScore() > existing.getScore()))) {
                 deduplicated.put(key, chunk);
             }
         }

@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +16,7 @@ public class CompositeKnowledgeRetriever implements KnowledgeRetriever {
     }
 
     @Override
-    public List<KnowledgeChunk> retrieve(String baseCode, String question, int topK) {
+    public List<RetrievedChunk> retrieve(String baseCode, String question, int topK) {
         return knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, question, topK));
     }
 }

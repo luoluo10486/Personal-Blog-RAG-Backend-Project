@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.rag.core.prompt;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import org.springframework.stereotype.Service;
@@ -17,32 +17,30 @@ public class KnowledgeContextFormatter {
     private static final int MAX_KB_CONTEXT_CHARS = 6000;
     private static final int MAX_MCP_CONTEXT_CHARS = 4000;
 
-    public String formatKbContext(List<NodeScore> kbIntents, List<KnowledgeChunk> chunks) {
+    public String formatKbContext(List<NodeScore> kbIntents, List<RetrievedChunk> chunks) {
         if (CollUtil.isEmpty(chunks)) {
             return "";
         }
         StringBuilder builder = new StringBuilder();
         List<String> snippets = collectPromptSnippets(kbIntents);
         if (!snippets.isEmpty()) {
-            builder.append("### 回答规则\n");
+            builder.append("### 鍥炵瓟瑙勫垯\n");
             for (int i = 0; i < snippets.size(); i++) {
                 builder.append(i + 1).append(". ").append(snippets.get(i)).append("\n");
             }
             builder.append("\n");
         }
-        builder.append("### 文档内容\n");
+        builder.append("### 鏂囨。鍐呭\n");
         int usedChars = 0;
         for (int index = 0; index < chunks.size(); index++) {
-            KnowledgeChunk chunk = chunks.get(index);
-            String content = safeTruncate(chunk.content(), 1200);
+            RetrievedChunk chunk = chunks.get(index);
+            String content = safeTruncate(chunk.getText(), 1200);
             usedChars += content.length();
             if (usedChars > MAX_KB_CONTEXT_CHARS) {
                 break;
             }
             builder.append("[K").append(index + 1).append("] ")
-                    .append(StrUtil.blankToDefault(chunk.title(), ""))
-                    .append(" / chunk ").append(chunk.chunkIndex())
-                    .append(" / score ").append(String.format("%.4f", chunk.score()))
+                    .append("score ").append(String.format("%.4f", chunk.getScore() == null ? 0D : chunk.getScore()))
                     .append("\n")
                     .append(content)
                     .append("\n\n");
@@ -54,7 +52,7 @@ public class KnowledgeContextFormatter {
         if (StrUtil.isBlank(mcpContext)) {
             return "";
         }
-        return "### 动态数据片段\n" + safeTruncate(mcpContext, MAX_MCP_CONTEXT_CHARS);
+        return "### 鍔ㄦ€佹暟鎹墖娈礬n" + safeTruncate(mcpContext, MAX_MCP_CONTEXT_CHARS);
     }
 
     private List<String> collectPromptSnippets(List<NodeScore> kbIntents) {

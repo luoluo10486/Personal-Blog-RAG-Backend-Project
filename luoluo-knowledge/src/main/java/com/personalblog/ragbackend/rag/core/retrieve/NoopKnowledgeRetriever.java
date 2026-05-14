@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,12 +18,12 @@ public class NoopKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
     }
 
     @Override
-    public List<KnowledgeChunk> retrieve(String baseCode, String question, int topK) {
+    public List<RetrievedChunk> retrieve(String baseCode, String question, int topK) {
         return retrieveCandidates(new RetrieveRequest(baseCode, question, topK));
     }
 
     @Override
-    public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
+    public List<RetrievedChunk> retrieveCandidates(RetrieveRequest request) {
         return List.of();
     }
 }

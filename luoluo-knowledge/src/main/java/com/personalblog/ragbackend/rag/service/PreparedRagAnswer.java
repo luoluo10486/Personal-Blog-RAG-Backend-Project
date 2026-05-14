@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.rag.service;
 
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
@@ -19,7 +19,7 @@ public record PreparedRagAnswer(
         List<ChatMessage> memory,
         RagQueryPlan plan,
         IntentGroup intentGroup,
-        List<KnowledgeChunk> chunks,
+        List<RetrievedChunk> chunks,
         List<KnowledgeCitation> citations,
         String mcpContext,
         KnowledgeTrace trace

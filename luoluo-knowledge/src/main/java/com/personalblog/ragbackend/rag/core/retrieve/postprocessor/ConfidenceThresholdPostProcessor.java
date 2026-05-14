@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.rag.core.retrieve.postprocessor;
 
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
 import org.springframework.stereotype.Component;
 
@@ -26,9 +26,9 @@ public class ConfidenceThresholdPostProcessor implements SearchResultPostProcess
     }
 
     @Override
-    public List<KnowledgeChunk> process(List<KnowledgeChunk> chunks, RetrieveRequest request) {
-        List<KnowledgeChunk> filtered = chunks.stream()
-                .filter(chunk -> chunk.score() >= knowledgeProperties.getSearch().getConfidenceThreshold())
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, RetrieveRequest request) {
+        List<RetrievedChunk> filtered = chunks.stream()
+                .filter(chunk -> chunk.getScore() != null && chunk.getScore() >= knowledgeProperties.getSearch().getConfidenceThreshold())
                 .toList();
         if (filtered.isEmpty()) {
             return chunks.stream().limit(request.topK()).toList();

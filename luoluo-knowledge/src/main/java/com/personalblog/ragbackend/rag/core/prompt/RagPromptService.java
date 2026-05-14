@@ -4,105 +4,109 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.intent.IntentNode;
+import com.personalblog.ragbackend.rag.core.intent.NodeScore;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Service
-public class RagPromptService {
-    private static final String CHAT_SYSTEM_PROMPT_PATH = "prompt/answer-chat-system.st";
-    private static final String KB_PROMPT_PATH = "prompt/answer-chat-kb.st";
-    private static final String MCP_PROMPT_PATH = "prompt/answer-chat-mcp.st";
-    private static final String MIXED_PROMPT_PATH = "prompt/answer-chat-mcp-kb-mixed.st";
+@RequiredArgsConstructor
+public class RAGPromptService {
+    private static final String MCP_CONTEXT_HEADER = "## 动态数据片段";
+    private static final String KB_CONTEXT_HEADER = "## 文档内容";
 
     private final PromptTemplateLoader promptTemplateLoader;
-    private final KnowledgeContextFormatter knowledgeContextFormatter;
 
-    public RagPromptService(PromptTemplateLoader promptTemplateLoader,
-                            KnowledgeContextFormatter knowledgeContextFormatter) {
-        this.promptTemplateLoader = promptTemplateLoader;
-        this.knowledgeContextFormatter = knowledgeContextFormatter;
-    }
-
-    public ChatRequest buildChatRequest(RagPromptContext promptContext,
+    public ChatRequest buildChatRequest(PromptContext context,
                                         List<ChatMessage> history,
                                         boolean deepThinking) {
-        PromptScene scene = resolveScene(promptContext);
+        return buildChatRequest(context, history, List.of(), deepThinking);
+    }
+
+    public ChatRequest buildChatRequest(PromptContext context,
+                                        List<ChatMessage> history,
+                                        List<String> subQuestions,
+                                        boolean deepThinking) {
+        PromptScene scene = resolveScene(context);
         return ChatRequest.builder()
-                .messages(buildStructuredMessages(promptContext, history, scene))
+                .messages(buildStructuredMessages(context, history, scene, subQuestions))
                 .thinking(deepThinking)
                 .temperature(resolveTemperature(scene))
                 .topP(resolveTopP(scene))
                 .build();
     }
 
-    public List<ChatMessage> buildStructuredMessages(RagPromptContext promptContext,
-                                                     List<ChatMessage> history) {
-        return buildStructuredMessages(promptContext, history, resolveScene(promptContext));
+    public List<ChatMessage> buildStructuredMessages(PromptContext context,
+                                                     List<ChatMessage> history,
+                                                     String question,
+                                                     List<String> subQuestions) {
+        return buildStructuredMessages(context, history, resolveScene(context), question, subQuestions);
     }
 
-    private List<ChatMessage> buildStructuredMessages(RagPromptContext promptContext,
+    private List<ChatMessage> buildStructuredMessages(PromptContext context,
                                                       List<ChatMessage> history,
-                                                      PromptScene scene) {
+                                                      PromptScene scene,
+                                                      String question,
+                                                      List<String> subQuestions) {
         List<ChatMessage> messages = new ArrayList<>();
-        String systemPrompt = buildSystemPrompt(promptContext, scene);
+        String systemPrompt = buildSystemPrompt(context, scene);
         if (StrUtil.isNotBlank(systemPrompt)) {
             messages.add(ChatMessage.system(systemPrompt));
         }
-
-        String mcpContext = knowledgeContextFormatter.formatMcpContext(promptContext.mcpContext());
-        if (StrUtil.isNotBlank(mcpContext)) {
-            messages.add(ChatMessage.system(formatEvidence("## 动态数据片段", mcpContext)));
+        if (context != null && StrUtil.isNotBlank(context.getMcpContext())) {
+            messages.add(ChatMessage.system(formatEvidence(MCP_CONTEXT_HEADER, context.getMcpContext())));
         }
-
-        String kbContext = StrUtil.isNotBlank(promptContext.kbContext())
-                ? promptContext.kbContext()
-                : knowledgeContextFormatter.formatKbContext(promptContext.kbIntents(), promptContext.chunks());
-        if (StrUtil.isNotBlank(kbContext)) {
-            messages.add(ChatMessage.user(formatEvidence("## 文档内容", kbContext)));
+        if (context != null && StrUtil.isNotBlank(context.getKbContext())) {
+            messages.add(ChatMessage.user(formatEvidence(KB_CONTEXT_HEADER, context.getKbContext())));
         }
-
         if (CollUtil.isNotEmpty(history)) {
             messages.addAll(history);
         }
-
-        String userPrompt = buildUserPrompt(promptContext);
-        if (StrUtil.isNotBlank(userPrompt)) {
-            messages.add(ChatMessage.user(userPrompt));
+        if (CollUtil.isNotEmpty(subQuestions) && subQuestions.size() > 1) {
+            StringBuilder userMessage = new StringBuilder();
+            userMessage.append("请基于上述文档内容，回答以下问题：\n\n");
+            for (int i = 0; i < subQuestions.size(); i++) {
+                userMessage.append(i + 1).append(". ").append(subQuestions.get(i)).append("\n");
+            }
+            messages.add(ChatMessage.user(userMessage.toString().trim()));
+        } else if (StrUtil.isNotBlank(question)) {
+            messages.add(ChatMessage.user(question));
         }
         return messages;
     }
 
-    private String buildUserPrompt(RagPromptContext promptContext) {
-        if (promptContext.hasSubQuestions() && promptContext.subQuestions().size() > 1) {
-            StringBuilder builder = new StringBuilder();
-            builder.append("请基于上述文档内容，回答以下问题：\n\n");
-            for (int i = 0; i < promptContext.subQuestions().size(); i++) {
-                builder.append(i + 1).append(". ").append(promptContext.subQuestions().get(i)).append("\n");
-            }
-            return builder.toString().trim();
-        }
-        return StrUtil.blankToDefault(promptContext.question(), "");
-    }
-
-    private String buildSystemPrompt(RagPromptContext promptContext, PromptScene scene) {
+    private String buildSystemPrompt(PromptContext context, PromptScene scene) {
         String customTemplate = switch (scene) {
-            case KB_ONLY -> resolveSingleIntentTemplate(promptContext.kbIntents(), promptContext.intentChunks(), KB_PROMPT_PATH);
-            case MCP_ONLY -> resolveSingleIntentTemplate(promptContext.mcpIntents(), java.util.Map.of(), MCP_PROMPT_PATH);
-            case MIXED -> promptTemplateLoader.load(MIXED_PROMPT_PATH);
-            case EMPTY -> promptTemplateLoader.load(CHAT_SYSTEM_PROMPT_PATH);
+            case KB_ONLY -> resolveSingleIntentTemplate(
+                    context == null ? List.of() : context.getKbIntents(),
+                    context == null ? Map.of() : context.getIntentChunks(),
+                    RAGConstant.RAG_ENTERPRISE_PROMPT_PATH
+            );
+            case MCP_ONLY -> resolveSingleIntentTemplate(
+                    context == null ? List.of() : context.getMcpIntents(),
+                    Map.of(),
+                    RAGConstant.MCP_ONLY_PROMPT_PATH
+            );
+            case MIXED -> promptTemplateLoader.load(RAGConstant.MCP_KB_MIXED_PROMPT_PATH);
+            case EMPTY -> promptTemplateLoader.load(RAGConstant.CHAT_SYSTEM_PROMPT_PATH);
         };
         return normalizeTemplate(customTemplate);
     }
 
-    private PromptScene resolveScene(RagPromptContext promptContext) {
-        if (promptContext == null) {
+    private PromptScene resolveScene(PromptContext context) {
+        if (context == null) {
             return PromptScene.EMPTY;
         }
-        boolean hasKb = promptContext.hasKb();
-        boolean hasMcp = promptContext.hasMcp();
+        boolean hasKb = context.hasKb();
+        boolean hasMcp = context.hasMcp();
         if (hasKb && hasMcp) {
             return PromptScene.MIXED;
         }
@@ -115,19 +119,19 @@ public class RagPromptService {
         return PromptScene.EMPTY;
     }
 
-    private String resolveSingleIntentTemplate(List<com.personalblog.ragbackend.rag.core.intent.NodeScore> intents,
-                                               java.util.Map<String, List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk>> intentChunks,
+    private String resolveSingleIntentTemplate(List<NodeScore> intents,
+                                               Map<String, List<RetrievedChunk>> intentChunks,
                                                String defaultPath) {
-        List<com.personalblog.ragbackend.rag.core.intent.NodeScore> retained = retainHitIntents(intents, intentChunks);
+        List<NodeScore> retained = retainHitIntents(intents, intentChunks);
         if (CollUtil.isEmpty(retained) || retained.size() != 1 || retained.get(0) == null || retained.get(0).node() == null) {
             return promptTemplateLoader.load(defaultPath);
         }
-        var node = retained.get(0).node();
-        if (StrUtil.isNotBlank(node.promptTemplate)) {
-            return node.promptTemplate;
+        IntentNode node = retained.get(0).node();
+        if (StrUtil.isNotBlank(node.getPromptTemplate())) {
+            return node.getPromptTemplate();
         }
-        if (StrUtil.isNotBlank(node.promptSnippet)) {
-            return node.promptSnippet;
+        if (StrUtil.isNotBlank(node.getPromptSnippet())) {
+            return node.getPromptSnippet();
         }
         return promptTemplateLoader.load(defaultPath);
     }
@@ -158,9 +162,7 @@ public class RagPromptService {
         return template.replace("\r\n", "\n").trim();
     }
 
-    private List<com.personalblog.ragbackend.rag.core.intent.NodeScore> retainHitIntents(
-            List<com.personalblog.ragbackend.rag.core.intent.NodeScore> intents,
-            java.util.Map<String, List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk>> intentChunks) {
+    private List<NodeScore> retainHitIntents(List<NodeScore> intents, Map<String, List<RetrievedChunk>> intentChunks) {
         if (CollUtil.isEmpty(intents)) {
             return List.of();
         }
@@ -172,33 +174,25 @@ public class RagPromptService {
                     if (intent == null || intent.node() == null) {
                         return false;
                     }
-                    List<com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk> chunks =
-                            intentChunks.get(nodeKey(intent.node()));
+                    List<RetrievedChunk> chunks = intentChunks.get(nodeKey(intent.node()));
                     return CollUtil.isNotEmpty(chunks);
                 })
                 .toList();
     }
 
-    private String nodeKey(com.personalblog.ragbackend.rag.core.intent.RagIntentNode node) {
+    private String nodeKey(IntentNode node) {
         if (node == null) {
             return "";
         }
-        if (node.id != null) {
-            return String.valueOf(node.id);
+        if (StrUtil.isNotBlank(node.getId())) {
+            return node.getId();
         }
-        if (StrUtil.isNotBlank(node.intentCode)) {
-            return node.intentCode.trim();
+        if (StrUtil.isNotBlank(node.getIntentCode())) {
+            return node.getIntentCode().trim();
         }
-        if (StrUtil.isNotBlank(node.collectionName)) {
-            return node.collectionName.trim();
+        if (StrUtil.isNotBlank(node.getCollectionName())) {
+            return node.getCollectionName().trim();
         }
-        return StrUtil.blankToDefault(node.name, "").trim();
-    }
-
-    private enum PromptScene {
-        KB_ONLY,
-        MCP_ONLY,
-        MIXED,
-        EMPTY
+        return StrUtil.blankToDefault(node.getName(), "").trim();
     }
 }

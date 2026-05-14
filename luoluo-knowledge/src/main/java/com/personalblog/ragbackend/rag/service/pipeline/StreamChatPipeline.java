@@ -8,8 +8,8 @@ import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
-import com.personalblog.ragbackend.rag.core.prompt.RagPromptContext;
-import com.personalblog.ragbackend.rag.core.prompt.RagPromptService;
+import com.personalblog.ragbackend.rag.core.prompt.PromptContext;
+import com.personalblog.ragbackend.rag.core.prompt.RAGPromptService;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.service.StreamChatEventHandler;
 import com.personalblog.ragbackend.rag.service.StreamTaskManager;
@@ -40,7 +40,7 @@ public class StreamChatPipeline {
     private final RagGuidanceService guidanceService;
     private final RetrievalEngine retrievalEngine;
     private final ObjectProvider<LLMService> llmServiceProvider;
-    private final RagPromptService promptBuilder;
+    private final RAGPromptService promptBuilder;
     private final PromptTemplateLoader promptTemplateLoader;
     private final StreamTaskManager taskManager;
     private final KnowledgeProperties knowledgeProperties;
@@ -51,7 +51,7 @@ public class StreamChatPipeline {
                               RagGuidanceService guidanceService,
                               RetrievalEngine retrievalEngine,
                               ObjectProvider<LLMService> llmServiceProvider,
-                              RagPromptService promptBuilder,
+                              RAGPromptService promptBuilder,
                               PromptTemplateLoader promptTemplateLoader,
                               StreamTaskManager taskManager,
                               KnowledgeProperties knowledgeProperties) {
@@ -180,17 +180,16 @@ public class StreamChatPipeline {
         IntentGroup mergedGroup = intentResolver.mergeIntentGroup(ctx.getSubIntents());
         List<String> subQuestions = ctx.getRewriteResult().subQuestions();
         ChatRequest chatRequest = promptBuilder.buildChatRequest(
-                new RagPromptContext(
-                        ctx.getRewriteResult().rewrittenQuestion(),
-                        retrievalContext.allChunks(),
-                        mergedGroup.kbIntents(),
-                        mergedGroup.mcpIntents(),
-                        retrievalContext.mcpContext(),
-                        subQuestions,
-                        retrievalContext.kbContext(),
-                        retrievalContext.intentChunks()
-                ),
+                PromptContext.builder()
+                        .question(ctx.getRewriteResult().rewrittenQuestion())
+                        .mcpContext(retrievalContext.mcpContext())
+                        .kbContext(retrievalContext.kbContext())
+                        .mcpIntents(mergedGroup.mcpIntents())
+                        .kbIntents(mergedGroup.kbIntents())
+                        .intentChunks(retrievalContext.intentChunks())
+                        .build(),
                 ctx.getHistory(),
+                subQuestions,
                 ctx.isDeepThinking()
         );
         ctx.getCallback().updateEvidenceMetadata(ctx.getBaseCode(), retrievalContext.allChunks().size());

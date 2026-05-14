@@ -220,11 +220,11 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
 
     @Override
     public int initFromFactory() {
-        List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> roots = IntentTreeFactory.buildIntentTree();
-        List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> allNodes = flatten(roots);
+        List<com.personalblog.ragbackend.rag.core.intent.IntentNode> roots = IntentTreeFactory.buildIntentTree();
+        List<com.personalblog.ragbackend.rag.core.intent.IntentNode> allNodes = flatten(roots);
         int sort = 0;
         int created = 0;
-        for (com.personalblog.ragbackend.rag.core.intent.RagIntentNode node : allNodes) {
+        for (com.personalblog.ragbackend.rag.core.intent.IntentNode node : allNodes) {
             if (existsByIntentCode(node.getId())) {
                 continue;
             }
@@ -251,14 +251,14 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         return created;
     }
 
-    private List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> flatten(List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> roots) {
-        List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> result = new ArrayList<>();
-        Deque<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> stack = new ArrayDeque<>(roots);
+    private List<com.personalblog.ragbackend.rag.core.intent.IntentNode> flatten(List<com.personalblog.ragbackend.rag.core.intent.IntentNode> roots) {
+        List<com.personalblog.ragbackend.rag.core.intent.IntentNode> result = new ArrayList<>();
+        Deque<com.personalblog.ragbackend.rag.core.intent.IntentNode> stack = new ArrayDeque<>(roots);
         while (!stack.isEmpty()) {
-            com.personalblog.ragbackend.rag.core.intent.RagIntentNode n = stack.pop();
+            com.personalblog.ragbackend.rag.core.intent.IntentNode n = stack.pop();
             result.add(n);
             if (n.getChildren() != null && !n.getChildren().isEmpty()) {
-                List<com.personalblog.ragbackend.rag.core.intent.RagIntentNode> children = n.getChildren();
+                List<com.personalblog.ragbackend.rag.core.intent.IntentNode> children = n.getChildren();
                 for (int i = children.size() - 1; i >= 0; i--) {
                     stack.push(children.get(i));
                 }

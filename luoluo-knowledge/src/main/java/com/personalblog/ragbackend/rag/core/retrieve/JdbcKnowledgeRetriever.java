@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -51,13 +51,13 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
     }
 
     @Override
-    public List<KnowledgeChunk> retrieve(String baseCode, String question, int topK) {
+    public List<RetrievedChunk> retrieve(String baseCode, String question, int topK) {
         return retrieveCandidates(new RetrieveRequest(baseCode, question, topK));
     }
 
     @Override
     @RagTraceNode(name = "jdbc-retriever", type = "RETRIEVE_CHANNEL")
-    public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
+    public List<RetrievedChunk> retrieveCandidates(RetrieveRequest request) {
         String baseCode = request.baseCode();
         String question = request.question();
         int topK = request.topK();
@@ -71,17 +71,17 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
         }
 
         try {
-            List<KnowledgeChunk> candidates = queryCandidates(baseCode, tokens, topK);
+            List<RetrievedChunk> candidates = queryCandidates(baseCode, tokens, topK);
             return candidates.stream()
-                    .map(chunk -> withScore(chunk, score(question, tokens, chunk)))
-                    .sorted(Comparator.comparingDouble(KnowledgeChunk::score).reversed())
+                    .map((RetrievedChunk chunk) -> withScore(chunk, score(question, tokens, chunk)))
+                    .sorted(Comparator.comparingDouble((RetrievedChunk chunk) -> chunk.getScore() == null ? 0D : chunk.getScore()).reversed())
                     .toList();
         } catch (DataAccessException ex) {
             return List.of();
         }
     }
 
-    private List<KnowledgeChunk> queryCandidates(String baseCode, List<String> tokens, int topK) {
+    private List<RetrievedChunk> queryCandidates(String baseCode, List<String> tokens, int topK) {
         StringBuilder sql = new StringBuilder("""
                 select
                     c.id as chunk_id,
@@ -104,16 +104,11 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
         sql.append(" order by c.update_time desc limit ?");
         params.add(Math.max(topK * Math.max(knowledgeProperties.getSearch().getTopKMultiplier(), 1), topK));
 
-        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> new KnowledgeChunk(
-                String.valueOf(rs.getLong("chunk_id")),
-                rs.getString("collection_name"),
-                String.valueOf(rs.getLong("doc_id")),
-                rs.getString("title"),
-                rs.getString("source_url"),
-                rs.getInt("chunk_index"),
-                rs.getString("content"),
-                0D
-        ), params.toArray());
+        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> RetrievedChunk.builder()
+                .id(String.valueOf(rs.getLong("chunk_id")))
+                .text(rs.getString("content"))
+                .score(0F)
+                .build(), params.toArray());
     }
 
     private void appendBaseFilter(StringBuilder sql, List<Object> params, String baseCode) {
@@ -144,30 +139,21 @@ public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCand
         sql.append(")");
     }
 
-    private KnowledgeChunk withScore(KnowledgeChunk chunk, double score) {
-        return new KnowledgeChunk(
-                chunk.id(),
-                chunk.baseCode(),
-                chunk.documentId(),
-                chunk.title(),
-                chunk.sourceUrl(),
-                chunk.chunkIndex(),
-                chunk.content(),
-                score
-        );
+    private RetrievedChunk withScore(RetrievedChunk chunk, double score) {
+        return RetrievedChunk.builder()
+                .id(chunk.getId())
+                .text(chunk.getText())
+                .score((float) score)
+                .build();
     }
 
-    private double score(String question, List<String> tokens, KnowledgeChunk chunk) {
-        String content = (chunk.content() == null ? "" : chunk.content()).toLowerCase(Locale.ROOT);
-        String title = (chunk.title() == null ? "" : chunk.title()).toLowerCase(Locale.ROOT);
+    private double score(String question, List<String> tokens, RetrievedChunk chunk) {
+        String content = (chunk.getText() == null ? "" : chunk.getText()).toLowerCase(Locale.ROOT);
         double hits = 0D;
         for (String token : tokens) {
             String normalized = token.toLowerCase(Locale.ROOT);
             if (content.contains(normalized)) {
                 hits += 1D;
-            }
-            if (title.contains(normalized)) {
-                hits += 0.5D;
             }
         }
         double coverage = hits / Math.max(tokens.size(), 1);

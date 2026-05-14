@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,7 @@ import java.util.Map;
 public record RetrievalContext(
         String mcpContext,
         String kbContext,
-        Map<String, List<KnowledgeChunk>> intentChunks
+        Map<String, List<RetrievedChunk>> intentChunks
 ) {
     public RetrievalContext {
         mcpContext = StrUtil.blankToDefault(mcpContext, "");
@@ -35,20 +35,20 @@ public record RetrievalContext(
         return !hasMcp() && !hasKb();
     }
 
-    public List<KnowledgeChunk> allChunks() {
+    public List<RetrievedChunk> allChunks() {
         if (intentChunks.isEmpty()) {
             return List.of();
         }
-        List<KnowledgeChunk> chunks = new ArrayList<>();
+        List<RetrievedChunk> chunks = new ArrayList<>();
         intentChunks.values().forEach(value -> {
             if (CollUtil.isNotEmpty(value)) {
                 chunks.addAll(value);
             }
         });
         return chunks.stream()
-                .filter(chunk -> chunk != null && StrUtil.isNotBlank(chunk.id()))
+                .filter(chunk -> chunk != null && StrUtil.isNotBlank(chunk.getId()))
                 .collect(java.util.stream.Collectors.toMap(
-                        KnowledgeChunk::id,
+                        RetrievedChunk::getId,
                         chunk -> chunk,
                         (left, ignored) -> left,
                         java.util.LinkedHashMap::new
