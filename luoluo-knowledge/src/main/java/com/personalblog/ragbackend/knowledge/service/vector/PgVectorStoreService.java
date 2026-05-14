@@ -2,12 +2,14 @@ package com.personalblog.ragbackend.knowledge.service.vector;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.personalblog.ragbackend.core.chunk.VectorChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.model.KnowledgeVectorDocument;
 import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
@@ -136,6 +138,109 @@ public class PgVectorStoreService implements VectorStoreService {
         ), vectorLiteral, vectorSpace.collectionName(), vectorLiteral, Math.max(topK, candidateLimit));
     }
 
+    @Override
+    public void indexDocumentChunks(String collectionName, String docId, List<VectorChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return;
+        }
+        for (VectorChunk chunk : chunks) {
+            Map<String, Object> metadata = chunk.getMetadata() == null ? Map.of() : chunk.getMetadata();
+            long now = Timestamp.valueOf(LocalDateTime.now()).getTime();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement statement = connection.prepareStatement("""
+                        insert into %s (
+                            kb_id,
+                            doc_id,
+                            chunk_id,
+                            collection_name,
+                            vector_id,
+                            embedding_model,
+                            embedding_dim,
+                            content,
+                            metadata,
+                            embedding,
+                            deleted,
+                            update_time
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb), cast(? as vector), 0, ?)
+                        on conflict (collection_name, vector_id, deleted)
+                        do update set
+                            kb_id = excluded.kb_id,
+                            doc_id = excluded.doc_id,
+                            chunk_id = excluded.chunk_id,
+                            embedding_model = excluded.embedding_model,
+                            embedding_dim = excluded.embedding_dim,
+                            content = excluded.content,
+                            metadata = excluded.metadata,
+                            embedding = excluded.embedding,
+                            update_time = excluded.update_time
+                        """.formatted(qualifiedTable()));
+                statement.setObject(1, parseLong(metadata.get("knowledgeBaseId")));
+                statement.setObject(2, parseLong(metadata.get("documentId"), docId));
+                statement.setObject(3, parseLong(metadata.get("chunkId"), chunk.getChunkId()));
+                statement.setString(4, collectionName);
+                statement.setString(5, chunk.getChunkId());
+                statement.setString(6, String.valueOf(metadata.getOrDefault("embeddingModel", "")));
+                statement.setInt(7, chunk.getEmbedding() == null ? 0 : chunk.getEmbedding().length);
+                statement.setString(8, chunk.getContent());
+                statement.setString(9, writeJson(metadata));
+                statement.setString(10, toVectorLiteral(chunk.getEmbedding()));
+                statement.setTimestamp(11, new Timestamp(now));
+                return statement;
+            });
+        }
+    }
+
+    @Override
+    public void updateChunk(String collectionName, String docId, VectorChunk chunk) {
+        indexDocumentChunks(collectionName, docId, List.of(chunk));
+    }
+
+    @Override
+    public void deleteDocumentVectors(String collectionName, String docId) {
+        if (!StringUtils.hasText(docId)) {
+            return;
+        }
+        String sql = """
+                update %s
+                set deleted = 1, update_time = ?
+                where collection_name = ? and deleted = 0 and doc_id = ?
+                """.formatted(qualifiedTable());
+        jdbcTemplate.update(sql, Timestamp.valueOf(LocalDateTime.now()), collectionName, parseLong(docId));
+    }
+
+    @Override
+    public void deleteChunkById(String collectionName, String chunkId) {
+        if (!StringUtils.hasText(chunkId)) {
+            return;
+        }
+        String sql = """
+                update %s
+                set deleted = 1, update_time = ?
+                where collection_name = ? and deleted = 0 and vector_id = ?
+                """.formatted(qualifiedTable());
+        jdbcTemplate.update(sql, Timestamp.valueOf(LocalDateTime.now()), collectionName, chunkId);
+    }
+
+    @Override
+    public void deleteChunksByIds(String collectionName, List<String> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return;
+        }
+        String placeholders = chunkIds.stream().map(ignored -> "?").reduce((left, right) -> left + ", " + right).orElse("?");
+        String sql = """
+                update %s
+                set deleted = 1, update_time = ?
+                where collection_name = ? and deleted = 0 and vector_id in (%s)
+                """.formatted(qualifiedTable(), placeholders);
+        Object[] params = new Object[chunkIds.size() + 2];
+        params[0] = Timestamp.valueOf(LocalDateTime.now());
+        params[1] = collectionName;
+        for (int index = 0; index < chunkIds.size(); index++) {
+            params[index + 2] = chunkIds.get(index);
+        }
+        jdbcTemplate.update(sql, params);
+    }
+
     private String qualifiedTable() {
         return identifier(SCHEMA)
                 + "."
@@ -156,6 +261,21 @@ public class PgVectorStoreService implements VectorStoreService {
                 builder.append(',');
             }
             builder.append(embedding.get(index));
+        }
+        builder.append(']');
+        return builder.toString();
+    }
+
+    private String toVectorLiteral(float[] embedding) {
+        if (embedding == null || embedding.length == 0) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder("[");
+        for (int index = 0; index < embedding.length; index++) {
+            if (index > 0) {
+                builder.append(',');
+            }
+            builder.append(embedding[index]);
         }
         builder.append(']');
         return builder.toString();
@@ -189,5 +309,10 @@ public class PgVectorStoreService implements VectorStoreService {
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    private Long parseLong(Object value, String fallback) {
+        Long parsed = parseLong(value);
+        return parsed != null ? parsed : parseLong(fallback);
     }
 }

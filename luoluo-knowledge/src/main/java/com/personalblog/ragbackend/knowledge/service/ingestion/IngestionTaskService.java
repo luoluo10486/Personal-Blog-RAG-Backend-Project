@@ -6,31 +6,28 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
-import com.personalblog.ragbackend.knowledge.domain.enums.SourceType;
+import com.personalblog.ragbackend.ingestion.controller.request.IngestionTaskCreateRequest;
+import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskNodeVO;
+import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
+import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
+import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
+import com.personalblog.ragbackend.ingestion.domain.context.NodeLog;
+import com.personalblog.ragbackend.ingestion.domain.enums.IngestionStatus;
+import com.personalblog.ragbackend.ingestion.domain.enums.SourceType;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
+import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
+import com.personalblog.ragbackend.ingestion.engine.IngestionEngine;
+import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskNodeEntity;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.DocumentSourceRequest;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskCreateRequest;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskLogView;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskNodeView;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskResult;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionTaskView;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskNodeMapper;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNodeLog;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRequest;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineDefinition;
 import com.personalblog.ragbackend.rag.core.vector.VectorSpaceId;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -41,6 +38,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,8 +48,8 @@ import java.util.Map;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Service
-public class IngestionTaskService {
-    private final KnowledgeIngestionEngine knowledgeIngestionEngine;
+public class IngestionTaskService implements com.personalblog.ragbackend.ingestion.service.IngestionTaskService {
+    private final IngestionEngine ingestionEngine;
     private final IngestionPipelineService ingestionPipelineService;
     private final IngestionTaskMapper taskMapper;
     private final IngestionTaskNodeMapper taskNodeMapper;
@@ -60,7 +59,7 @@ public class IngestionTaskService {
     private final S3Client s3Client;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    public IngestionTaskService(KnowledgeIngestionEngine knowledgeIngestionEngine,
+    public IngestionTaskService(IngestionEngine ingestionEngine,
                                 IngestionPipelineService ingestionPipelineService,
                                 IngestionTaskMapper taskMapper,
                                 IngestionTaskNodeMapper taskNodeMapper,
@@ -68,7 +67,7 @@ public class IngestionTaskService {
                                 ObjectMapper objectMapper,
                                 KnowledgeFileStorageService knowledgeFileStorageService,
                                 S3Client s3Client) {
-        this.knowledgeIngestionEngine = knowledgeIngestionEngine;
+        this.ingestionEngine = ingestionEngine;
         this.ingestionPipelineService = ingestionPipelineService;
         this.taskMapper = taskMapper;
         this.taskNodeMapper = taskNodeMapper;
@@ -78,83 +77,84 @@ public class IngestionTaskService {
         this.s3Client = s3Client;
     }
 
-    public IngestionTaskResult execute(IngestionTaskCreateRequest request) {
+    @Override
+    public IngestionResult execute(IngestionTaskCreateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("request must not be blank");
         }
-        if (!StringUtils.hasText(request.pipelineId())) {
+        if (!StringUtils.hasText(request.getPipelineId())) {
             throw new IllegalArgumentException("pipelineId must not be blank");
         }
-        DocumentSourceRequest source = request.source();
-        if (source == null || source.type() == null || !StringUtils.hasText(source.location())) {
+        DocumentSource source = request.getSource();
+        if (source == null || source.getType() == null || !StringUtils.hasText(source.getLocation())) {
             throw new IllegalArgumentException("source must not be blank");
         }
 
-        Long pipelineId = parsePipelineId(request.pipelineId());
-        IngestionPipelineDefinition pipeline = ingestionPipelineService.getDefinition(pipelineId);
-        String normalizedType = normalizeSourceType(source.type());
-        MultipartFile file = resolveSourceFile(source, normalizedType);
-        String baseCode = resolveBaseCode(request, pipeline);
-        String sourceFileUrl = isHttpSource(normalizedType) ? source.location() : null;
-        return executeInternal(
-                baseCode,
-                pipelineId,
-                pipeline,
-                normalizedType,
-                source,
-                request.metadata(),
-                request.vectorSpaceId(),
-                file,
-                sourceFileUrl
-        );
+        Long pipelineId = parsePipelineId(request.getPipelineId());
+        PipelineDefinition pipeline = ingestionPipelineService.getDefinition(request.getPipelineId());
+        MultipartFile file = resolveSourceFile(source);
+        IngestionContext context = IngestionContext.builder()
+                .taskId(null)
+                .pipelineId(String.valueOf(pipelineId))
+                .source(source)
+                .rawBytes(getBytes(file))
+                .mimeType(file == null ? null : file.getContentType())
+                .metadata(request.getMetadata())
+                .vectorSpaceId(request.getVectorSpaceId())
+                .logs(new ArrayList<>())
+                .build();
+        IngestionContext result = ingestionEngine.execute(pipeline, context);
+        return persistAndConvertResult(result, request.getMetadata(), request.getVectorSpaceId());
     }
 
-    public IngestionTaskResult upload(String pipelineId, MultipartFile file) {
+    @Override
+    public IngestionResult upload(String pipelineId, MultipartFile file) {
         if (!StringUtils.hasText(pipelineId)) {
             throw new IllegalArgumentException("pipelineId must not be blank");
         }
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("file must not be blank");
         }
-        Long parsedPipelineId = parsePipelineId(pipelineId);
-        DocumentSourceRequest source = new DocumentSourceRequest(
-                SourceType.FILE,
-                file.getOriginalFilename(),
-                file.getOriginalFilename(),
-                Map.of()
-        );
-        return executeInternal(
-                pipelineId,
-                parsedPipelineId,
-                ingestionPipelineService.getDefinition(parsedPipelineId),
-                "file",
-                source,
-                Map.of(),
-                null,
-                file,
-                null
-        );
+        DocumentSource source = DocumentSource.builder()
+                .type(SourceType.FILE)
+                .location(file.getOriginalFilename())
+                .fileName(file.getOriginalFilename())
+                .credentials(Map.of())
+                .build();
+        IngestionContext context = IngestionContext.builder()
+                .pipelineId(pipelineId)
+                .source(source)
+                .rawBytes(getBytes(file))
+                .mimeType(file.getContentType())
+                .metadata(Map.of())
+                .logs(new ArrayList<>())
+                .build();
+        IngestionContext result = ingestionEngine.execute(ingestionPipelineService.getDefinition(pipelineId), context);
+        return persistAndConvertResult(result, Map.of(), null);
     }
 
-    public IngestionTaskView get(String id) {
-        IngestionTaskEntity task = requireTask(parseTaskId(id));
+    @Override
+    public IngestionTaskVO get(String taskId) {
+        IngestionTaskEntity task = requireTask(parseTaskId(taskId));
         return toView(task, readTaskLogs(task.logsJson));
     }
 
-    public IPage<IngestionTaskView> page(long current, long size, String status) {
-        Page<IngestionTaskEntity> page = taskMapper.selectPage(
-                new Page<>(Math.max(current, 1), Math.max(size, 1)),
+    @Override
+    public IPage<IngestionTaskVO> page(Page<IngestionTaskVO> page, String status) {
+        Page<IngestionTaskEntity> result = taskMapper.selectPage(
+                new Page<>(page.getCurrent(), page.getSize()),
                 new QueryWrapper<IngestionTaskEntity>()
                         .eq("deleted", 0)
                         .eq(StringUtils.hasText(status), "status", normalizeTaskStatus(status))
                         .orderByDesc("create_time")
         );
-        Page<IngestionTaskView> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
-        result.setRecords(page.getRecords().stream().map(task -> toView(task, readTaskLogs(task.logsJson))).toList());
-        return result;
+        Page<IngestionTaskVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        voPage.setRecords(result.getRecords().stream().map(task -> toView(task, readTaskLogs(task.logsJson))).toList());
+        return voPage;
     }
 
-    public List<IngestionTaskNodeView> listNodes(String taskId) {
+    @Override
+    public List<IngestionTaskNodeVO> listNodes(String taskId) {
         Long parsedTaskId = parseTaskId(taskId);
         return taskNodeMapper.selectList(new QueryWrapper<IngestionTaskNodeEntity>()
                         .eq("task_id", parsedTaskId)
@@ -166,111 +166,81 @@ public class IngestionTaskService {
                 .toList();
     }
 
-    private IngestionTaskResult executeInternal(String baseCode,
-                                                Long pipelineId,
-                                                IngestionPipelineDefinition pipeline,
-                                                String normalizedSourceType,
-                                                DocumentSourceRequest source,
-                                                Map<String, Object> metadata,
-                                                VectorSpaceId vectorSpaceId,
-                                                MultipartFile file,
-                                                String sourceFileUrl) {
+    private IngestionResult persistAndConvertResult(IngestionContext context,
+                                                    Map<String, Object> metadata,
+                                                    VectorSpaceId vectorSpaceId) {
         IngestionTaskEntity task = new IngestionTaskEntity();
-        task.pipelineId = pipelineId;
-        task.sourceType = blankToNull(normalizedSourceType);
-        task.sourceLocation = blankToNull(source.location());
-        task.sourceFileName = blankToNull(resolveFileName(source, file));
-        task.status = "running";
-        task.chunkCount = 0;
+        task.pipelineId = parsePipelineId(context.getPipelineId());
+        task.sourceType = context.getSource() == null || context.getSource().getType() == null ? null : context.getSource().getType().getValue();
+        task.sourceLocation = context.getSource() == null ? null : context.getSource().getLocation();
+        task.sourceFileName = context.getSource() == null ? null : context.getSource().getFileName();
+        task.status = normalizeTaskStatus(context.getStatus() == null ? null : context.getStatus().getValue());
+        task.chunkCount = context.getChunks() == null ? 0 : context.getChunks().size();
+        task.errorMessage = context.getError() == null ? null : context.getError().getMessage();
+        task.logsJson = toJson(context.getLogs());
+        task.metadataJson = toJson(buildMetadata(context, metadata, vectorSpaceId));
         task.startedAt = LocalDateTime.now();
+        task.completedAt = LocalDateTime.now();
         task.createdBy = currentUserId();
         task.updatedBy = currentUserId();
         task.deleted = 0;
         task.createdAt = LocalDateTime.now();
         task.updatedAt = LocalDateTime.now();
         taskMapper.insert(task);
-
-        KnowledgeIngestionRequest ingestionRequest = new KnowledgeIngestionRequest(
-                baseCode,
-                file,
-                KnowledgeIngestionMode.INGEST,
-                pipelineId,
-                String.valueOf(task.id),
-                normalizedSourceType,
-                source.location(),
-                resolveFileName(source, file),
-                sourceFileUrl
+        saveNodeLogs(task, context.getLogs());
+        return new IngestionResult(
+                stringify(task.id),
+                stringify(task.pipelineId),
+                context.getStatus(),
+                task.chunkCount,
+                context.getError() == null ? "OK" : context.getError().getMessage()
         );
-        try {
-            KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(pipeline, ingestionRequest);
-            persistResult(task, result, metadata, vectorSpaceId);
-            return new IngestionTaskResult(
-                    stringify(task.id),
-                    stringify(task.pipelineId),
-                    task.status,
-                    task.chunkCount,
-                    task.errorMessage
-            );
-        } catch (RuntimeException exception) {
-            markTaskFailed(task, exception.getMessage(), metadata, vectorSpaceId);
-            return new IngestionTaskResult(
-                    stringify(task.id),
-                    stringify(task.pipelineId),
-                    task.status,
-                    task.chunkCount,
-                    task.errorMessage
-            );
-        }
     }
 
-    private MultipartFile resolveSourceFile(DocumentSourceRequest source, String normalizedType) {
+    private MultipartFile resolveSourceFile(DocumentSource source) {
+        String normalizedType = source.getType() == null ? "file" : source.getType().getValue();
         return switch (normalizedType) {
             case "file" -> readLocalFile(source);
             case "s3" -> readS3File(source);
             case "url" -> downloadRemoteSource(source);
             case "feishu" -> downloadFeishuSource(source);
-            default -> throw new IllegalArgumentException("Unsupported source type: " + source.type());
+            default -> throw new IllegalArgumentException("Unsupported source type: " + source.getType());
         };
     }
 
-    private MultipartFile readLocalFile(DocumentSourceRequest source) {
-        String location = source.location();
-        if (!StringUtils.hasText(location)) {
-            throw new IllegalArgumentException("source.location must not be blank");
-        }
+    private MultipartFile readLocalFile(DocumentSource source) {
+        String location = source.getLocation();
         try {
-            Path path = location.startsWith("file:")
-                    ? Path.of(URI.create(location))
-                    : Path.of(location);
+            Path path = location.startsWith("file:") ? Path.of(URI.create(location)) : Path.of(location);
             byte[] bytes = Files.readAllBytes(path);
-            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : path.getFileName().toString();
+            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : path.getFileName().toString();
             return new SimpleMultipartFile(fileName, fileName, "application/octet-stream", bytes);
         } catch (Exception exception) {
             throw new IllegalArgumentException("read local file failed: " + exception.getMessage(), exception);
         }
     }
 
-    private MultipartFile readS3File(DocumentSourceRequest source) {
-        try (InputStream inputStream = knowledgeFileStorageService.openStream(source.location())) {
+    private MultipartFile readS3File(DocumentSource source) {
+        try (InputStream inputStream = knowledgeFileStorageService.openStream(source.getLocation())) {
             byte[] bytes = inputStream.readAllBytes();
-            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : resolveFileNameFromUrl(source.location());
+            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
             return new SimpleMultipartFile(fileName, fileName, "application/octet-stream", bytes);
         } catch (Exception exception) {
             throw new IllegalArgumentException("read s3 file failed: " + exception.getMessage(), exception);
         }
     }
 
-    private MultipartFile downloadRemoteSource(DocumentSourceRequest source) {
+    private MultipartFile downloadRemoteSource(DocumentSource source) {
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.location())).GET();
-            if (source.credentials() != null) {
-                source.credentials().forEach(builder::header);
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.getLocation())).GET();
+            if (source.getCredentials() != null) {
+                source.getCredentials().forEach(builder::header);
             }
             HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IllegalArgumentException("download remote source failed, HTTP status: " + response.statusCode());
             }
-            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : resolveFileNameFromUrl(source.location());
+            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
             String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
             return new SimpleMultipartFile(fileName, fileName, contentType, response.body());
         } catch (IOException | InterruptedException exception) {
@@ -281,11 +251,11 @@ public class IngestionTaskService {
         }
     }
 
-    private MultipartFile downloadFeishuSource(DocumentSourceRequest source) {
+    private MultipartFile downloadFeishuSource(DocumentSource source) {
         try {
-            String accessToken = resolveFeishuAccessToken(source.credentials());
-            if (isFeishuDocxUrl(source.location())) {
-                String docToken = extractFeishuDocToken(source.location());
+            String accessToken = resolveFeishuAccessToken(source.getCredentials());
+            if (isFeishuDocxUrl(source.getLocation())) {
+                String docToken = extractFeishuDocToken(source.getLocation());
                 HttpRequest.Builder builder = HttpRequest.newBuilder(
                         URI.create("https://open.feishu.cn/open-apis/docx/v1/documents/" + docToken + "/raw_content"))
                         .GET();
@@ -294,18 +264,16 @@ public class IngestionTaskService {
                 }
                 HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
                 ensureSuccess(response.statusCode(), "download feishu document failed");
-                String content = extractFeishuContent(response.body());
-                String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : docToken + ".txt";
-                return new SimpleMultipartFile(fileName, fileName, "text/plain", content.getBytes(StandardCharsets.UTF_8));
+                String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : docToken + ".txt";
+                return new SimpleMultipartFile(fileName, fileName, "text/plain", response.body());
             }
-
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.location())).GET();
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.getLocation())).GET();
             if (StringUtils.hasText(accessToken)) {
                 builder.header("Authorization", "Bearer " + accessToken);
             }
             HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
             ensureSuccess(response.statusCode(), "download feishu resource failed");
-            String fileName = StringUtils.hasText(source.fileName()) ? source.fileName() : resolveFileNameFromUrl(source.location());
+            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
             String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
             return new SimpleMultipartFile(fileName, fileName, contentType, response.body());
         } catch (IOException | InterruptedException exception) {
@@ -316,17 +284,11 @@ public class IngestionTaskService {
         }
     }
 
-    private String resolveFileName(DocumentSourceRequest source, MultipartFile file) {
-        if (StringUtils.hasText(source.fileName())) {
-            return source.fileName().trim();
+    private String resolveFeishuAccessToken(Map<String, String> credentials) {
+        if (credentials == null || credentials.isEmpty()) {
+            return null;
         }
-        if (file != null && StringUtils.hasText(file.getOriginalFilename())) {
-            return file.getOriginalFilename();
-        }
-        if (StringUtils.hasText(source.location())) {
-            return resolveFileNameFromUrl(source.location());
-        }
-        return "upload.bin";
+        return firstNonBlank(credentials.get("tenantAccessToken"), credentials.get("accessToken"));
     }
 
     private String resolveFileNameFromUrl(String location) {
@@ -342,16 +304,6 @@ public class IngestionTaskService {
             return StringUtils.hasText(fileName) ? fileName : "upload.bin";
         } catch (Exception ignored) {
             return "upload.bin";
-        }
-    }
-
-    private boolean isHttpSource(String normalizedType) {
-        return "url".equals(normalizedType) || "feishu".equals(normalizedType);
-    }
-
-    private void ensureSuccess(int statusCode, String message) {
-        if (statusCode < 200 || statusCode >= 300) {
-            throw new IllegalArgumentException(message + ", HTTP status: " + statusCode);
         }
     }
 
@@ -373,117 +325,28 @@ public class IngestionTaskService {
         throw new IllegalArgumentException("unable to parse feishu document token");
     }
 
-    private String resolveFeishuAccessToken(Map<String, String> credentials) throws IOException, InterruptedException {
-        if (credentials == null || credentials.isEmpty()) {
-            return null;
-        }
-        String token = firstNonBlank(credentials.get("tenantAccessToken"), credentials.get("accessToken"));
-        if (StringUtils.hasText(token)) {
-            return token;
-        }
-        String appId = credentials.get("app_id");
-        String appSecret = credentials.get("app_secret");
-        if (!StringUtils.hasText(appId) || !StringUtils.hasText(appSecret)) {
-            return null;
-        }
-        String body = "{\"app_id\":\"" + appId + "\",\"app_secret\":\"" + appSecret + "\"}";
-        HttpRequest request = HttpRequest.newBuilder(URI.create("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal/"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        ensureSuccess(response.statusCode(), "get feishu token failed");
-        return extractJsonStringField(response.body(), "tenant_access_token");
-    }
-
-    private String extractFeishuContent(byte[] bytes) {
-        String json = new String(bytes, StandardCharsets.UTF_8);
-        String content = extractJsonStringField(json, "content");
-        return content == null ? json : content;
-    }
-
-    private String extractJsonStringField(String json, String field) {
-        try {
-            Map<?, ?> parsed = objectMapper.readValue(json, Map.class);
-            Object direct = parsed.get(field);
-            if (direct instanceof String value && !value.isBlank()) {
-                return value;
-            }
-            Object data = parsed.get("data");
-            if (data instanceof Map<?, ?> dataMap) {
-                Object nested = dataMap.get(field);
-                if (nested instanceof String value && !value.isBlank()) {
-                    return value;
-                }
-            }
-            return null;
-        } catch (Exception ignored) {
-            return null;
+    private void ensureSuccess(int statusCode, String message) {
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IllegalArgumentException(message + ", HTTP status: " + statusCode);
         }
     }
 
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private void persistResult(IngestionTaskEntity task,
-                               KnowledgeIngestionResult result,
-                               Map<String, Object> metadata,
-                               VectorSpaceId vectorSpaceId) {
-        boolean success = result.ingestionSummary() != null && result.ingestionSummary().success();
-        task.status = success ? "completed" : "failed";
-        task.chunkCount = result.ingestionSummary() == null ? 0 : result.ingestionSummary().chunkCount();
-        task.errorMessage = success ? null : result.ingestionSummary() == null ? "Ingestion failed" : result.ingestionSummary().errorMessage();
-        task.completedAt = LocalDateTime.now();
-        task.updatedBy = currentUserId();
-        task.logsJson = toJson(result.nodeLogs());
-        task.metadataJson = toJson(buildMetadata(task, result, metadata, vectorSpaceId));
-        task.updatedAt = LocalDateTime.now();
-        taskMapper.updateById(task);
-        saveNodeLogs(task, result.nodeLogs());
-    }
-
-    private void markTaskFailed(IngestionTaskEntity task,
-                                String message,
-                                Map<String, Object> metadata,
-                                VectorSpaceId vectorSpaceId) {
-        task.status = "failed";
-        task.chunkCount = 0;
-        task.errorMessage = StringUtils.hasText(message) ? message : "Ingestion failed";
-        task.completedAt = LocalDateTime.now();
-        task.updatedBy = currentUserId();
-        Map<String, Object> failureMetadata = new LinkedHashMap<>();
-        failureMetadata.put("pipelineId", task.pipelineId);
-        failureMetadata.put("status", task.status);
-        failureMetadata.put("chunkCount", task.chunkCount);
-        failureMetadata.put("requestMetadata", metadata == null ? Map.of() : metadata);
-        failureMetadata.put("vectorSpaceId", vectorSpaceId == null ? Map.of() : vectorSpaceId);
-        task.metadataJson = toJson(failureMetadata);
-        task.updatedAt = LocalDateTime.now();
-        taskMapper.updateById(task);
-    }
-
-    private void saveNodeLogs(IngestionTaskEntity task, List<KnowledgeIngestionNodeLog> nodeLogs) {
+    private void saveNodeLogs(IngestionTaskEntity task, List<NodeLog> nodeLogs) {
         if (nodeLogs == null || nodeLogs.isEmpty()) {
             return;
         }
-        for (KnowledgeIngestionNodeLog log : nodeLogs) {
+        for (NodeLog log : nodeLogs) {
             IngestionTaskNodeEntity entity = new IngestionTaskNodeEntity();
             entity.taskId = task.id;
             entity.pipelineId = task.pipelineId;
-            entity.nodeId = log.nodeId();
-            entity.nodeType = normalizeNodeType(log.nodeType());
-            entity.nodeOrder = log.nodeOrder();
-            entity.status = log.status();
-            entity.durationMs = log.durationMs();
-            entity.message = log.message();
-            entity.errorMessage = log.errorMessage();
-            entity.outputJson = log.outputJson();
+            entity.nodeId = log.getNodeId();
+            entity.nodeType = normalizeNodeType(log.getNodeType());
+            entity.nodeOrder = 0;
+            entity.status = log.isSuccess() ? "success" : "failed";
+            entity.durationMs = log.getDurationMs();
+            entity.message = log.getMessage();
+            entity.errorMessage = log.getError();
+            entity.outputJson = toJson(log.getOutput());
             entity.deleted = 0;
             entity.createdAt = LocalDateTime.now();
             entity.updatedAt = LocalDateTime.now();
@@ -491,66 +354,53 @@ public class IngestionTaskService {
         }
     }
 
-    private IngestionTaskView toView(IngestionTaskEntity task, List<IngestionTaskLogView> logs) {
-        return new IngestionTaskView(
-                stringify(task.id),
-                stringify(task.pipelineId),
-                task.sourceType,
-                task.sourceLocation,
-                task.sourceFileName,
-                normalizeTaskStatus(task.status),
-                task.chunkCount,
-                task.errorMessage,
-                logs,
-                parseMap(task.metadataJson),
-                task.startedAt,
-                task.completedAt,
-                stringify(task.createdBy),
-                task.createdAt,
-                task.updatedAt
-        );
+    private IngestionTaskVO toView(IngestionTaskEntity task, List<NodeLog> logs) {
+        IngestionTaskVO vo = new IngestionTaskVO();
+        vo.setId(stringify(task.id));
+        vo.setPipelineId(stringify(task.pipelineId));
+        vo.setSourceType(task.sourceType);
+        vo.setSourceLocation(task.sourceLocation);
+        vo.setSourceFileName(task.sourceFileName);
+        vo.setStatus(normalizeTaskStatus(task.status));
+        vo.setChunkCount(task.chunkCount);
+        vo.setErrorMessage(task.errorMessage);
+        vo.setLogs(logs);
+        vo.setMetadata(parseMap(task.metadataJson));
+        vo.setStartedAt(toDate(task.startedAt));
+        vo.setCompletedAt(toDate(task.completedAt));
+        vo.setCreatedBy(stringify(task.createdBy));
+        vo.setCreateTime(toDate(task.createdAt));
+        vo.setUpdateTime(toDate(task.updatedAt));
+        return vo;
     }
 
-    private List<IngestionTaskLogView> readTaskLogs(String raw) {
+    private List<NodeLog> readTaskLogs(String raw) {
         if (!StringUtils.hasText(raw)) {
             return List.of();
         }
         try {
-            List<KnowledgeIngestionNodeLog> nodeLogs = objectMapper.readValue(raw, new TypeReference<List<KnowledgeIngestionNodeLog>>() {});
-            return nodeLogs.stream().map(this::toTaskLogView).toList();
+            return objectMapper.readValue(raw, new TypeReference<List<NodeLog>>() {});
         } catch (Exception ignored) {
             return List.of();
         }
     }
 
-    private IngestionTaskLogView toTaskLogView(KnowledgeIngestionNodeLog log) {
-        return new IngestionTaskLogView(
-                log.nodeId(),
-                normalizeNodeType(log.nodeType()),
-                log.message(),
-                log.durationMs(),
-                !"failed".equalsIgnoreCase(log.status()),
-                log.errorMessage(),
-                parseMap(log.outputJson())
-        );
-    }
-
-    private IngestionTaskNodeView toNodeView(IngestionTaskNodeEntity entity) {
-        return new IngestionTaskNodeView(
-                stringify(entity.id),
-                stringify(entity.taskId),
-                stringify(entity.pipelineId),
-                entity.nodeId,
-                normalizeNodeType(entity.nodeType),
-                entity.nodeOrder,
-                normalizeNodeStatus(entity.status),
-                entity.durationMs,
-                entity.message,
-                entity.errorMessage,
-                parseMap(entity.outputJson),
-                entity.createdAt,
-                entity.updatedAt
-        );
+    private IngestionTaskNodeVO toNodeView(IngestionTaskNodeEntity entity) {
+        IngestionTaskNodeVO vo = new IngestionTaskNodeVO();
+        vo.setId(stringify(entity.id));
+        vo.setTaskId(stringify(entity.taskId));
+        vo.setPipelineId(stringify(entity.pipelineId));
+        vo.setNodeId(entity.nodeId);
+        vo.setNodeType(normalizeNodeType(entity.nodeType));
+        vo.setNodeOrder(entity.nodeOrder);
+        vo.setStatus(normalizeTaskStatus(entity.status));
+        vo.setDurationMs(entity.durationMs);
+        vo.setMessage(entity.message);
+        vo.setErrorMessage(entity.errorMessage);
+        vo.setOutput(parseMap(entity.outputJson));
+        vo.setCreateTime(toDate(entity.createdAt));
+        vo.setUpdateTime(toDate(entity.updatedAt));
+        return vo;
     }
 
     private IngestionTaskEntity requireTask(Long id) {
@@ -575,14 +425,6 @@ public class IngestionTaskService {
         }
     }
 
-    private Long currentUserId() {
-        try {
-            return authSessionService.getCurrentSubjectId();
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
     private Long parsePipelineId(String pipelineId) {
         if (!StringUtils.hasText(pipelineId)) {
             throw new IllegalArgumentException("pipelineId must not be blank");
@@ -594,33 +436,12 @@ public class IngestionTaskService {
         }
     }
 
-    private String normalizeSourceType(String sourceType) {
-        if (!StringUtils.hasText(sourceType)) {
-            return "file";
+    private Long currentUserId() {
+        try {
+            return authSessionService.getCurrentSubjectId();
+        } catch (RuntimeException ignored) {
+            return null;
         }
-        return sourceType.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeSourceType(SourceType sourceType) {
-        if (sourceType == null) {
-            return "file";
-        }
-        return normalizeSourceType(sourceType.getValue());
-    }
-
-    private String normalizeNodeType(String nodeType) {
-        if (!StringUtils.hasText(nodeType)) {
-            return nodeType;
-        }
-        String normalized = nodeType.trim().toLowerCase(Locale.ROOT).replace('-', '_');
-        return switch (normalized) {
-            case "fetcher", "parser", "enhancer", "chunker", "enricher", "indexer" -> normalized;
-            case "plan" -> "fetcher";
-            case "parse" -> "parser";
-            case "chunk", "persist", "embed" -> "chunker";
-            case "index", "finalize" -> "indexer";
-            default -> normalized;
-        };
     }
 
     private String normalizeTaskStatus(String status) {
@@ -630,22 +451,29 @@ public class IngestionTaskService {
         return status.trim().toLowerCase(Locale.ROOT).replace('-', '_');
     }
 
-    private String normalizeNodeStatus(String status) {
-        return normalizeTaskStatus(status);
+    private String normalizeNodeType(String nodeType) {
+        if (!StringUtils.hasText(nodeType)) {
+            return nodeType;
+        }
+        return nodeType.trim().toLowerCase(Locale.ROOT).replace('-', '_');
     }
 
-    private String resolveBaseCode(IngestionTaskCreateRequest request, IngestionPipelineDefinition pipeline) {
-        if (request != null && request.vectorSpaceId() != null && StringUtils.hasText(request.vectorSpaceId().logicalName())) {
-            return request.vectorSpaceId().logicalName();
+    private String resolveBaseCode(IngestionTaskCreateRequest request, PipelineDefinition pipeline) {
+        if (request.getVectorSpaceId() != null && StringUtils.hasText(request.getVectorSpaceId().logicalName())) {
+            return request.getVectorSpaceId().logicalName();
         }
-        if (pipeline != null && StringUtils.hasText(pipeline.name())) {
-            return pipeline.name();
-        }
-        return request == null ? "default" : request.pipelineId();
+        return pipeline == null ? "default" : pipeline.getName();
     }
 
-    private String blankToNull(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
+    private byte[] getBytes(MultipartFile file) {
+        if (file == null) {
+            return null;
+        }
+        try {
+            return file.getBytes();
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("read file bytes failed: " + exception.getMessage(), exception);
+        }
     }
 
     private String toJson(Object value) {
@@ -659,19 +487,13 @@ public class IngestionTaskService {
         }
     }
 
-    private Map<String, Object> buildMetadata(IngestionTaskEntity task,
-                                              KnowledgeIngestionResult result,
-                                              Map<String, Object> requestMetadata,
-                                              VectorSpaceId vectorSpaceId) {
+    private Map<String, Object> buildMetadata(IngestionContext context, Map<String, Object> requestMetadata, VectorSpaceId vectorSpaceId) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("pipelineId", task.pipelineId);
-        metadata.put("status", task.status);
-        metadata.put("chunkCount", task.chunkCount);
-        metadata.put("vectorIndexed", result.ingestionSummary() != null && result.ingestionSummary().vectorIndexed());
-        metadata.put("collectionName", result.ingestionSummary() == null ? null : result.ingestionSummary().collectionName());
-        metadata.put("embeddingModel", result.ingestionSummary() == null ? null : result.ingestionSummary().embeddingModel());
+        metadata.put("pipelineId", context.getPipelineId());
+        metadata.put("status", context.getStatus() == null ? null : context.getStatus().getValue());
+        metadata.put("chunkCount", context.getChunks() == null ? 0 : context.getChunks().size());
         metadata.put("requestMetadata", requestMetadata == null ? Map.of() : requestMetadata);
-        metadata.put("vectorSpaceId", vectorSpaceId == null ? Map.of() : vectorSpaceId);
+        metadata.put("vectorSpaceId", vectorSpaceId);
         return metadata;
     }
 
@@ -686,8 +508,21 @@ public class IngestionTaskService {
         }
     }
 
+    private java.util.Date toDate(LocalDateTime time) {
+        return time == null ? null : java.util.Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
+    }
+
     private String stringify(Long value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static final class SimpleMultipartFile implements MultipartFile {
@@ -735,11 +570,16 @@ public class IngestionTaskService {
 
         @Override
         public InputStream getInputStream() {
-            return new ByteArrayInputStream(content);
+            return new java.io.ByteArrayInputStream(content);
         }
 
         @Override
-        public void transferTo(File dest) throws IOException {
+        public void transferTo(Path dest) throws IOException {
+            Files.write(dest, content);
+        }
+
+        @Override
+        public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
             Files.write(dest.toPath(), content);
         }
     }

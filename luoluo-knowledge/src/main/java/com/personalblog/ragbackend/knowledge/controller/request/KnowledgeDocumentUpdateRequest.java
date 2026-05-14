@@ -10,6 +10,6 @@ public class KnowledgeDocumentUpdateRequest {
     private String chunkConfig;
     private String pipelineId;
     private String sourceLocation;
-    private Boolean scheduleEnabled;
+    private Integer scheduleEnabled;
     private String scheduleCron;
 }

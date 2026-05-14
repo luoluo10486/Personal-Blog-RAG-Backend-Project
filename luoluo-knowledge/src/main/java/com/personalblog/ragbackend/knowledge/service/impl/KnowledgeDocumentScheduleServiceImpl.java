@@ -12,6 +12,7 @@ import com.personalblog.ragbackend.knowledge.schedule.CronScheduleHelper;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeDocumentScheduleService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
@@ -41,6 +42,7 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteByDocId(String docId) {
         if (!StringUtils.hasText(docId)) {
             return;
@@ -52,24 +54,40 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
     }
 
     private void syncSchedule(KnowledgeDocumentEntity documentDO, boolean allowCreate) {
-        if (documentDO == null || documentDO.getId() == null || documentDO.getKbId() == null) {
+        if (documentDO == null) {
+            return;
+        }
+        if (documentDO.getId() == null || documentDO.getKbId() == null) {
             return;
         }
         if (!SourceType.URL.getValue().equalsIgnoreCase(documentDO.getSourceType())) {
             return;
         }
-        boolean enabled = documentDO.getScheduleEnabled() != null && documentDO.getScheduleEnabled() == 1;
+        boolean docEnabled = documentDO.getEnabled() == null || documentDO.getEnabled() == 1;
         String cron = documentDO.getScheduleCron();
-        if (!StringUtils.hasText(cron) || documentDO.getEnabled() == null || documentDO.getEnabled() != 1) {
+        boolean enabled = documentDO.getScheduleEnabled() != null && documentDO.getScheduleEnabled() == 1;
+        if (!StringUtils.hasText(cron)) {
+            enabled = false;
+        }
+        if (!docEnabled) {
             enabled = false;
         }
 
         Date nextRunTime = null;
         if (enabled) {
-            if (CronScheduleHelper.isIntervalLessThan(cron, new Date(), scheduleMinIntervalSeconds)) {
-                throw new IllegalArgumentException("schedule interval is too short");
+            try {
+                if (CronScheduleHelper.isIntervalLessThan(cron, new Date(), scheduleMinIntervalSeconds)) {
+                    throw new IllegalArgumentException("schedule interval is too short");
+                }
+                nextRunTime = CronScheduleHelper.nextRunTime(cron, new Date());
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException(
+                        "schedule interval is too short".equals(exception.getMessage())
+                                ? exception.getMessage()
+                                : "schedule cron is invalid",
+                        exception
+                );
             }
-            nextRunTime = CronScheduleHelper.nextRunTime(cron, new Date());
         }
 
         KnowledgeDocumentScheduleEntity existing = scheduleMapper.selectOne(

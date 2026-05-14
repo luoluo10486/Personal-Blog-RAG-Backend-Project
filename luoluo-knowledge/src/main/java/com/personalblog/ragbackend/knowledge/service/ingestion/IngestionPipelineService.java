@@ -7,17 +7,17 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
+import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineCreateRequest;
+import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineNodeRequest;
+import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineUpdateRequest;
+import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineNodeVO;
+import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineVO;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineNodeEntity;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineCreateRequest;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineNodeRequest;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineNodeView;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineUpdateRequest;
-import com.personalblog.ragbackend.knowledge.dto.ingestion.IngestionPipelineView;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineNodeMapper;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineDefinition;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineNodeConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class IngestionPipelineService {
+public class IngestionPipelineService implements com.personalblog.ragbackend.ingestion.service.IngestionPipelineService {
     private final IngestionPipelineMapper pipelineMapper;
     private final IngestionPipelineNodeMapper nodeMapper;
     private final AuthSessionService authSessionService;
@@ -43,44 +43,44 @@ public class IngestionPipelineService {
         this.objectMapper = objectMapper;
     }
 
-    public IngestionPipelineView create(IngestionPipelineCreateRequest request) {
-        String name = normalizeName(request == null ? null : request.name());
+    public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
+        String name = normalizeName(request == null ? null : request.getName());
         IngestionPipelineEntity entity = new IngestionPipelineEntity();
         entity.name = name;
-        entity.description = blankToNull(request == null ? null : request.description());
+        entity.description = blankToNull(request == null ? null : request.getDescription());
         entity.createdBy = currentUserId();
         entity.updatedBy = currentUserId();
         entity.deleted = 0;
         entity.createdAt = LocalDateTime.now();
         entity.updatedAt = LocalDateTime.now();
         pipelineMapper.insert(entity);
-        replaceNodes(entity.id, request == null ? List.of() : request.nodes());
+        replaceNodes(entity.id, request == null ? List.of() : request.getNodes());
         return get(String.valueOf(entity.id));
     }
 
-    public IngestionPipelineView update(String id, IngestionPipelineUpdateRequest request) {
+    public IngestionPipelineVO update(String id, IngestionPipelineUpdateRequest request) {
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
-        if (StringUtils.hasText(request.name())) {
-            entity.name = normalizeName(request.name());
+        if (StringUtils.hasText(request.getName())) {
+            entity.name = normalizeName(request.getName());
         }
-        if (request.description() != null) {
-            entity.description = blankToNull(request.description());
+        if (request.getDescription() != null) {
+            entity.description = blankToNull(request.getDescription());
         }
         entity.updatedBy = currentUserId();
         entity.updatedAt = LocalDateTime.now();
         pipelineMapper.updateById(entity);
-        replaceNodes(pipelineId, request.nodes());
+        replaceNodes(pipelineId, request.getNodes());
         return get(id);
     }
 
-    public IngestionPipelineView get(String id) {
+    public IngestionPipelineVO get(String id) {
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
         return toView(entity, listNodes(pipelineId));
     }
 
-    public IPage<IngestionPipelineView> page(long current, long size, String keyword) {
+    public IPage<IngestionPipelineVO> page(long current, long size, String keyword) {
         Page<IngestionPipelineEntity> page = pipelineMapper.selectPage(
                 new Page<>(Math.max(current, 1), Math.max(size, 1)),
                 new QueryWrapper<IngestionPipelineEntity>()
@@ -88,7 +88,7 @@ public class IngestionPipelineService {
                         .and(StringUtils.hasText(keyword), wrapper -> wrapper.like("name", keyword).or().like("description", keyword))
                         .orderByDesc("update_time")
         );
-        Page<IngestionPipelineView> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
+        Page<IngestionPipelineVO> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         result.setRecords(page.getRecords().stream().map(this::toViewWithFreshNodes).toList());
         return result;
     }
@@ -100,7 +100,7 @@ public class IngestionPipelineService {
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
     }
 
-    public List<IngestionPipelineNodeView> listNodes(Long pipelineId) {
+    public List<IngestionPipelineNodeVO> listNodes(Long pipelineId) {
         return nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
                         .eq("pipeline_id", pipelineId)
                         .eq("deleted", 0)
@@ -110,21 +110,31 @@ public class IngestionPipelineService {
                 .toList();
     }
 
-    public IngestionPipelineDefinition getDefinition(Long id) {
+    public PipelineDefinition getDefinition(Long id) {
         IngestionPipelineEntity entity = requirePipeline(id);
-        List<IngestionPipelineNodeConfig> nodes = nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
+        List<NodeConfig> nodes = nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
                         .eq("pipeline_id", id)
                         .eq("deleted", 0)
                         .orderByAsc("id"))
                 .stream()
                 .map(this::toNodeConfig)
                 .toList();
-        return new IngestionPipelineDefinition(
-                String.valueOf(entity.id),
-                entity.name,
-                entity.description,
-                nodes
-        );
+        return PipelineDefinition.builder()
+                .id(String.valueOf(entity.id))
+                .name(entity.name)
+                .description(entity.description)
+                .nodes(nodes)
+                .build();
+    }
+
+    @Override
+    public PipelineDefinition getDefinition(String pipelineId) {
+        return getDefinition(parsePipelineId(pipelineId));
+    }
+
+    @Override
+    public IPage<IngestionPipelineVO> page(Page<IngestionPipelineVO> page, String keyword) {
+        return page(page.getCurrent(), page.getSize(), keyword);
     }
 
     private void replaceNodes(Long pipelineId, List<IngestionPipelineNodeRequest> requests) {
@@ -138,11 +148,11 @@ public class IngestionPipelineService {
             }
             IngestionPipelineNodeEntity entity = new IngestionPipelineNodeEntity();
             entity.pipelineId = pipelineId;
-            entity.nodeId = normalizeNodeId(request.nodeId());
-            entity.nodeType = normalizeNodeType(request.nodeType());
-            entity.nextNodeId = blankToNull(request.nextNodeId());
-            entity.settingsJson = toJson(request.settings());
-            entity.conditionJson = toJson(request.condition());
+            entity.nodeId = normalizeNodeId(request.getNodeId());
+            entity.nodeType = normalizeNodeType(request.getNodeType());
+            entity.nextNodeId = blankToNull(request.getNextNodeId());
+            entity.settingsJson = toJson(request.getSettings());
+            entity.conditionJson = toJson(request.getCondition());
             entity.createdBy = currentUserId();
             entity.updatedBy = currentUserId();
             entity.deleted = 0;
@@ -163,41 +173,41 @@ public class IngestionPipelineService {
         return entity;
     }
 
-    private IngestionPipelineView toViewWithFreshNodes(IngestionPipelineEntity entity) {
+    private IngestionPipelineVO toViewWithFreshNodes(IngestionPipelineEntity entity) {
         return toView(entity, listNodes(entity.id));
     }
 
-    private IngestionPipelineView toView(IngestionPipelineEntity entity, List<IngestionPipelineNodeView> nodes) {
-        return new IngestionPipelineView(
-                String.valueOf(entity.id),
-                entity.name,
-                entity.description,
-                stringify(entity.createdBy),
-                nodes,
-                entity.createdAt,
-                entity.updatedAt
-        );
+    private IngestionPipelineVO toView(IngestionPipelineEntity entity, List<IngestionPipelineNodeVO> nodes) {
+        IngestionPipelineVO vo = new IngestionPipelineVO();
+        vo.setId(String.valueOf(entity.id));
+        vo.setName(entity.name);
+        vo.setDescription(entity.description);
+        vo.setCreatedBy(stringify(entity.createdBy));
+        vo.setNodes(nodes);
+        vo.setCreateTime(java.sql.Timestamp.valueOf(entity.createdAt));
+        vo.setUpdateTime(java.sql.Timestamp.valueOf(entity.updatedAt));
+        return vo;
     }
 
-    private IngestionPipelineNodeView toNodeView(IngestionPipelineNodeEntity entity) {
-        return new IngestionPipelineNodeView(
-                String.valueOf(entity.id),
-                entity.nodeId,
-                normalizeNodeType(entity.nodeType),
-                parseJson(entity.settingsJson),
-                parseJson(entity.conditionJson),
-                blankToNull(entity.nextNodeId)
-        );
+    private IngestionPipelineNodeVO toNodeView(IngestionPipelineNodeEntity entity) {
+        IngestionPipelineNodeVO vo = new IngestionPipelineNodeVO();
+        vo.setId(String.valueOf(entity.id));
+        vo.setNodeId(entity.nodeId);
+        vo.setNodeType(normalizeNodeType(entity.nodeType));
+        vo.setSettings(parseJson(entity.settingsJson));
+        vo.setCondition(parseJson(entity.conditionJson));
+        vo.setNextNodeId(blankToNull(entity.nextNodeId));
+        return vo;
     }
 
-    private IngestionPipelineNodeConfig toNodeConfig(IngestionPipelineNodeEntity entity) {
-        return new IngestionPipelineNodeConfig(
-                entity.nodeId,
-                normalizeNodeType(entity.nodeType),
-                parseMap(entity.settingsJson),
-                parseMap(entity.conditionJson),
-                blankToNull(entity.nextNodeId)
-        );
+    private NodeConfig toNodeConfig(IngestionPipelineNodeEntity entity) {
+        return NodeConfig.builder()
+                .nodeId(entity.nodeId)
+                .nodeType(normalizeNodeType(entity.nodeType))
+                .settings(parseJson(entity.settingsJson))
+                .condition(parseJson(entity.conditionJson))
+                .nextNodeId(blankToNull(entity.nextNodeId))
+                .build();
     }
 
     private String normalizeName(String value) {
