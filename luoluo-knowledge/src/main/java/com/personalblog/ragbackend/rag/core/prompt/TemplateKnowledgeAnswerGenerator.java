@@ -10,17 +10,21 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerator {
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final RAGPromptService ragPromptService;
+    private final KnowledgeContextFormatter knowledgeContextFormatter;
 
     public TemplateKnowledgeAnswerGenerator(ObjectProvider<LLMService> llmServiceProvider,
-                                            RAGPromptService ragPromptService) {
+                                            RAGPromptService ragPromptService,
+                                            KnowledgeContextFormatter knowledgeContextFormatter) {
         this.llmServiceProvider = llmServiceProvider;
         this.ragPromptService = ragPromptService;
+        this.knowledgeContextFormatter = knowledgeContextFormatter;
     }
 
     @Override
@@ -50,7 +54,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                            List<NodeScore> mcpIntents,
                            boolean deepThinking) {
         if ((chunks == null || chunks.isEmpty()) && (mcpContext == null || mcpContext.isBlank())) {
-            return "鏈绱㈠埌涓庨棶棰樼浉鍏崇殑鏂囨。鍐呭銆?";
+            return "閺堫亝顥呯槐銏犲煂娑撳酣妫舵０妯兼祲閸忓磭娈戦弬鍥ㄣ€傞崘鍛啇閵?";
         }
 
         LLMService llmService = llmServiceProvider.getIfAvailable();
@@ -79,7 +83,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                 PromptContext.builder()
                         .question(question)
                         .mcpContext(mcpContext)
-                        .kbContext("")
+                        .kbContext(knowledgeContextFormatter.formatKbContext(kbIntents, chunks))
                         .mcpIntents(mcpIntents)
                         .kbIntents(kbIntents)
                         .intentChunks(Map.of())
@@ -101,7 +105,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
         if (mcpContext != null && !mcpContext.isBlank()) {
             snippets.add("[M1] " + safeTruncate(mcpContext, 300));
         }
-        return "妯″瀷鏆備笉鍙敤锛屽厛缁欎綘鐩稿叧鐗囨锛?n"
+        return "濡€崇€烽弳鍌欑瑝閸欘垳鏁ら敍灞藉帥缂佹瑤缍橀惄绋垮彠閻楀洦顔岄敍?n"
                 + snippets.stream().collect(Collectors.joining("\n"));
     }
 

@@ -9,7 +9,6 @@ import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader
 import com.personalblog.ragbackend.rag.core.intent.IntentNode;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.constant.RAGConstant;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,12 +17,15 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class RAGPromptService {
     private static final String MCP_CONTEXT_HEADER = "## 动态数据片段";
     private static final String KB_CONTEXT_HEADER = "## 文档内容";
 
     private final PromptTemplateLoader promptTemplateLoader;
+
+    public RAGPromptService(PromptTemplateLoader promptTemplateLoader) {
+        this.promptTemplateLoader = promptTemplateLoader;
+    }
 
     public ChatRequest buildChatRequest(PromptContext context,
                                         List<ChatMessage> history,
@@ -37,7 +39,13 @@ public class RAGPromptService {
                                         boolean deepThinking) {
         PromptScene scene = resolveScene(context);
         return ChatRequest.builder()
-                .messages(buildStructuredMessages(context, history, scene, subQuestions))
+                .messages(buildStructuredMessages(
+                        context,
+                        history,
+                        scene,
+                        context == null ? null : context.getQuestion(),
+                        subQuestions
+                ))
                 .thinking(deepThinking)
                 .temperature(resolveTemperature(scene))
                 .topP(resolveTopP(scene))
