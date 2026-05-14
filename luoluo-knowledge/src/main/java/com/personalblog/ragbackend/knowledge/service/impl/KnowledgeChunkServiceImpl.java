@@ -186,6 +186,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
         KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
         KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        VectorStoreService vectorStoreService = resolveVectorStoreService();
         List<Long> chunkIds = requestParam.getChunkIds().stream().map(this::parseId).toList();
         List<KnowledgeChunkEntity> chunks = knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkEntity>()
                 .eq(KnowledgeChunkEntity::getDocId, parseId(docId))
@@ -198,9 +199,11 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         if (enabled) {
             syncChunksToVector(document, kbDO, chunks);
         } else {
-            for (KnowledgeChunkEntity chunk : chunks) {
-                deleteVector(kbDO, String.valueOf(chunk.getId()));
-            }
+            List<String> vectorIds = chunks.stream().map(chunk -> String.valueOf(chunk.getId())).toList();
+            vectorStoreService.deleteChunksByIds(kbDO.getCollectionName(), vectorIds);
+            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
+                    .eq(KnowledgeVectorRefEntity::getDocId, document.getId())
+                    .in(KnowledgeVectorRefEntity::getChunkId, chunks.stream().map(KnowledgeChunkEntity::getId).toList()));
         }
     }
 

@@ -161,6 +161,7 @@ public class KnowledgeIngestionEngine {
                 context.getPlan(),
                 context.getParseResult(),
                 context.getChunkResponse(),
+                context.getEmbeddings(),
                 context.getIngestionSummary(),
                 context.getNodeLogs()
         );

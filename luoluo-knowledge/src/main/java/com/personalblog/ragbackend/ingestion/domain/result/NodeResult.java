@@ -15,28 +15,55 @@ public class NodeResult {
     private String message;
     private Throwable error;
 
+    public boolean isSuccess() {
+        return success;
+    }
+
+    public void setSuccess(boolean success) {
+        this.success = success;
+    }
+
+    public boolean isShouldContinue() {
+        return shouldContinue;
+    }
+
+    public void setShouldContinue(boolean shouldContinue) {
+        this.shouldContinue = shouldContinue;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public Throwable getError() {
+        return error;
+    }
+
+    public void setError(Throwable error) {
+        this.error = error;
+    }
+
     public static NodeResult ok() {
-        return NodeResult.builder().success(true).shouldContinue(true).build();
+        return new NodeResult(true, true, null, null);
     }
 
     public static NodeResult ok(String message) {
-        return NodeResult.builder().success(true).shouldContinue(true).message(message).build();
+        return new NodeResult(true, true, message, null);
     }
 
     public static NodeResult skip(String reason) {
-        return NodeResult.builder().success(true).shouldContinue(true).message("Skipped: " + reason).build();
+        return new NodeResult(true, true, "Skipped: " + reason, null);
     }
 
     public static NodeResult fail(Throwable error) {
-        return NodeResult.builder()
-                .success(false)
-                .shouldContinue(false)
-                .error(error)
-                .message(error == null ? null : error.getMessage())
-                .build();
+        return new NodeResult(false, false, error == null ? null : error.getMessage(), error);
     }
 
     public static NodeResult terminate(String reason) {
-        return NodeResult.builder().success(true).shouldContinue(false).message(reason).build();
+        return new NodeResult(true, false, reason, null);
     }
 }

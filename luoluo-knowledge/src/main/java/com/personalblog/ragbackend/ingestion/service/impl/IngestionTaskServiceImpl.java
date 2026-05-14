@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.knowledge.service.ingestion;
+package com.personalblog.ragbackend.ingestion.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -12,12 +12,14 @@ import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
 import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
 import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
 import com.personalblog.ragbackend.ingestion.domain.context.NodeLog;
+import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionStatus;
 import com.personalblog.ragbackend.ingestion.domain.enums.SourceType;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
 import com.personalblog.ragbackend.ingestion.engine.IngestionEngine;
 import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
+import com.personalblog.ragbackend.ingestion.util.MimeTypeDetector;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskMapper;
@@ -34,21 +36,25 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import software.amazon.awssdk.services.s3.S3Client;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class IngestionTaskService implements com.personalblog.ragbackend.ingestion.service.IngestionTaskService {
+@Transactional(rollbackFor = Exception.class)
+public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ingestion.service.IngestionTaskService {
     private final IngestionEngine ingestionEngine;
     private final IngestionPipelineService ingestionPipelineService;
     private final IngestionTaskMapper taskMapper;
@@ -59,14 +65,14 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
     private final S3Client s3Client;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    public IngestionTaskService(IngestionEngine ingestionEngine,
-                                IngestionPipelineService ingestionPipelineService,
-                                IngestionTaskMapper taskMapper,
-                                IngestionTaskNodeMapper taskNodeMapper,
-                                AuthSessionService authSessionService,
-                                ObjectMapper objectMapper,
-                                KnowledgeFileStorageService knowledgeFileStorageService,
-                                S3Client s3Client) {
+    public IngestionTaskServiceImpl(IngestionEngine ingestionEngine,
+                                    IngestionPipelineService ingestionPipelineService,
+                                    IngestionTaskMapper taskMapper,
+                                    IngestionTaskNodeMapper taskNodeMapper,
+                                    AuthSessionService authSessionService,
+                                    ObjectMapper objectMapper,
+                                    KnowledgeFileStorageService knowledgeFileStorageService,
+                                    S3Client s3Client) {
         this.ingestionEngine = ingestionEngine;
         this.ingestionPipelineService = ingestionPipelineService;
         this.taskMapper = taskMapper;
@@ -89,22 +95,7 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
         if (source == null || source.getType() == null || !StringUtils.hasText(source.getLocation())) {
             throw new IllegalArgumentException("source must not be blank");
         }
-
-        Long pipelineId = parsePipelineId(request.getPipelineId());
-        PipelineDefinition pipeline = ingestionPipelineService.getDefinition(request.getPipelineId());
-        MultipartFile file = resolveSourceFile(source);
-        IngestionContext context = IngestionContext.builder()
-                .taskId(null)
-                .pipelineId(String.valueOf(pipelineId))
-                .source(source)
-                .rawBytes(getBytes(file))
-                .mimeType(file == null ? null : file.getContentType())
-                .metadata(request.getMetadata())
-                .vectorSpaceId(request.getVectorSpaceId())
-                .logs(new ArrayList<>())
-                .build();
-        IngestionContext result = ingestionEngine.execute(pipeline, context);
-        return persistAndConvertResult(result, request.getMetadata(), request.getVectorSpaceId());
+        return executeInternal(request.getPipelineId(), source, null, null, request.getVectorSpaceId(), request.getMetadata());
     }
 
     @Override
@@ -115,22 +106,15 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("file must not be blank");
         }
+        byte[] bytes = getBytes(file);
+        String fileName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "upload.bin";
+        String mimeType = MimeTypeDetector.detect(bytes, fileName);
         DocumentSource source = DocumentSource.builder()
                 .type(SourceType.FILE)
-                .location(file.getOriginalFilename())
-                .fileName(file.getOriginalFilename())
-                .credentials(Map.of())
+                .location(fileName)
+                .fileName(fileName)
                 .build();
-        IngestionContext context = IngestionContext.builder()
-                .pipelineId(pipelineId)
-                .source(source)
-                .rawBytes(getBytes(file))
-                .mimeType(file.getContentType())
-                .metadata(Map.of())
-                .logs(new ArrayList<>())
-                .build();
-        IngestionContext result = ingestionEngine.execute(ingestionPipelineService.getDefinition(pipelineId), context);
-        return persistAndConvertResult(result, Map.of(), null);
+        return executeInternal(pipelineId, source, bytes, mimeType, null, Map.of());
     }
 
     @Override
@@ -164,6 +148,202 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
                 .stream()
                 .map(this::toNodeView)
                 .toList();
+    }
+
+    private IngestionResult executeInternal(String pipelineId,
+                                            DocumentSource source,
+                                            byte[] rawBytes,
+                                            String mimeType,
+                                            VectorSpaceId vectorSpaceId,
+                                            Map<String, Object> metadata) {
+        String resolvedPipelineId = resolvePipelineId(pipelineId);
+        PipelineDefinition pipeline = ingestionPipelineService.getDefinition(resolvedPipelineId);
+
+        IngestionTaskEntity task = new IngestionTaskEntity();
+        task.pipelineId = parsePipelineId(resolvedPipelineId);
+        task.sourceType = source == null || source.getType() == null ? null : source.getType().getValue();
+        task.sourceLocation = source == null ? null : source.getLocation();
+        task.sourceFileName = source == null ? null : source.getFileName();
+        task.status = IngestionStatus.RUNNING.getValue();
+        task.chunkCount = 0;
+        task.startedAt = LocalDateTime.now();
+        task.createdBy = currentUserId();
+        task.updatedBy = currentUserId();
+        task.deleted = 0;
+        task.createdAt = LocalDateTime.now();
+        task.updatedAt = LocalDateTime.now();
+        taskMapper.insert(task);
+
+        IngestionContext context = IngestionContext.builder()
+                .taskId(stringify(task.id))
+                .pipelineId(resolvedPipelineId)
+                .source(source)
+                .rawBytes(rawBytes)
+                .mimeType(mimeType)
+                .metadata(metadata)
+                .vectorSpaceId(vectorSpaceId)
+                .logs(new ArrayList<>())
+                .status(IngestionStatus.RUNNING)
+                .build();
+
+        IngestionContext result = ingestionEngine.execute(pipeline, context);
+        saveNodeLogsWithOrder(task, pipeline, result.getLogs());
+        updateTaskFromContext(task, result, metadata, vectorSpaceId);
+        return IngestionResult.builder()
+                .taskId(stringify(task.id))
+                .pipelineId(stringify(task.pipelineId))
+                .status(result.getStatus())
+                .chunkCount(result.getChunks() == null ? 0 : result.getChunks().size())
+                .message(result.getError() == null ? "OK" : result.getError().getMessage())
+                .build();
+    }
+
+    private void updateTaskFromContext(IngestionTaskEntity task,
+                                       IngestionContext context,
+                                       Map<String, Object> requestMetadata,
+                                       VectorSpaceId vectorSpaceId) {
+        task.status = normalizeTaskStatus(context.getStatus() == null ? null : context.getStatus().getValue());
+        task.chunkCount = context.getChunks() == null ? 0 : context.getChunks().size();
+        task.errorMessage = context.getError() == null ? null : context.getError().getMessage();
+        task.completedAt = LocalDateTime.now();
+        task.updatedBy = currentUserId();
+        task.updatedAt = LocalDateTime.now();
+        task.logsJson = toJson(buildLogSummary(context.getLogs()));
+        task.metadataJson = toJson(buildTaskMetadata(context, requestMetadata, vectorSpaceId));
+        taskMapper.updateById(task);
+    }
+
+    private void saveNodeLogsWithOrder(IngestionTaskEntity task, PipelineDefinition pipeline, List<NodeLog> nodeLogs) {
+        if (nodeLogs == null || nodeLogs.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> nodeOrderMap = buildNodeOrderMap(pipeline);
+        for (NodeLog log : nodeLogs) {
+            IngestionTaskNodeEntity entity = new IngestionTaskNodeEntity();
+            entity.taskId = task.id;
+            entity.pipelineId = task.pipelineId;
+            entity.nodeId = log.getNodeId();
+            entity.nodeType = normalizeNodeType(log.getNodeType());
+            entity.nodeOrder = nodeOrderMap.getOrDefault(log.getNodeId(), 0);
+            entity.status = resolveNodeStatus(log);
+            entity.durationMs = log.getDurationMs();
+            entity.message = log.getMessage();
+            entity.errorMessage = log.getError();
+            entity.outputJson = truncateOutputJson(log.getOutput());
+            entity.deleted = 0;
+            entity.createdAt = LocalDateTime.now();
+            entity.updatedAt = LocalDateTime.now();
+            taskNodeMapper.insert(entity);
+        }
+    }
+
+    private Map<String, Integer> buildNodeOrderMap(PipelineDefinition pipeline) {
+        Map<String, Integer> orderMap = new HashMap<>();
+        if (pipeline == null || pipeline.getNodes() == null || pipeline.getNodes().isEmpty()) {
+            return orderMap;
+        }
+        Map<String, com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig> nodeMap = new LinkedHashMap<>();
+        for (com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig node : pipeline.getNodes()) {
+            if (node == null || !StringUtils.hasText(node.getNodeId())) {
+                continue;
+            }
+            nodeMap.putIfAbsent(node.getNodeId(), node);
+        }
+        if (nodeMap.isEmpty()) {
+            return orderMap;
+        }
+        Set<String> referenced = new HashSet<>();
+        for (com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig node : nodeMap.values()) {
+            if (StringUtils.hasText(node.getNextNodeId())) {
+                referenced.add(node.getNextNodeId());
+            }
+        }
+        int order = 1;
+        Set<String> visited = new HashSet<>();
+        for (String nodeId : nodeMap.keySet()) {
+            if (referenced.contains(nodeId)) {
+                continue;
+            }
+            String current = nodeId;
+            while (StringUtils.hasText(current) && !visited.contains(current)) {
+                orderMap.put(current, order++);
+                visited.add(current);
+                com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig config = nodeMap.get(current);
+                if (config == null) {
+                    break;
+                }
+                current = config.getNextNodeId();
+            }
+        }
+        for (String nodeId : nodeMap.keySet()) {
+            if (!visited.contains(nodeId)) {
+                orderMap.put(nodeId, order++);
+            }
+        }
+        return orderMap;
+    }
+
+    private String resolveNodeStatus(NodeLog log) {
+        if (log == null || !log.isSuccess()) {
+            return "failed";
+        }
+        String message = log.getMessage();
+        if (message != null && message.startsWith("Skipped:")) {
+            return "skipped";
+        }
+        return "success";
+    }
+
+    private Map<String, Object> buildTaskMetadata(IngestionContext context,
+                                                  Map<String, Object> requestMetadata,
+                                                  VectorSpaceId vectorSpaceId) {
+        Map<String, Object> metadata = new HashMap<>();
+        if (requestMetadata != null) {
+            metadata.putAll(requestMetadata);
+        }
+        if (context.getKeywords() != null && !context.getKeywords().isEmpty()) {
+            metadata.put("keywords", context.getKeywords());
+        }
+        if (context.getQuestions() != null && !context.getQuestions().isEmpty()) {
+            metadata.put("questions", context.getQuestions());
+        }
+        if (vectorSpaceId != null) {
+            metadata.put("vectorSpaceId", vectorSpaceId);
+        }
+        return metadata;
+    }
+
+    private List<NodeLog> buildLogSummary(List<NodeLog> logs) {
+        if (logs == null) {
+            return List.of();
+        }
+        return logs.stream()
+                .map(log -> NodeLog.builder()
+                        .nodeId(log.getNodeId())
+                        .nodeType(log.getNodeType())
+                        .message(log.getMessage())
+                        .durationMs(log.getDurationMs())
+                        .success(log.isSuccess())
+                        .error(log.getError())
+                        .output(null)
+                        .build())
+                .toList();
+    }
+
+    private String truncateOutputJson(Object output) {
+        if (output == null) {
+            return null;
+        }
+        String json = toJson(output);
+        if (json == null) {
+            return null;
+        }
+        int maxSize = 1024 * 1024;
+        if (json.length() <= maxSize) {
+            return json;
+        }
+        String truncated = json.substring(0, maxSize - 100);
+        return truncated + "... [output truncated, original size " + json.length() + " chars]";
     }
 
     private IngestionResult persistAndConvertResult(IngestionContext context,
@@ -436,6 +616,13 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
         }
     }
 
+    private String resolvePipelineId(String pipelineId) {
+        if (StringUtils.hasText(pipelineId)) {
+            return pipelineId.trim();
+        }
+        throw new IllegalArgumentException("pipelineId must not be blank");
+    }
+
     private Long currentUserId() {
         try {
             return authSessionService.getCurrentSubjectId();
@@ -448,21 +635,23 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
         if (!StringUtils.hasText(status)) {
             return status;
         }
-        return status.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        String normalized = status.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        try {
+            return IngestionStatus.fromValue(normalized).getValue();
+        } catch (IllegalArgumentException ignored) {
+            return normalized;
+        }
     }
 
     private String normalizeNodeType(String nodeType) {
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;
         }
-        return nodeType.trim().toLowerCase(Locale.ROOT).replace('-', '_');
-    }
-
-    private String resolveBaseCode(IngestionTaskCreateRequest request, PipelineDefinition pipeline) {
-        if (request.getVectorSpaceId() != null && StringUtils.hasText(request.getVectorSpaceId().logicalName())) {
-            return request.getVectorSpaceId().logicalName();
+        try {
+            return IngestionNodeType.fromValue(nodeType).getValue();
+        } catch (IllegalArgumentException ignored) {
+            return nodeType.trim().toLowerCase(Locale.ROOT).replace('-', '_');
         }
-        return pipeline == null ? "default" : pipeline.getName();
     }
 
     private byte[] getBytes(MultipartFile file) {
@@ -489,11 +678,19 @@ public class IngestionTaskService implements com.personalblog.ragbackend.ingesti
 
     private Map<String, Object> buildMetadata(IngestionContext context, Map<String, Object> requestMetadata, VectorSpaceId vectorSpaceId) {
         Map<String, Object> metadata = new LinkedHashMap<>();
+        if (requestMetadata != null) {
+            metadata.putAll(requestMetadata);
+        }
+        if (context.getKeywords() != null && !context.getKeywords().isEmpty()) {
+            metadata.put("keywords", context.getKeywords());
+        }
+        if (context.getQuestions() != null && !context.getQuestions().isEmpty()) {
+            metadata.put("questions", context.getQuestions());
+        }
+        metadata.put("vectorSpaceId", vectorSpaceId);
         metadata.put("pipelineId", context.getPipelineId());
         metadata.put("status", context.getStatus() == null ? null : context.getStatus().getValue());
         metadata.put("chunkCount", context.getChunks() == null ? 0 : context.getChunks().size());
-        metadata.put("requestMetadata", requestMetadata == null ? Map.of() : requestMetadata);
-        metadata.put("vectorSpaceId", vectorSpaceId);
         return metadata;
     }
 

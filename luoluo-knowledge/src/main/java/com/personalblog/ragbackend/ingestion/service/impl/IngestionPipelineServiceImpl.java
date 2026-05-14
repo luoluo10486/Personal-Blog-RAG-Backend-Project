@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.knowledge.service.ingestion;
+package com.personalblog.ragbackend.ingestion.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -13,12 +13,14 @@ import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelin
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineVO;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
+import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineNodeMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -27,16 +29,17 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class IngestionPipelineService implements com.personalblog.ragbackend.ingestion.service.IngestionPipelineService {
+@Transactional(rollbackFor = Exception.class)
+public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend.ingestion.service.IngestionPipelineService {
     private final IngestionPipelineMapper pipelineMapper;
     private final IngestionPipelineNodeMapper nodeMapper;
     private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper;
 
-    public IngestionPipelineService(IngestionPipelineMapper pipelineMapper,
-                                    IngestionPipelineNodeMapper nodeMapper,
-                                    AuthSessionService authSessionService,
-                                    ObjectMapper objectMapper) {
+    public IngestionPipelineServiceImpl(IngestionPipelineMapper pipelineMapper,
+                                        IngestionPipelineNodeMapper nodeMapper,
+                                        AuthSessionService authSessionService,
+                                        ObjectMapper objectMapper) {
         this.pipelineMapper = pipelineMapper;
         this.nodeMapper = nodeMapper;
         this.authSessionService = authSessionService;
@@ -70,7 +73,9 @@ public class IngestionPipelineService implements com.personalblog.ragbackend.ing
         entity.updatedBy = currentUserId();
         entity.updatedAt = LocalDateTime.now();
         pipelineMapper.updateById(entity);
-        replaceNodes(pipelineId, request.getNodes());
+        if (request.getNodes() != null) {
+            replaceNodes(pipelineId, request.getNodes());
+        }
         return get(id);
     }
 
@@ -138,8 +143,11 @@ public class IngestionPipelineService implements com.personalblog.ragbackend.ing
     }
 
     private void replaceNodes(Long pipelineId, List<IngestionPipelineNodeRequest> requests) {
+        if (requests == null) {
+            return;
+        }
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
-        if (requests == null || requests.isEmpty()) {
+        if (requests.isEmpty()) {
             return;
         }
         for (IngestionPipelineNodeRequest request : requests) {
@@ -228,15 +236,7 @@ public class IngestionPipelineService implements com.personalblog.ragbackend.ing
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException("nodeType must not be blank");
         }
-        String normalized = value.trim().toLowerCase().replace('-', '_');
-        return switch (normalized) {
-            case "fetcher", "parser", "enhancer", "chunker", "enricher", "indexer" -> normalized;
-            case "plan" -> "fetcher";
-            case "parse" -> "parser";
-            case "chunk", "persist", "embed" -> "chunker";
-            case "index", "finalize" -> "indexer";
-            default -> throw new IllegalArgumentException("Unknown ingestion node type: " + value);
-        };
+        return IngestionNodeType.fromValue(value).getValue();
     }
 
     private String blankToNull(String value) {

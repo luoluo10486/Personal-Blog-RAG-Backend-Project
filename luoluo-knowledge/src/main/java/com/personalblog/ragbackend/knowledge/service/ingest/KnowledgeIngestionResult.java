@@ -8,13 +8,15 @@ public record KnowledgeIngestionResult(
         KnowledgeIngestionPlan plan,
         ParseResult parseResult,
         DocumentChunkResponse chunkResponse,
+        java.util.List<java.util.List<Float>> embeddings,
         DocumentIngestionSummary ingestionSummary,
         java.util.List<KnowledgeIngestionNodeLog> nodeLogs
 ) {
     public KnowledgeIngestionResult(KnowledgeIngestionPlan plan,
                                     ParseResult parseResult,
                                     DocumentChunkResponse chunkResponse,
+                                    java.util.List<java.util.List<Float>> embeddings,
                                     DocumentIngestionSummary ingestionSummary) {
-        this(plan, parseResult, chunkResponse, ingestionSummary, java.util.List.of());
+        this(plan, parseResult, chunkResponse, embeddings, ingestionSummary, java.util.List.of());
     }
 }

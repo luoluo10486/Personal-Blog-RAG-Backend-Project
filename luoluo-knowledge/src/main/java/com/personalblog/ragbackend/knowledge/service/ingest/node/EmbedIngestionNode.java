@@ -31,14 +31,11 @@ public class EmbedIngestionNode implements KnowledgeIngestionNode {
     @Override
     @RagTraceNode(name = "embed-ingestion", type = "INGEST_EMBED")
     public void execute(KnowledgeIngestionContext context) {
-        if (!context.isIngestMode()) {
-            return;
-        }
         if (context.getIngestionSummary() != null && !context.getIngestionSummary().success()) {
             return;
         }
-        if (context.getPersistedChunks().isEmpty() || context.getChunks().isEmpty()) {
-            context.setIngestionSummary(DocumentIngestionSummary.failure(context.getBaseCode(), "No persisted chunks are available for embedding"));
+        if (context.getChunks().isEmpty()) {
+            context.setIngestionSummary(DocumentIngestionSummary.failure(context.getBaseCode(), "No chunks are available for embedding"));
             return;
         }
 

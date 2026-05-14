@@ -22,9 +22,6 @@ public class FinalizeIngestionNode implements KnowledgeIngestionNode {
     @Override
     @RagTraceNode(name = "finalize-ingestion", type = "INGEST_FINALIZE")
     public void execute(KnowledgeIngestionContext context) {
-        if (!context.isIngestMode()) {
-            return;
-        }
         if (context.getIngestionSummary() != null) {
             return;
         }
@@ -40,7 +37,7 @@ public class FinalizeIngestionNode implements KnowledgeIngestionNode {
             context.setIngestionSummary(DocumentIngestionSummary.failure(context.getPlan().baseCode(), "Document chunking failed"));
             return;
         }
-        if (!context.isVectorIndexed()) {
+        if (context.isIngestMode() && !context.isVectorIndexed()) {
             context.setIngestionSummary(DocumentIngestionSummary.failure(context.getPlan().baseCode(), "Vector indexing did not complete"));
             return;
         }
@@ -52,7 +49,7 @@ public class FinalizeIngestionNode implements KnowledgeIngestionNode {
                 context.getDocumentId(),
                 context.getPersistedChunks().size(),
                 context.getEmbeddings().size(),
-                true
+                context.isVectorIndexed()
         ));
     }
 }
