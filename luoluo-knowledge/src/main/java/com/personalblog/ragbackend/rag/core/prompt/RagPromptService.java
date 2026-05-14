@@ -6,20 +6,19 @@ import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.core.intent.IntentNode;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class RAGPromptService {
     private static final String MCP_CONTEXT_HEADER = "## 动态数据片段";
-    private static final String KB_CONTEXT_HEADER = "## 文档内容";
+    private static final String KB_CONTEXT_HEADER = "## 知识库内容";
 
     private final PromptTemplateLoader promptTemplateLoader;
 
@@ -39,13 +38,7 @@ public class RAGPromptService {
                                         boolean deepThinking) {
         PromptScene scene = resolveScene(context);
         return ChatRequest.builder()
-                .messages(buildStructuredMessages(
-                        context,
-                        history,
-                        scene,
-                        context == null ? null : context.getQuestion(),
-                        subQuestions
-                ))
+                .messages(buildStructuredMessages(context, history, context == null ? null : context.getQuestion(), subQuestions))
                 .thinking(deepThinking)
                 .temperature(resolveTemperature(scene))
                 .topP(resolveTopP(scene))
@@ -56,16 +49,8 @@ public class RAGPromptService {
                                                      List<ChatMessage> history,
                                                      String question,
                                                      List<String> subQuestions) {
-        return buildStructuredMessages(context, history, resolveScene(context), question, subQuestions);
-    }
-
-    private List<ChatMessage> buildStructuredMessages(PromptContext context,
-                                                      List<ChatMessage> history,
-                                                      PromptScene scene,
-                                                      String question,
-                                                      List<String> subQuestions) {
         List<ChatMessage> messages = new ArrayList<>();
-        String systemPrompt = buildSystemPrompt(context, scene);
+        String systemPrompt = buildSystemPrompt(context);
         if (StrUtil.isNotBlank(systemPrompt)) {
             messages.add(ChatMessage.system(systemPrompt));
         }
@@ -91,7 +76,8 @@ public class RAGPromptService {
         return messages;
     }
 
-    private String buildSystemPrompt(PromptContext context, PromptScene scene) {
+    private String buildSystemPrompt(PromptContext context) {
+        PromptScene scene = resolveScene(context);
         String customTemplate = switch (scene) {
             case KB_ONLY -> resolveSingleIntentTemplate(
                     context == null ? List.of() : context.getKbIntents(),
@@ -106,7 +92,7 @@ public class RAGPromptService {
             case MIXED -> promptTemplateLoader.load(RAGConstant.MCP_KB_MIXED_PROMPT_PATH);
             case EMPTY -> promptTemplateLoader.load(RAGConstant.CHAT_SYSTEM_PROMPT_PATH);
         };
-        return normalizeTemplate(customTemplate);
+        return PromptTemplateUtils.cleanupPrompt(normalizeTemplate(customTemplate));
     }
 
     private PromptScene resolveScene(PromptContext context) {
@@ -178,13 +164,7 @@ public class RAGPromptService {
             return intents;
         }
         return intents.stream()
-                .filter(intent -> {
-                    if (intent == null || intent.node() == null) {
-                        return false;
-                    }
-                    List<RetrievedChunk> chunks = intentChunks.get(nodeKey(intent.node()));
-                    return CollUtil.isNotEmpty(chunks);
-                })
+                .filter(intent -> intent != null && intent.node() != null && CollUtil.isNotEmpty(intentChunks.get(nodeKey(intent.node()))))
                 .toList();
     }
 

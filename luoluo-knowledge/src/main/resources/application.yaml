@@ -42,18 +42,20 @@ milvus:
   uri: http://localhost:19530
 
 rag:
+  guidance:
+    enabled: true
+    ambiguity-score-ratio: 0.8
+    ambiguity-margin: 0.15
+    max-options: 3
   vector:
-    type: pg  # 可选 milvus / pg
-
+    type: pg
   default:
     collection-name: rag_default_store
     dimension: 1536
     metric-type: COSINE
-    sse-timeout-ms: 300000  # SSE 全局超时（毫秒），默认 5 分钟
-
+    sse-timeout-ms: 300000
   query-rewrite:
     enabled: true
-
   rate-limit:
     global:
       enabled: true
@@ -61,45 +63,42 @@ rag:
       max-wait-seconds: 3
       lease-seconds: 30
       poll-interval-ms: 200
-
   memory:
     history-keep-turns: 4
     summary-start-turns: 5
     summary-enabled: true
     summary-max-chars: 200
     title-max-length: 30
-
-  semaphore:
-    document-upload:
-      name: rag:document:upload
-      max-concurrent: 10
-      max-wait-seconds: 5
-      lease-seconds: 300
-
+  trace:
+    enabled: true
+    max-error-length: 1000
+  search:
+    channels:
+      vector-global:
+        enabled: true
+        confidence-threshold: 0.6
+        single-intent-supplement-threshold: 0.8
+        top-k-multiplier: 3
+      intent-directed:
+        enabled: true
+        min-intent-score: 0.4
+        top-k-multiplier: 2
+  mcp:
+    servers:
+      - name: default
+        url: http://localhost:9099
   knowledge:
     schedule:
       scan-delay-ms: 10000
       lock-seconds: 900
       batch-size: 20
       min-interval-seconds: 60
-
-  mcp:
-    servers:
-      - name: default
-        url: http://localhost:9099
-
-  search:
-    channels:
-      vector-global:
-        confidence-threshold: 0.6
-        top-k-multiplier: 3
-      intent-directed:
-        min-intent-score: 0.4
-        top-k-multiplier: 2
-
-  trace:
-    enabled: true
-    max-error-length: 1000
+  semaphore:
+    document-upload:
+      name: rag:document:upload
+      max-concurrent: 10
+      max-wait-seconds: 5
+      lease-seconds: 300
 
 ai:
   providers:
@@ -192,4 +191,40 @@ sa-token:
   is-print: false
 
 app:
+  knowledge:
+    enabled: true
+    default-base-code: rag_default_store
+    vector:
+      type: pgvector
+      pg:
+        schema: public
+        table-name: t_knowledge_vector
+        collection-prefix: kb_
+    defaults:
+      collection-name: rag_default_store
+      dimension: 1536
+      metric-type: COSINE
+      embedding-model: Qwen/Qwen3-Embedding-8B
+      chat-model: Qwen/Qwen3-32B
+      rerank-model: BAAI/bge-reranker-v2-m3
+    chunking:
+      strategy: structure-aware
+      chunk-size: 800
+      chunk-overlap: 120
+      max-chunk-count: 1000
+    schedule:
+      scan-delay-ms: 10000
+      lock-seconds: 900
+      batch-size: 20
+      min-interval-seconds: 60
+    search:
+      top-k: 8
+      top-k-multiplier: 3
+      confidence-threshold: 0.6
+      rrf-k: 60
+      rerank:
+        enabled: true
+        provider: demo
+    storage:
+      bucket-prefix: knowledge
   demo-mode: false

@@ -9,6 +9,7 @@ import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
+import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -48,14 +49,12 @@ public class RagIntentResolver {
     }
 
     @RagTraceNode(name = "intent-resolve", type = "INTENT")
-    public List<SubQuestionIntent> resolve(String question) {
-        return resolve(question, List.of());
-    }
-
-    public List<SubQuestionIntent> resolve(String question, List<String> explicitSubQuestions) {
-        List<String> subQuestions = normalizeSubQuestions(question, explicitSubQuestions);
+    public List<SubQuestionIntent> resolve(RewriteResult rewriteResult) {
+        List<String> subQuestions = CollUtil.isNotEmpty(rewriteResult.subQuestions())
+                ? rewriteResult.subQuestions()
+                : List.of(rewriteResult.rewrittenQuestion());
         if (CollUtil.isEmpty(subQuestions)) {
-            return List.of(new SubQuestionIntent(StrUtil.blankToDefault(question, ""), classify(StrUtil.blankToDefault(question, ""))));
+            return List.of(new SubQuestionIntent(StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), ""), classify(StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), ""))));
         }
         List<CompletableFuture<SubQuestionIntent>> tasks = subQuestions.stream()
                 .map(subQuestion -> CompletableFuture.supplyAsync(
@@ -64,6 +63,10 @@ public class RagIntentResolver {
                 ))
                 .toList();
         return capTotalIntents(tasks.stream().map(CompletableFuture::join).toList());
+    }
+
+    public List<SubQuestionIntent> resolve(String question) {
+        return resolve(new RewriteResult(question, List.of(question)));
     }
 
     public IntentGroup mergeIntentGroup(List<SubQuestionIntent> subIntents) {

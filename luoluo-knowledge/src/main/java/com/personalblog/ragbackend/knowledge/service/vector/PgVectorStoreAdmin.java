@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnBean(JdbcTemplate.class)
-@ConditionalOnExpression("'${app.knowledge.vector.type:pgvector}'.toLowerCase() == 'pgvector' or '${app.knowledge.vector.type:pgvector}'.toLowerCase() == 'pg'")
+@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
 public class PgVectorStoreAdmin implements VectorStoreAdmin {
     private final JdbcTemplate jdbcTemplate;
     private final KnowledgeProperties knowledgeProperties;

@@ -7,15 +7,15 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
-import com.personalblog.ragbackend.rag.core.intent.GuidanceDecision;
+import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
+import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.core.intent.RagGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
-import com.personalblog.ragbackend.rag.core.rewrite.QueryTermRewriteService;
+import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
+import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -27,20 +27,20 @@ import java.util.List;
 @Service
 public class RagQueryPipeline {
     private final KnowledgeProperties knowledgeProperties;
-    private final QueryTermRewriteService queryTermRewriteService;
+    private final QueryRewriteService queryRewriteService;
     private final RagIntentResolver ragIntentResolver;
-    private final RagGuidanceService ragGuidanceService;
+    private final IntentGuidanceService guidanceService;
     private final ObjectProvider<LLMService> llmServiceProvider;
 
     public RagQueryPipeline(KnowledgeProperties knowledgeProperties,
-                            QueryTermRewriteService queryTermRewriteService,
+                            QueryRewriteService queryRewriteService,
                             RagIntentResolver ragIntentResolver,
-                            RagGuidanceService ragGuidanceService,
+                            IntentGuidanceService guidanceService,
                             ObjectProvider<LLMService> llmServiceProvider) {
         this.knowledgeProperties = knowledgeProperties;
-        this.queryTermRewriteService = queryTermRewriteService;
+        this.queryRewriteService = queryRewriteService;
         this.ragIntentResolver = ragIntentResolver;
-        this.ragGuidanceService = ragGuidanceService;
+        this.guidanceService = guidanceService;
         this.llmServiceProvider = llmServiceProvider;
     }
 
@@ -50,27 +50,24 @@ public class RagQueryPipeline {
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         steps.add("normalize-base");
 
-        KnowledgeQueryRewriteResult rewriteResult = queryTermRewriteService.rewrite(question, normalizedBaseCode, memory);
-        steps.add("rewrite:" + rewriteResult.appliedMappings().size());
+        RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(question, memory);
+        steps.add("rewrite:" + rewriteResult.subQuestions().size());
 
-        List<SubQuestionIntent> subIntents = ragIntentResolver.resolve(
-                rewriteResult.rewrittenQuestion(),
-                rewriteResult.subQuestions()
-        );
+        List<SubQuestionIntent> subIntents = ragIntentResolver.resolve(rewriteResult);
         steps.add("intent:" + subIntents.size());
 
-        GuidanceDecision guidanceDecision = ragGuidanceService.detectAmbiguity(rewriteResult.rewrittenQuestion(), subIntents);
-        if (guidanceDecision.prompt()) {
+        GuidanceDecision guidanceDecision = guidanceService.detectAmbiguity(rewriteResult.rewrittenQuestion(), subIntents);
+        if (guidanceDecision.isPrompt()) {
             steps.add("guidance:prompt");
             return new RagQueryPlan(
-                    rewriteResult.originalQuestion(),
+                    question,
                     rewriteResult.rewrittenQuestion(),
                     normalizedBaseCode,
                     knowledgeProperties.getSearch().getTopK(),
                     subIntents,
                     ragIntentResolver.mergeIntentGroup(subIntents),
                     guidanceDecision,
-                    guidanceDecision.promptText(),
+                    guidanceDecision.getPrompt(),
                     steps
             );
         }
@@ -82,7 +79,7 @@ public class RagQueryPipeline {
             String directAnswer = executeSystemOnly(rewriteResult.rewrittenQuestion(), memory, intentGroup);
             steps.add("system-only");
             return new RagQueryPlan(
-                    rewriteResult.originalQuestion(),
+                    question,
                     rewriteResult.rewrittenQuestion(),
                     normalizedBaseCode,
                     knowledgeProperties.getSearch().getTopK(),
@@ -98,7 +95,7 @@ public class RagQueryPipeline {
         int topK = selectTopK(intentGroup);
         steps.add("route:" + selectedBaseCode + "#" + topK);
         return new RagQueryPlan(
-                rewriteResult.originalQuestion(),
+                question,
                 rewriteResult.rewrittenQuestion(),
                 selectedBaseCode,
                 topK,

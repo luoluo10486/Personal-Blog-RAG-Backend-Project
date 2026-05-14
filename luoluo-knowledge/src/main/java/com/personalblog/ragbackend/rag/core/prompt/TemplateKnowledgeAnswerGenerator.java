@@ -4,11 +4,14 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
+import com.personalblog.ragbackend.rag.core.intent.IntentNode;
+import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,14 +20,14 @@ import java.util.stream.Collectors;
 public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerator {
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final RAGPromptService ragPromptService;
-    private final KnowledgeContextFormatter knowledgeContextFormatter;
+    private final ContextFormatter contextFormatter;
 
     public TemplateKnowledgeAnswerGenerator(ObjectProvider<LLMService> llmServiceProvider,
                                             RAGPromptService ragPromptService,
-                                            KnowledgeContextFormatter knowledgeContextFormatter) {
+                                            ContextFormatter contextFormatter) {
         this.llmServiceProvider = llmServiceProvider;
         this.ragPromptService = ragPromptService;
-        this.knowledgeContextFormatter = knowledgeContextFormatter;
+        this.contextFormatter = contextFormatter;
     }
 
     @Override
@@ -54,7 +57,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                            List<NodeScore> mcpIntents,
                            boolean deepThinking) {
         if ((chunks == null || chunks.isEmpty()) && (mcpContext == null || mcpContext.isBlank())) {
-            return "閺堫亝顥呯槐銏犲煂娑撳酣妫舵０妯兼祲閸忓磭娈戦弬鍥ㄣ€傞崘鍛啇閵?";
+            return "当前没有足够的知识库或工具结果可用于回答。";
         }
 
         LLMService llmService = llmServiceProvider.getIfAvailable();
@@ -79,14 +82,15 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
                                     String mcpContext,
                                     List<String> subQuestions,
                                     boolean deepThinking) {
+        Map<String, List<RetrievedChunk>> intentChunks = buildIntentChunkMap(kbIntents, chunks);
         return ragPromptService.buildChatRequest(
                 PromptContext.builder()
                         .question(question)
                         .mcpContext(mcpContext)
-                        .kbContext(knowledgeContextFormatter.formatKbContext(kbIntents, chunks))
+                        .kbContext(contextFormatter.formatKbContext(kbIntents, intentChunks, chunks == null ? 0 : chunks.size()))
                         .mcpIntents(mcpIntents)
                         .kbIntents(kbIntents)
-                        .intentChunks(Map.of())
+                        .intentChunks(intentChunks)
                         .build(),
                 memory,
                 subQuestions,
@@ -95,7 +99,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
     }
 
     private String fallbackAnswer(List<RetrievedChunk> chunks, String mcpContext) {
-        List<String> snippets = new java.util.ArrayList<>();
+        List<String> snippets = new ArrayList<>();
         if (chunks != null) {
             for (int index = 0; index < Math.min(chunks.size(), 3); index++) {
                 RetrievedChunk chunk = chunks.get(index);
@@ -105,8 +109,7 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
         if (mcpContext != null && !mcpContext.isBlank()) {
             snippets.add("[M1] " + safeTruncate(mcpContext, 300));
         }
-        return "濡€崇€烽弳鍌欑瑝閸欘垳鏁ら敍灞藉帥缂佹瑤缍橀惄绋垮彠閻楀洦顔岄敍?n"
-                + snippets.stream().collect(Collectors.joining("\n"));
+        return "当前未能生成完整答案。\n" + snippets.stream().collect(Collectors.joining("\n"));
     }
 
     private String safeTruncate(String text, int maxLength) {
@@ -118,5 +121,43 @@ public class TemplateKnowledgeAnswerGenerator implements KnowledgeAnswerGenerato
             return normalized;
         }
         return normalized.substring(0, maxLength) + "...";
+    }
+
+    private Map<String, List<RetrievedChunk>> buildIntentChunkMap(List<NodeScore> kbIntents, List<RetrievedChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<RetrievedChunk>> intentChunks = new LinkedHashMap<>();
+        if (kbIntents == null || kbIntents.isEmpty()) {
+            intentChunks.put("multi_channel", chunks);
+            return intentChunks;
+        }
+        for (NodeScore nodeScore : kbIntents) {
+            if (nodeScore == null || nodeScore.node() == null) {
+                continue;
+            }
+            String key = nodeKey(nodeScore.node());
+            if (key.isBlank()) {
+                continue;
+            }
+            intentChunks.put(key, chunks);
+        }
+        return intentChunks;
+    }
+
+    private String nodeKey(IntentNode node) {
+        if (node == null) {
+            return "";
+        }
+        if (node.getId() != null && !node.getId().isBlank()) {
+            return node.getId().trim();
+        }
+        if (node.getIntentCode() != null && !node.getIntentCode().isBlank()) {
+            return node.getIntentCode().trim();
+        }
+        if (node.getCollectionName() != null && !node.getCollectionName().isBlank()) {
+            return node.getCollectionName().trim();
+        }
+        return node.getName() == null ? "" : node.getName().trim();
     }
 }

@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 @Service
 @ConditionalOnBean(JdbcTemplate.class)
-@ConditionalOnProperty(prefix = "app.knowledge.jdbc", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "rag.knowledge.jdbc", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class JdbcKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCandidateRetriever {
     private static final Pattern TOKEN_SPLITTER = Pattern.compile("[^\\p{IsHan}a-zA-Z0-9]+");
     private static final int MAX_QUERY_TOKENS = 8;

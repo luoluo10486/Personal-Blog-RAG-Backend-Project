@@ -18,7 +18,7 @@ import java.util.Map;
 
 @Service
 @ConditionalOnBean(JdbcTemplate.class)
-@ConditionalOnExpression("'${app.knowledge.vector.type:pgvector}'.toLowerCase() == 'pgvector' or '${app.knowledge.vector.type:pgvector}'.toLowerCase() == 'pg'")
+@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
 public class PgVectorStoreService implements VectorStoreService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };

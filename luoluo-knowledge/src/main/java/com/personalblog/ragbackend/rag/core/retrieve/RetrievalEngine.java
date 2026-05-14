@@ -12,8 +12,7 @@ import com.personalblog.ragbackend.rag.core.mcp.MCPResponse;
 import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
-import com.personalblog.ragbackend.rag.core.mcp.McpContextFormatter;
-import com.personalblog.ragbackend.rag.core.prompt.KnowledgeContextFormatter;
+import com.personalblog.ragbackend.rag.core.prompt.ContextFormatter;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -30,24 +29,21 @@ import java.util.concurrent.Executor;
 @Service
 public class RetrievalEngine {
     private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
-    private final KnowledgeContextFormatter knowledgeContextFormatter;
+    private final ContextFormatter contextFormatter;
     private final MCPParameterExtractor mcpParameterExtractor;
-    private final McpContextFormatter mcpContextFormatter;
     private final MCPToolRegistry mcpToolRegistry;
     private final Executor ragContextExecutor;
     private final Executor mcpBatchExecutor;
 
     public RetrievalEngine(KnowledgeRetrievalEngine knowledgeRetrievalEngine,
-                           KnowledgeContextFormatter knowledgeContextFormatter,
+                           ContextFormatter contextFormatter,
                            MCPParameterExtractor mcpParameterExtractor,
-                           McpContextFormatter mcpContextFormatter,
                            MCPToolRegistry mcpToolRegistry,
                            @Qualifier("ragContextThreadPoolExecutor") Executor ragContextExecutor,
                            @Qualifier("mcpBatchThreadPoolExecutor") Executor mcpBatchExecutor) {
         this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
-        this.knowledgeContextFormatter = knowledgeContextFormatter;
+        this.contextFormatter = contextFormatter;
         this.mcpParameterExtractor = mcpParameterExtractor;
-        this.mcpContextFormatter = mcpContextFormatter;
         this.mcpToolRegistry = mcpToolRegistry;
         this.ragContextExecutor = ragContextExecutor;
         this.mcpBatchExecutor = mcpBatchExecutor;
@@ -138,7 +134,7 @@ public class RetrievalEngine {
                 }
             }
         }
-        String context = knowledgeContextFormatter.formatKbContext(kbIntents, chunks);
+        String context = contextFormatter.formatKbContext(kbIntents, intentChunks, topK);
         return new KbResult(context, intentChunks);
     }
 
@@ -149,7 +145,7 @@ public class RetrievalEngine {
                                        String conversationId,
                                        String userId) {
         List<MCPResponse> responses = executeMcpTools(question, mcpIntents, baseCode, topK, conversationId, userId);
-        return mcpContextFormatter.format(responses, mcpIntents);
+        return contextFormatter.formatMcpContext(responses, mcpIntents);
     }
 
     private List<MCPResponse> executeMcpTools(String question,

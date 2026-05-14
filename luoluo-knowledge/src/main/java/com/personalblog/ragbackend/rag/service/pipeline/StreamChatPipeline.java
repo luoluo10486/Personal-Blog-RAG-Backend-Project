@@ -7,22 +7,22 @@ import com.personalblog.ragbackend.infra.chat.StreamCancellationHandle;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
-import com.personalblog.ragbackend.rag.core.prompt.PromptContext;
-import com.personalblog.ragbackend.rag.core.prompt.RAGPromptService;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
-import com.personalblog.ragbackend.rag.service.StreamChatEventHandler;
-import com.personalblog.ragbackend.rag.service.StreamTaskManager;
-import com.personalblog.ragbackend.rag.core.intent.GuidanceDecision;
+import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
+import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.core.intent.RagGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.memory.ConversationMemoryService;
+import com.personalblog.ragbackend.rag.core.prompt.PromptContext;
+import com.personalblog.ragbackend.rag.core.prompt.RAGPromptService;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrievalContext;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrievalEngine;
-import com.personalblog.ragbackend.rag.core.rewrite.QueryTermRewriteService;
+import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
+import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
+import com.personalblog.ragbackend.rag.service.StreamChatEventHandler;
+import com.personalblog.ragbackend.rag.service.StreamTaskManager;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -35,9 +35,9 @@ public class StreamChatPipeline {
     private static final String CHAT_SYSTEM_PROMPT_PATH = "prompt/chat-system.st";
 
     private final ConversationMemoryService memoryService;
-    private final QueryTermRewriteService queryRewriteService;
+    private final QueryRewriteService queryRewriteService;
     private final RagIntentResolver intentResolver;
-    private final RagGuidanceService guidanceService;
+    private final IntentGuidanceService guidanceService;
     private final RetrievalEngine retrievalEngine;
     private final ObjectProvider<LLMService> llmServiceProvider;
     private final RAGPromptService promptBuilder;
@@ -46,9 +46,9 @@ public class StreamChatPipeline {
     private final KnowledgeProperties knowledgeProperties;
 
     public StreamChatPipeline(ConversationMemoryService memoryService,
-                              QueryTermRewriteService queryRewriteService,
+                              QueryRewriteService queryRewriteService,
                               RagIntentResolver intentResolver,
-                              RagGuidanceService guidanceService,
+                              IntentGuidanceService guidanceService,
                               RetrievalEngine retrievalEngine,
                               ObjectProvider<LLMService> llmServiceProvider,
                               RAGPromptService promptBuilder,
@@ -98,20 +98,12 @@ public class StreamChatPipeline {
     }
 
     private void rewriteQuery(StreamChatContext ctx) {
-        KnowledgeQueryRewriteResult rewriteResult = queryRewriteService.rewrite(
-                ctx.getQuestion(),
-                ctx.getBaseCode(),
-                ctx.getHistory()
-        );
+        RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(ctx.getQuestion(), ctx.getHistory());
         ctx.setRewriteResult(rewriteResult);
     }
 
     private void resolveIntents(StreamChatContext ctx) {
-        KnowledgeQueryRewriteResult rewriteResult = ctx.getRewriteResult();
-        List<SubQuestionIntent> subIntents = intentResolver.resolve(
-                rewriteResult.rewrittenQuestion(),
-                rewriteResult.subQuestions()
-        );
+        List<SubQuestionIntent> subIntents = intentResolver.resolve(ctx.getRewriteResult());
         ctx.setSubIntents(subIntents);
     }
 
@@ -120,11 +112,11 @@ public class StreamChatPipeline {
                 ctx.getRewriteResult().rewrittenQuestion(),
                 ctx.getSubIntents()
         );
-        if (!decision.prompt()) {
+        if (!decision.isPrompt()) {
             return false;
         }
         StreamChatEventHandler callback = ctx.getCallback();
-        callback.onContent(decision.promptText());
+        callback.onContent(decision.getPrompt());
         callback.onComplete();
         return true;
     }

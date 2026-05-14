@@ -1,8 +1,8 @@
 package com.personalblog.ragbackend.rag.service.pipeline;
 
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
-import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
 import com.personalblog.ragbackend.rag.service.StreamChatEventHandler;
+import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 
 import java.util.List;
@@ -18,7 +18,7 @@ public class StreamChatContext {
     private int topK;
     private StreamChatEventHandler callback;
     private List<ChatMessage> history = List.of();
-    private KnowledgeQueryRewriteResult rewriteResult;
+    private RewriteResult rewriteResult;
     private List<SubQuestionIntent> subIntents = List.of();
 
     public static Builder builder() {
@@ -69,11 +69,11 @@ public class StreamChatContext {
         this.history = history == null ? List.of() : history;
     }
 
-    public KnowledgeQueryRewriteResult getRewriteResult() {
+    public RewriteResult getRewriteResult() {
         return rewriteResult;
     }
 
-    public void setRewriteResult(KnowledgeQueryRewriteResult rewriteResult) {
+    public void setRewriteResult(RewriteResult rewriteResult) {
         this.rewriteResult = rewriteResult;
     }
 

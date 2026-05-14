@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.service.pipeline;
 
-import com.personalblog.ragbackend.rag.core.intent.GuidanceDecision;
+import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 
