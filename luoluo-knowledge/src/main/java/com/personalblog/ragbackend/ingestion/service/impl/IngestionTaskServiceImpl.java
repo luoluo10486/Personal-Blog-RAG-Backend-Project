@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.controller.request.DocumentSourceRequest;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionTaskCreateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskNodeVO;
@@ -71,25 +72,22 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
     @Override
     public IngestionResult execute(IngestionTaskCreateRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("request must not be blank");
+            throw new ClientException("request must not be blank");
         }
         if (!StringUtils.hasText(request.getPipelineId())) {
-            throw new IllegalArgumentException("pipelineId must not be blank");
+            throw new ClientException("pipelineId must not be blank");
         }
         DocumentSource source = toSource(request.getSource());
-        if (source == null || source.getType() == null || !StringUtils.hasText(source.getLocation())) {
-            throw new IllegalArgumentException("source must not be blank");
-        }
-        return executeInternal(request.getPipelineId(), source, null, null, request.getVectorSpaceId(), request.getMetadata());
+        return executeInternal(request.getPipelineId(), source, null, null, request.getVectorSpaceId());
     }
 
     @Override
     public IngestionResult upload(String pipelineId, MultipartFile file) {
         if (!StringUtils.hasText(pipelineId)) {
-            throw new IllegalArgumentException("pipelineId must not be blank");
+            throw new ClientException("pipelineId must not be blank");
         }
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("file must not be blank");
+        if (file == null) {
+            throw new ClientException("file must not be blank");
         }
         byte[] bytes = getBytes(file);
         String fileName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "upload.bin";
@@ -99,7 +97,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
                 .location(fileName)
                 .fileName(fileName)
                 .build();
-        return executeInternal(pipelineId, source, bytes, mimeType, null, Map.of());
+        return executeInternal(pipelineId, source, bytes, mimeType, null);
     }
 
     @Override
@@ -139,8 +137,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
                                             DocumentSource source,
                                             byte[] rawBytes,
                                             String mimeType,
-                                            VectorSpaceId vectorSpaceId,
-                                            Map<String, Object> metadata) {
+                                            VectorSpaceId vectorSpaceId) {
         String resolvedPipelineId = resolvePipelineId(pipelineId);
         PipelineDefinition pipeline = ingestionPipelineService.getDefinition(resolvedPipelineId);
 
@@ -165,7 +162,6 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
                 .source(source)
                 .rawBytes(rawBytes)
                 .mimeType(mimeType)
-                .metadata(metadata)
                 .vectorSpaceId(vectorSpaceId)
                 .logs(new ArrayList<>())
                 .status(IngestionStatus.RUNNING)
@@ -173,7 +169,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
 
         IngestionContext result = ingestionEngine.execute(pipeline, context);
         saveNodeLogsWithOrder(task, pipeline, result.getLogs());
-        updateTaskFromContext(task, result, metadata, vectorSpaceId);
+        updateTaskFromContext(task, result);
         return IngestionResult.builder()
                 .taskId(stringify(task.id))
                 .pipelineId(stringify(task.pipelineId))
@@ -184,9 +180,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
     }
 
     private void updateTaskFromContext(IngestionTaskEntity task,
-                                       IngestionContext context,
-                                       Map<String, Object> requestMetadata,
-                                       VectorSpaceId vectorSpaceId) {
+                                       IngestionContext context) {
         task.status = context.getStatus() == null
                 ? IngestionStatus.FAILED.getValue()
                 : normalizeTaskStatus(context.getStatus().getValue());
@@ -196,7 +190,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         task.updatedBy = currentUserId();
         task.updatedAt = LocalDateTime.now();
         task.logsJson = toJson(buildLogSummary(context.getLogs()));
-        task.metadataJson = toJson(buildTaskMetadata(context, requestMetadata, vectorSpaceId));
+        task.metadataJson = toJson(buildTaskMetadata(context));
         taskMapper.updateById(task);
     }
 
@@ -281,21 +275,16 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         return "success";
     }
 
-    private Map<String, Object> buildTaskMetadata(IngestionContext context,
-                                                  Map<String, Object> requestMetadata,
-                                                  VectorSpaceId vectorSpaceId) {
+    private Map<String, Object> buildTaskMetadata(IngestionContext context) {
         Map<String, Object> metadata = new HashMap<>();
-        if (requestMetadata != null) {
-            metadata.putAll(requestMetadata);
+        if (context.getMetadata() != null) {
+            metadata.putAll(context.getMetadata());
         }
         if (context.getKeywords() != null && !context.getKeywords().isEmpty()) {
             metadata.put("keywords", context.getKeywords());
         }
         if (context.getQuestions() != null && !context.getQuestions().isEmpty()) {
             metadata.put("questions", context.getQuestions());
-        }
-        if (vectorSpaceId != null) {
-            metadata.put("vectorSpaceId", vectorSpaceId);
         }
         return metadata;
     }
@@ -335,14 +324,18 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
 
     private DocumentSource toSource(DocumentSourceRequest request) {
         if (request == null) {
-            return null;
+            throw new ClientException("source must not be blank");
         }
-        return DocumentSource.builder()
+        DocumentSource source = DocumentSource.builder()
                 .type(request.getType())
                 .location(request.getLocation())
                 .fileName(request.getFileName())
                 .credentials(request.getCredentials())
                 .build();
+        if (source.getType() == null) {
+            throw new ClientException("source type must not be blank");
+        }
+        return source;
     }
 
     private IngestionTaskVO toView(IngestionTaskEntity task, List<NodeLog> logs) {
@@ -407,34 +400,34 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
 
     private IngestionTaskEntity requireTask(Long id) {
         if (id == null) {
-            throw new IllegalArgumentException("task id must not be blank");
+            throw new ClientException("task id must not be blank");
         }
         IngestionTaskEntity entity = taskMapper.selectById(id);
         if (entity == null || entity.deleted != null && entity.deleted != 0) {
-            throw new IllegalArgumentException("task not found");
+            throw new ClientException("task not found");
         }
         return entity;
     }
 
     private Long parseTaskId(String taskId) {
         if (!StringUtils.hasText(taskId)) {
-            throw new IllegalArgumentException("task id must not be blank");
+            throw new ClientException("task id must not be blank");
         }
         try {
             return Long.valueOf(taskId.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("task not found");
+            throw new ClientException("task not found");
         }
     }
 
     private Long parsePipelineId(String pipelineId) {
         if (!StringUtils.hasText(pipelineId)) {
-            throw new IllegalArgumentException("pipelineId must not be blank");
+            throw new ClientException("pipelineId must not be blank");
         }
         try {
             return Long.valueOf(pipelineId.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("pipeline not found");
+            throw new ClientException("pipeline not found");
         }
     }
 
@@ -442,7 +435,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         if (StringUtils.hasText(pipelineId)) {
             return pipelineId.trim();
         }
-        throw new IllegalArgumentException("pipelineId must not be blank");
+        throw new ClientException("pipelineId must not be blank");
     }
 
     private Long currentUserId() {
@@ -461,7 +454,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         try {
             return IngestionStatus.fromValue(normalized).getValue();
         } catch (IllegalArgumentException ignored) {
-            return normalized;
+            return status.trim();
         }
     }
 
@@ -483,7 +476,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         try {
             return file.getBytes();
         } catch (IOException exception) {
-            throw new IllegalArgumentException("read file bytes failed: " + exception.getMessage(), exception);
+            throw new ClientException("read file bytes failed: " + exception.getMessage());
         }
     }
 
@@ -496,24 +489,6 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         } catch (Exception ignored) {
             return null;
         }
-    }
-
-    private Map<String, Object> buildMetadata(IngestionContext context, Map<String, Object> requestMetadata, VectorSpaceId vectorSpaceId) {
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        if (requestMetadata != null) {
-            metadata.putAll(requestMetadata);
-        }
-        if (context.getKeywords() != null && !context.getKeywords().isEmpty()) {
-            metadata.put("keywords", context.getKeywords());
-        }
-        if (context.getQuestions() != null && !context.getQuestions().isEmpty()) {
-            metadata.put("questions", context.getQuestions());
-        }
-        metadata.put("vectorSpaceId", vectorSpaceId);
-        metadata.put("pipelineId", context.getPipelineId());
-        metadata.put("status", context.getStatus() == null ? null : context.getStatus().getValue());
-        metadata.put("chunkCount", context.getChunks() == null ? 0 : context.getChunks().size());
-        return metadata;
     }
 
     private java.util.Date toDate(LocalDateTime time) {

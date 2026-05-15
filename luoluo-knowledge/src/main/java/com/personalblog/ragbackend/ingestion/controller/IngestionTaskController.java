@@ -10,6 +10,7 @@ import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
 import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
 import com.personalblog.ragbackend.ingestion.service.IngestionTaskService;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,7 @@ public class IngestionTaskController {
         return Results.success(taskService.execute(request));
     }
 
+    @SneakyThrows
     @PostMapping(value = "/ingestion/tasks/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<IngestionResult> upload(@RequestParam(value = "pipelineId") String pipelineId,
                                           @RequestPart("file") MultipartFile file) {

@@ -18,6 +18,8 @@ import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionPipelineNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionPipelineNodeMapper;
+import com.personalblog.ragbackend.framework.exception.ClientException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -45,21 +47,31 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
     }
 
     public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
-        String name = normalizeName(request == null ? null : request.getName());
+        if (request == null) {
+            throw new ClientException("请求不能为空");
+        }
+        String name = normalizeName(request.getName());
         IngestionPipelineEntity entity = new IngestionPipelineEntity();
         entity.name = name;
-        entity.description = blankToNull(request == null ? null : request.getDescription());
+        entity.description = blankToNull(request.getDescription());
         entity.createdBy = currentUserId();
         entity.updatedBy = currentUserId();
         entity.deleted = 0;
         entity.createdAt = LocalDateTime.now();
         entity.updatedAt = LocalDateTime.now();
-        pipelineMapper.insert(entity);
-        replaceNodes(entity.id, request == null ? List.of() : request.getNodes());
+        try {
+            pipelineMapper.insert(entity);
+        } catch (DuplicateKeyException exception) {
+            throw new ClientException("pipeline name already exists");
+        }
+        replaceNodes(entity.id, request.getNodes());
         return get(String.valueOf(entity.id));
     }
 
     public IngestionPipelineVO update(String id, IngestionPipelineUpdateRequest request) {
+        if (request == null) {
+            throw new ClientException("请求不能为空");
+        }
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
         if (StringUtils.hasText(request.getName())) {
@@ -88,7 +100,7 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
                 new Page<>(Math.max(current, 1), Math.max(size, 1)),
                 new QueryWrapper<IngestionPipelineEntity>()
                         .eq("deleted", 0)
-                        .and(StringUtils.hasText(keyword), wrapper -> wrapper.like("name", keyword).or().like("description", keyword))
+                        .like(StringUtils.hasText(keyword), "name", keyword)
                         .orderByDesc("update_time")
         );
         Page<IngestionPipelineVO> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
@@ -98,8 +110,10 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
 
     public void delete(String id) {
         Long pipelineId = parsePipelineId(id);
-        requirePipeline(pipelineId);
-        pipelineMapper.deleteById(pipelineId);
+        IngestionPipelineEntity entity = requirePipeline(pipelineId);
+        entity.deleted = 1;
+        entity.updatedBy = currentUserId();
+        pipelineMapper.deleteById(entity);
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
     }
 
@@ -170,11 +184,11 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
 
     private IngestionPipelineEntity requirePipeline(Long id) {
         if (id == null) {
-            throw new IllegalArgumentException("pipeline id must not be blank");
+            throw new ClientException("pipeline id must not be blank");
         }
         IngestionPipelineEntity entity = pipelineMapper.selectById(id);
         if (entity == null || entity.deleted != null && entity.deleted != 0) {
-            throw new IllegalArgumentException("pipeline not found");
+            throw new ClientException("pipeline not found");
         }
         return entity;
     }
@@ -218,21 +232,21 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
 
     private String normalizeName(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("pipeline name must not be blank");
+            throw new ClientException("pipeline name must not be blank");
         }
         return value.trim();
     }
 
     private String normalizeNodeId(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("nodeId must not be blank");
+            throw new ClientException("nodeId must not be blank");
         }
         return value.trim();
     }
 
     private String normalizeNodeType(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("nodeType must not be blank");
+            throw new ClientException("nodeType must not be blank");
         }
         return IngestionNodeType.fromValue(value).getValue();
     }
@@ -269,12 +283,12 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
 
     private Long parsePipelineId(String id) {
         if (!StringUtils.hasText(id)) {
-            throw new IllegalArgumentException("pipeline id must not be blank");
+            throw new ClientException("pipeline id must not be blank");
         }
         try {
             return Long.valueOf(id.trim());
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("pipeline not found");
+            throw new ClientException("pipeline not found");
         }
     }
 

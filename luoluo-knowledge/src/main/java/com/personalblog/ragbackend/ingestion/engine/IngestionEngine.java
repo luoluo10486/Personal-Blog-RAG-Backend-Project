@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.ingestion.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
 import com.personalblog.ragbackend.ingestion.domain.context.NodeLog;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionStatus;
@@ -14,7 +15,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class IngestionEngine {
     public IngestionEngine(List<IngestionNode> nodes,
                            ConditionEvaluator conditionEvaluator,
                            NodeOutputExtractor outputExtractor) {
-        this.nodeMap = nodes.stream().collect(Collectors.toMap(IngestionNode::getNodeType, node -> node, (left, right) -> left));
+        this.nodeMap = nodes.stream().collect(Collectors.toMap(IngestionNode::getNodeType, node -> node));
         this.conditionEvaluator = conditionEvaluator;
         this.outputExtractor = outputExtractor;
     }
@@ -43,12 +43,12 @@ public class IngestionEngine {
         }
         context.setStatus(IngestionStatus.RUNNING);
 
-        Map<String, NodeConfig> nodeConfigMap = buildNodeConfigMap(pipeline == null ? null : pipeline.getNodes());
+        Map<String, NodeConfig> nodeConfigMap = buildNodeConfigMap(pipeline.getNodes());
         validatePipeline(nodeConfigMap);
 
         String startNodeId = findStartNode(nodeConfigMap);
         if (StrUtil.isBlank(startNodeId)) {
-            throw new IllegalArgumentException("pipeline did not find a start node");
+            throw new ClientException("pipeline did not find a start node");
         }
 
         executeChain(startNodeId, nodeConfigMap, context);
@@ -63,14 +63,7 @@ public class IngestionEngine {
         if (nodes == null) {
             return Collections.emptyMap();
         }
-        Map<String, NodeConfig> result = new HashMap<>();
-        for (NodeConfig node : nodes) {
-            if (node == null || !StringUtils.hasText(node.getNodeId())) {
-                continue;
-            }
-            result.putIfAbsent(node.getNodeId(), node);
-        }
-        return result;
+        return nodes.stream().collect(Collectors.toMap(NodeConfig::getNodeId, node -> node));
     }
 
     private void validatePipeline(Map<String, NodeConfig> nodeConfigMap) {
@@ -83,7 +76,7 @@ public class IngestionEngine {
             String current = nodeId;
             while (current != null) {
                 if (path.contains(current)) {
-                    throw new IllegalArgumentException("pipeline has cycle: " + current);
+                    throw new ClientException("pipeline has cycle: " + current);
                 }
                 path.add(current);
                 visited.add(current);
@@ -94,7 +87,7 @@ public class IngestionEngine {
                 String nextId = config.getNextNodeId();
                 if (StringUtils.hasText(nextId)) {
                     if (!nodeConfigMap.containsKey(nextId)) {
-                        throw new IllegalArgumentException("cannot find next node " + nextId + " referenced by " + current);
+                        throw new ClientException("cannot find next node " + nextId + " referenced by " + current);
                     }
                     current = nextId;
                 } else {
@@ -122,7 +115,7 @@ public class IngestionEngine {
 
         while (currentNodeId != null) {
             if (executedCount++ > maxNodes) {
-                throw new IllegalArgumentException("pipeline execution count exceeded");
+                throw new ClientException("pipeline execution count exceeded");
             }
             NodeConfig config = nodeConfigMap.get(currentNodeId);
             if (config == null) {
