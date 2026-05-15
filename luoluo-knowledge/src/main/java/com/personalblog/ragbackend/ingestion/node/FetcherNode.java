@@ -5,6 +5,7 @@ import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
 import com.personalblog.ragbackend.ingestion.domain.result.NodeResult;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.strategy.fetcher.DocumentFetcher;
 import com.personalblog.ragbackend.ingestion.strategy.fetcher.FetchResult;
 import com.personalblog.ragbackend.ingestion.util.MimeTypeDetector;
@@ -37,17 +38,17 @@ public class FetcherNode implements IngestionNode {
                 String fileName = context.getSource() == null ? null : context.getSource().getFileName();
                 context.setMimeType(MimeTypeDetector.detect(context.getRawBytes(), fileName));
             }
-            return NodeResult.ok("source already fetched");
+            return NodeResult.ok("already fetched source bytes");
         }
 
         DocumentSource source = context.getSource();
         if (source == null || source.getType() == null) {
-            return NodeResult.fail(new IllegalArgumentException("document source is required"));
+            return NodeResult.fail(new ClientException("document source is required"));
         }
 
         DocumentFetcher fetcher = fetchers.get(source.getType());
         if (fetcher == null) {
-            return NodeResult.fail(new IllegalArgumentException("unsupported source type: " + source.getType()));
+            return NodeResult.fail(new ClientException("unsupported source type: " + source.getType()));
         }
 
         FetchResult result = fetcher.fetch(source);

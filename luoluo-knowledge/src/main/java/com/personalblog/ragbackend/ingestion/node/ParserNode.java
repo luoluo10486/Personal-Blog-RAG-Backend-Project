@@ -6,6 +6,7 @@ import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
 import com.personalblog.ragbackend.ingestion.domain.result.NodeResult;
 import com.personalblog.ragbackend.ingestion.domain.settings.ParserSettings;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.util.MimeTypeDetector;
 import com.personalblog.ragbackend.knowledge.core.parser.DocumentParser;
 import com.personalblog.ragbackend.knowledge.core.parser.DocumentParserSelector;
@@ -39,7 +40,7 @@ public class ParserNode implements IngestionNode {
     @Override
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         if (context.getRawBytes() == null || context.getRawBytes().length == 0) {
-            return NodeResult.fail(new IllegalArgumentException("raw bytes are required"));
+            return NodeResult.fail(new ClientException("raw bytes are required"));
         }
         String mimeType = context.getMimeType();
         if (!StringUtils.hasText(mimeType)) {
@@ -85,7 +86,7 @@ public class ParserNode implements IngestionNode {
             }
         }
         if (!hasMatch) {
-            throw new IllegalArgumentException("unsupported mime type: " + resolvedType);
+            throw new ClientException("unsupported mime type: " + resolvedType);
         }
     }
 

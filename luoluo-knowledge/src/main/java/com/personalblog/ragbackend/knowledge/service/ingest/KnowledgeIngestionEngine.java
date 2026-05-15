@@ -1,15 +1,15 @@
 package com.personalblog.ragbackend.knowledge.service.ingest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.personalblog.ragbackend.framework.exception.ClientException;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentIngestionSummary;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineDefinition;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineNodeConfig;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceRoot;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -26,9 +26,7 @@ public class KnowledgeIngestionEngine {
     private final ObjectMapper objectMapper;
 
     public KnowledgeIngestionEngine(List<KnowledgeIngestionNode> nodes, ObjectMapper objectMapper) {
-        this.nodes = nodes.stream()
-                .sorted(Comparator.comparingInt(KnowledgeIngestionNode::getOrder))
-                .toList();
+        this.nodes = nodes.stream().sorted(java.util.Comparator.comparingInt(KnowledgeIngestionNode::getOrder)).toList();
         this.nodeMap = this.nodes.stream()
                 .collect(Collectors.toMap(node -> normalizeNodeType(node.getNodeType()), Function.identity(), (left, right) -> left));
         this.objectMapper = objectMapper;
@@ -57,7 +55,7 @@ public class KnowledgeIngestionEngine {
     }
 
     @RagTraceRoot(name = "knowledge-ingestion", taskIdArg = "taskId")
-    public KnowledgeIngestionResult execute(IngestionPipelineDefinition pipeline, KnowledgeIngestionRequest request) {
+    public KnowledgeIngestionResult execute(PipelineDefinition pipeline, KnowledgeIngestionRequest request) {
         KnowledgeIngestionContext context = new KnowledgeIngestionContext(
                 request.baseCode(),
                 request.file(),
@@ -69,10 +67,10 @@ public class KnowledgeIngestionEngine {
                 request.sourceFileName(),
                 request.sourceFileUrl()
         );
-        List<IngestionPipelineNodeConfig> executionPlan = expandExecutionPlan(pipeline);
+        List<NodeConfig> executionPlan = expandExecutionPlan(pipeline);
         for (int i = 0; i < executionPlan.size(); i++) {
-            IngestionPipelineNodeConfig config = executionPlan.get(i);
-            String mappedNodeType = normalizeNodeType(mapPipelineNodeType(config.nodeType()));
+            NodeConfig config = executionPlan.get(i);
+            String mappedNodeType = normalizeNodeType(config.getNodeType());
             KnowledgeIngestionNode node = nodeMap.get(mappedNodeType);
             if (node == null) {
                 if (isNoopNodeType(mappedNodeType)) {
@@ -81,21 +79,21 @@ public class KnowledgeIngestionEngine {
                 }
                 context.setIngestionSummary(DocumentIngestionSummary.failure(
                         request.baseCode(),
-                        "Node [" + config.nodeType() + "] is not supported"
+                        "Node [" + config.getNodeType() + "] is not supported"
                 ));
                 context.addNodeLog(new KnowledgeIngestionNodeLog(
-                        config.nodeId(),
-                        normalizeNodeType(config.nodeType()),
+                        config.getNodeId(),
+                        normalizeNodeType(config.getNodeType()),
                         i + 1,
                         "failed",
                         0,
                         null,
-                        "Unsupported node type: " + config.nodeType(),
+                        "Unsupported node type: " + config.getNodeType(),
                         buildNodeOutput(context)
                 ));
                 break;
             }
-            executeNode(context, node, config.nodeId(), i + 1);
+            executeNode(context, node, config.getNodeId(), i + 1);
             if (hasFailure(context)) {
                 break;
             }
@@ -104,11 +102,11 @@ public class KnowledgeIngestionEngine {
     }
 
     private void executeNoopNode(KnowledgeIngestionContext context,
-                                 IngestionPipelineNodeConfig config,
+                                 NodeConfig config,
                                  int nodeOrder) {
         context.addNodeLog(new KnowledgeIngestionNodeLog(
-                config.nodeId(),
-                normalizeNodeType(config.nodeType()),
+                config.getNodeId(),
+                normalizeNodeType(config.getNodeType()),
                 nodeOrder,
                 "success",
                 0,
@@ -167,36 +165,34 @@ public class KnowledgeIngestionEngine {
         );
     }
 
-    private List<IngestionPipelineNodeConfig> expandExecutionPlan(IngestionPipelineDefinition pipeline) {
-        List<IngestionPipelineNodeConfig> chain = resolvePipelineChain(pipeline);
-        List<IngestionPipelineNodeConfig> expanded = new ArrayList<>();
+    private List<NodeConfig> expandExecutionPlan(PipelineDefinition pipeline) {
+        List<NodeConfig> chain = resolvePipelineChain(pipeline);
+        List<NodeConfig> expanded = new ArrayList<>();
         Set<String> addedTypes = new HashSet<>();
-        for (IngestionPipelineNodeConfig config : chain) {
-            String normalizedType = normalizeNodeType(config.nodeType());
+        for (NodeConfig config : chain) {
+            String normalizedType = normalizeNodeType(config.getNodeType());
             List<String> localTypes = mapPipelineNodeTypes(normalizedType);
             for (String localType : localTypes) {
                 if (addedTypes.add(localType)) {
-                    expanded.add(new IngestionPipelineNodeConfig(
-                            config.nodeId(),
-                            localType,
-                            config.settings(),
-                            config.condition(),
-                            config.nextNodeId()
-                    ));
+                    expanded.add(NodeConfig.builder()
+                            .nodeId(config.getNodeId())
+                            .nodeType(localType)
+                            .nextNodeId(config.getNextNodeId())
+                            .build());
                 }
             }
         }
         return expanded;
     }
 
-    private List<IngestionPipelineNodeConfig> resolvePipelineChain(IngestionPipelineDefinition pipeline) {
-        if (pipeline == null || pipeline.nodes() == null || pipeline.nodes().isEmpty()) {
+    private List<NodeConfig> resolvePipelineChain(PipelineDefinition pipeline) {
+        if (pipeline == null || pipeline.getNodes() == null || pipeline.getNodes().isEmpty()) {
             return defaultPipeline();
         }
-        Map<String, IngestionPipelineNodeConfig> byId = new LinkedHashMap<>();
-        for (IngestionPipelineNodeConfig node : pipeline.nodes()) {
-            if (node != null && StringUtils.hasText(node.nodeId())) {
-                byId.putIfAbsent(node.nodeId(), node);
+        Map<String, NodeConfig> byId = new LinkedHashMap<>();
+        for (NodeConfig node : pipeline.getNodes()) {
+            if (node != null && StringUtils.hasText(node.getNodeId())) {
+                byId.putIfAbsent(node.getNodeId(), node);
             }
         }
         if (byId.isEmpty()) {
@@ -205,21 +201,21 @@ public class KnowledgeIngestionEngine {
         validatePipeline(byId);
         String startNodeId = findStartNode(byId);
         if (!StringUtils.hasText(startNodeId)) {
-            throw new IllegalArgumentException("Pipeline start node not found");
+            throw new ClientException("Pipeline start node not found");
         }
-        List<IngestionPipelineNodeConfig> chain = new ArrayList<>();
+        List<NodeConfig> chain = new ArrayList<>();
         Set<String> visited = new LinkedHashSet<>();
         String current = startNodeId;
         while (StringUtils.hasText(current) && !visited.contains(current)) {
-            IngestionPipelineNodeConfig config = byId.get(current);
+            NodeConfig config = byId.get(current);
             if (config == null) {
                 break;
             }
             chain.add(config);
             visited.add(current);
-            current = config.nextNodeId();
+            current = config.getNextNodeId();
         }
-        for (Map.Entry<String, IngestionPipelineNodeConfig> entry : byId.entrySet()) {
+        for (Map.Entry<String, NodeConfig> entry : byId.entrySet()) {
             if (!visited.contains(entry.getKey())) {
                 chain.add(entry.getValue());
             }
@@ -227,29 +223,29 @@ public class KnowledgeIngestionEngine {
         return chain;
     }
 
-    private void validatePipeline(Map<String, IngestionPipelineNodeConfig> byId) {
+    private void validatePipeline(Map<String, NodeConfig> byId) {
         for (String nodeId : byId.keySet()) {
             Set<String> path = new HashSet<>();
             String current = nodeId;
             while (StringUtils.hasText(current)) {
                 if (!path.add(current)) {
-                    throw new IllegalArgumentException("Pipeline has cycle: " + current);
+                    throw new ClientException("Pipeline has cycle: " + current);
                 }
-                IngestionPipelineNodeConfig config = byId.get(current);
-                if (config == null || !StringUtils.hasText(config.nextNodeId())) {
+                NodeConfig config = byId.get(current);
+                if (config == null || !StringUtils.hasText(config.getNextNodeId())) {
                     break;
                 }
-                if (!byId.containsKey(config.nextNodeId())) {
-                    throw new IllegalArgumentException("Pipeline next node not found: " + config.nextNodeId());
+                if (!byId.containsKey(config.getNextNodeId())) {
+                    throw new ClientException("Pipeline next node not found: " + config.getNextNodeId());
                 }
-                current = config.nextNodeId();
+                current = config.getNextNodeId();
             }
         }
     }
 
-    private String findStartNode(Map<String, IngestionPipelineNodeConfig> byId) {
+    private String findStartNode(Map<String, NodeConfig> byId) {
         Set<String> referenced = byId.values().stream()
-                .map(IngestionPipelineNodeConfig::nextNodeId)
+                .map(NodeConfig::getNextNodeId)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toSet());
         return byId.keySet().stream()
@@ -258,17 +254,17 @@ public class KnowledgeIngestionEngine {
                 .orElse(null);
     }
 
-    private List<IngestionPipelineNodeConfig> defaultPipeline() {
+    private List<NodeConfig> defaultPipeline() {
         return List.of(
-                new IngestionPipelineNodeConfig("plan", "plan", Map.of(), Map.of(), "parse"),
-                new IngestionPipelineNodeConfig("parse", "parse", Map.of(), Map.of(), "chunk"),
-                new IngestionPipelineNodeConfig("enhancer", "enhancer", Map.of(), Map.of(), "chunk"),
-                new IngestionPipelineNodeConfig("chunk", "chunk", Map.of(), Map.of(), "persist"),
-                new IngestionPipelineNodeConfig("persist", "persist", Map.of(), Map.of(), "embed"),
-                new IngestionPipelineNodeConfig("embed", "embed", Map.of(), Map.of(), "index"),
-                new IngestionPipelineNodeConfig("enricher", "enricher", Map.of(), Map.of(), "index"),
-                new IngestionPipelineNodeConfig("index", "index", Map.of(), Map.of(), "finalize"),
-                new IngestionPipelineNodeConfig("finalize", "finalize", Map.of(), Map.of(), null)
+                NodeConfig.builder().nodeId("plan").nodeType("plan").nextNodeId("parse").build(),
+                NodeConfig.builder().nodeId("parse").nodeType("parse").nextNodeId("chunk").build(),
+                NodeConfig.builder().nodeId("enhancer").nodeType("enhancer").nextNodeId("chunk").build(),
+                NodeConfig.builder().nodeId("chunk").nodeType("chunk").nextNodeId("persist").build(),
+                NodeConfig.builder().nodeId("persist").nodeType("persist").nextNodeId("embed").build(),
+                NodeConfig.builder().nodeId("embed").nodeType("embed").nextNodeId("index").build(),
+                NodeConfig.builder().nodeId("enricher").nodeType("enricher").nextNodeId("index").build(),
+                NodeConfig.builder().nodeId("index").nodeType("index").nextNodeId("finalize").build(),
+                NodeConfig.builder().nodeId("finalize").nodeType("finalize").build()
         );
     }
 
@@ -280,19 +276,7 @@ public class KnowledgeIngestionEngine {
             case "chunker" -> List.of("chunk", "persist", "embed");
             case "enricher" -> List.of("enricher");
             case "indexer" -> List.of("index", "finalize");
-            default -> List.of(mapPipelineNodeType(nodeType));
-        };
-    }
-
-    private String mapPipelineNodeType(String nodeType) {
-        return switch (normalizeNodeType(nodeType)) {
-            case "fetcher" -> "plan";
-            case "parser" -> "parse";
-            case "enhancer" -> "enhancer";
-            case "chunker" -> "chunk";
-            case "enricher" -> "enricher";
-            case "indexer" -> "index";
-            default -> normalizeNodeType(nodeType);
+            default -> List.of(normalizeNodeType(nodeType));
         };
     }
 

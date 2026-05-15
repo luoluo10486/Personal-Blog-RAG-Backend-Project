@@ -50,8 +50,6 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMo
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRequest;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNodeLog;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineDefinition;
-import com.personalblog.ragbackend.knowledge.service.ingest.pipeline.IngestionPipelineNodeConfig;
 import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
@@ -351,16 +349,13 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
 
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
-        IngestionPipelineDefinition pipelineDefinition = convertPipelineDefinition(
-                ingestionPipelineService.getDefinition(String.valueOf(document.getPipelineId()))
-        );
         MultipartFile file = knowledgeFileStorageService.restore(document.getFileUrl(), document.getDocName(), document.getFileType());
         if (file == null || file.isEmpty()) {
             throw new IllegalStateException("document file is unavailable");
         }
 
         KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
-                pipelineDefinition,
+                ingestionPipelineService.getDefinition(String.valueOf(document.getPipelineId())),
                 new KnowledgeIngestionRequest(
                         String.valueOf(knowledgeBase.getId()),
                         file,
@@ -392,30 +387,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         long embedDuration = resolveNodeDuration(result.nodeLogs(), "embed");
         List<VectorChunk> vectorChunks = buildVectorChunks(document, chunkResponse.chunks(), embeddings);
         return new ChunkProcessResult(vectorChunks, extractDuration, chunkDuration, embedDuration);
-    }
-
-    private IngestionPipelineDefinition convertPipelineDefinition(
-            com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition pipelineDefinition) {
-        if (pipelineDefinition == null) {
-            return new IngestionPipelineDefinition(null, null, null, List.of());
-        }
-        List<IngestionPipelineNodeConfig> nodes = pipelineDefinition.getNodes() == null
-                ? List.of()
-                : pipelineDefinition.getNodes().stream()
-                .map(node -> new IngestionPipelineNodeConfig(
-                        node.getNodeId(),
-                        node.getNodeType(),
-                        node.getSettings() == null ? Map.of() : objectMapper.convertValue(node.getSettings(), Map.class),
-                        node.getCondition() == null ? Map.of() : objectMapper.convertValue(node.getCondition(), Map.class),
-                        node.getNextNodeId()
-                ))
-                .toList();
-        return new IngestionPipelineDefinition(
-                pipelineDefinition.getId(),
-                pipelineDefinition.getName(),
-                pipelineDefinition.getDescription(),
-                nodes
-        );
     }
 
     private KnowledgeDocumentChunkLogEntity insertChunkLog(KnowledgeDocumentEntity document) {

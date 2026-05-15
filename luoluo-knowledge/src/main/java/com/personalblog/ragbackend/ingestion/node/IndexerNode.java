@@ -2,6 +2,7 @@ package com.personalblog.ragbackend.ingestion.node;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.core.chunk.VectorChunk;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
 import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
@@ -47,12 +48,17 @@ public class IndexerNode implements IngestionNode {
     public NodeResult execute(IngestionContext context, NodeConfig config) {
         List<VectorChunk> chunks = context.getChunks();
         if (chunks == null || chunks.isEmpty()) {
-            return NodeResult.fail(new IllegalArgumentException("no chunks to index"));
+            return NodeResult.fail(new ClientException("no chunks to index"));
         }
         IndexerSettings settings = parseSettings(config.getSettings());
         String collectionName = resolveCollectionName(context);
         if (!StringUtils.hasText(collectionName)) {
-            return NodeResult.fail(new IllegalArgumentException("collection name is required"));
+            return NodeResult.fail(new ClientException("collection name is required"));
+        }
+        for (VectorChunk chunk : chunks) {
+            if (chunk == null || chunk.getEmbedding() == null || chunk.getEmbedding().length == 0) {
+                return NodeResult.fail(new ClientException("chunk embedding is required"));
+            }
         }
         ensureVectorSpace(collectionName);
         if (!context.isSkipIndexerWrite()) {
