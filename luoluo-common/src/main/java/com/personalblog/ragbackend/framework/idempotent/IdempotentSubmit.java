@@ -1,4 +1,4 @@
-package com.personalblog.ragbackend.rag.aop;
+package com.personalblog.ragbackend.framework.idempotent;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -10,5 +10,5 @@ import java.lang.annotation.Target;
 public @interface IdempotentSubmit {
     String key() default "";
 
-    String message() default "您的操作太快，请稍后再试";
+    String message() default "鎮ㄧ殑鎿嶄綔澶揩锛岃绋嶅悗鍐嶈瘯";
 }

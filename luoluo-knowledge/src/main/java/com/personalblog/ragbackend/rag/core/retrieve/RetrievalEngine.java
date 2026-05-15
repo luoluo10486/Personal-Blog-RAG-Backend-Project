@@ -50,6 +50,11 @@ public class RetrievalEngine {
     }
 
     @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
+    public RetrievalContext retrieve(List<SubQuestionIntent> subIntents, int topK) {
+        return retrieve(subIntents, null, topK, null, null);
+    }
+
+    @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
     public RetrievalContext retrieve(List<SubQuestionIntent> subIntents,
                                      String fallbackBaseCode,
                                      int topK,

@@ -187,7 +187,9 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
                                        IngestionContext context,
                                        Map<String, Object> requestMetadata,
                                        VectorSpaceId vectorSpaceId) {
-        task.status = normalizeTaskStatus(context.getStatus() == null ? null : context.getStatus().getValue());
+        task.status = context.getStatus() == null
+                ? IngestionStatus.FAILED.getValue()
+                : normalizeTaskStatus(context.getStatus().getValue());
         task.chunkCount = context.getChunks() == null ? 0 : context.getChunks().size();
         task.errorMessage = context.getError() == null ? null : context.getError().getMessage();
         task.completedAt = LocalDateTime.now();
