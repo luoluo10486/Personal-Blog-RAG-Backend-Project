@@ -5,10 +5,10 @@ import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
 import com.personalblog.ragbackend.common.context.UserContext;
+import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceRoot;
@@ -92,11 +92,11 @@ public class RagTraceAspect {
             Object result = joinPoint.proceed();
             String status = STATUS_SUCCESS;
             String errorMessage = null;
-            if (result instanceof KnowledgeIngestionResult ingestionResult
-                    && ingestionResult.ingestionSummary() != null
-                    && !ingestionResult.ingestionSummary().success()) {
+            if (result instanceof IngestionResult ingestionResult
+                    && ingestionResult.getStatus() != null
+                    && ingestionResult.getStatus().name().equalsIgnoreCase("FAILED")) {
                 status = STATUS_ERROR;
-                errorMessage = ingestionResult.ingestionSummary().errorMessage();
+                errorMessage = ingestionResult.getMessage();
             }
             traceRecordService.finishRun(
                     traceId,

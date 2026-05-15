@@ -11,7 +11,7 @@ import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
-import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
+import com.personalblog.ragbackend.rag.core.intent.IntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
 import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
@@ -28,18 +28,18 @@ import java.util.List;
 public class RagQueryPipeline {
     private final RAGDefaultProperties ragDefaultProperties;
     private final QueryRewriteService queryRewriteService;
-    private final RagIntentResolver ragIntentResolver;
+    private final IntentResolver intentResolver;
     private final IntentGuidanceService guidanceService;
     private final ObjectProvider<LLMService> llmServiceProvider;
 
     public RagQueryPipeline(RAGDefaultProperties ragDefaultProperties,
                             QueryRewriteService queryRewriteService,
-                            RagIntentResolver ragIntentResolver,
+                            IntentResolver intentResolver,
                             IntentGuidanceService guidanceService,
                             ObjectProvider<LLMService> llmServiceProvider) {
         this.ragDefaultProperties = ragDefaultProperties;
         this.queryRewriteService = queryRewriteService;
-        this.ragIntentResolver = ragIntentResolver;
+        this.intentResolver = intentResolver;
         this.guidanceService = guidanceService;
         this.llmServiceProvider = llmServiceProvider;
     }
@@ -53,7 +53,7 @@ public class RagQueryPipeline {
         RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(question, memory);
         steps.add("rewrite:" + rewriteResult.subQuestions().size());
 
-        List<SubQuestionIntent> subIntents = ragIntentResolver.resolve(rewriteResult);
+        List<SubQuestionIntent> subIntents = intentResolver.resolve(rewriteResult);
         steps.add("intent:" + subIntents.size());
 
         GuidanceDecision guidanceDecision = guidanceService.detectAmbiguity(rewriteResult.rewrittenQuestion(), subIntents);
@@ -65,16 +65,16 @@ public class RagQueryPipeline {
                     normalizedBaseCode,
                     10,
                     subIntents,
-                    ragIntentResolver.mergeIntentGroup(subIntents),
+                    intentResolver.mergeIntentGroup(subIntents),
                     guidanceDecision,
                     guidanceDecision.getPrompt(),
                     steps
             );
         }
 
-        IntentGroup intentGroup = ragIntentResolver.mergeIntentGroup(subIntents);
+        IntentGroup intentGroup = intentResolver.mergeIntentGroup(subIntents);
         boolean allSystemOnly = subIntents.stream()
-                .allMatch(subQuestionIntent -> ragIntentResolver.isSystemOnly(subQuestionIntent.nodeScores()));
+                .allMatch(subQuestionIntent -> intentResolver.isSystemOnly(subQuestionIntent.nodeScores()));
         if (allSystemOnly) {
             String directAnswer = executeSystemOnly(rewriteResult.rewrittenQuestion(), memory, intentGroup);
             steps.add("system-only");

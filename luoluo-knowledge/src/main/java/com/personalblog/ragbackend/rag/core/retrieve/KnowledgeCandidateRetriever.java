@@ -4,6 +4,7 @@ import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 
 import java.util.List;
 
+@Deprecated(forRemoval = false)
 public interface KnowledgeCandidateRetriever {
 
     String getName();

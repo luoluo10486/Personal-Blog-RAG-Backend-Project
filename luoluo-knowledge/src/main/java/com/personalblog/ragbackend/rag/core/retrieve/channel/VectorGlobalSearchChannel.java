@@ -50,6 +50,9 @@ public class VectorGlobalSearchChannel implements SearchChannel {
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        if (context == null) {
+            return false;
+        }
         if (!properties.getChannels().getVectorGlobal().isEnabled()) {
             return false;
         }
@@ -72,6 +75,14 @@ public class VectorGlobalSearchChannel implements SearchChannel {
 
     @Override
     public SearchChannelResult search(SearchContext context) {
+        if (context == null) {
+            return SearchChannelResult.builder()
+                    .channelType(getType())
+                    .channelName(getName())
+                    .chunks(List.of())
+                    .latencyMs(0L)
+                    .build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             List<String> collections = resolveCollections(context);
@@ -109,6 +120,9 @@ public class VectorGlobalSearchChannel implements SearchChannel {
     }
 
     private List<String> resolveCollections(SearchContext context) {
+        if (context == null) {
+            return List.of();
+        }
         String baseCode = firstNotBlank(context.getMetadataString("baseCode"), context.getMetadataString("collectionName"));
         if (StrUtil.isNotBlank(baseCode)) {
             String collectionName = knowledgeVectorSpaceResolver.resolve(baseCode).collectionName();

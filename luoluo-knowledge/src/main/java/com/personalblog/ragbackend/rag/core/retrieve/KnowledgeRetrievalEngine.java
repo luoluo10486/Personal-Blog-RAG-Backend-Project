@@ -7,8 +7,8 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 
+@Deprecated(forRemoval = false)
 @Service
-@Deprecated
 public class KnowledgeRetrievalEngine {
     private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
 

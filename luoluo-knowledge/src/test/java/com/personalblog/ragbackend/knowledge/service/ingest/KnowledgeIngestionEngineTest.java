@@ -104,7 +104,7 @@ class KnowledgeIngestionEngineTest {
         return new KnowledgeIngestionEngine(List.of(
                 new ChunkIngestionNode(chunkService),
                 new ParseIngestionNode(new DocumentParserSelector(List.of(new TikaDocumentParseService()))),
-                new PlanIngestionNode(properties, vectorSpaceResolver)
+                new PlanIngestionNode(vectorSpaceResolver)
         ), new ObjectMapper());
     }
 
@@ -121,7 +121,7 @@ class KnowledgeIngestionEngineTest {
                 new FinalizeIngestionNode(),
                 new ChunkIngestionNode(chunkService),
                 new ParseIngestionNode(new DocumentParserSelector(List.of(new TikaDocumentParseService()))),
-                new PlanIngestionNode(properties, vectorSpaceResolver)
+                new PlanIngestionNode(vectorSpaceResolver)
         ), new ObjectMapper());
     }
 

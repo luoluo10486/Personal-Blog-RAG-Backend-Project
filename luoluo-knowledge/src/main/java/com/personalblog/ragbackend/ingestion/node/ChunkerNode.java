@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -60,7 +62,9 @@ public class ChunkerNode implements IngestionNode {
                 overlapSize,
                 1000
         );
+        long chunkStart = System.currentTimeMillis();
         List<DocumentChunk> chunks = strategy.chunk(text, options);
+        long chunkDurationMs = System.currentTimeMillis() - chunkStart;
         List<VectorChunk> vectorChunks = chunks.stream()
                 .map(chunk -> VectorChunk.builder()
                         .index(chunk.chunkIndex())
@@ -68,7 +72,9 @@ public class ChunkerNode implements IngestionNode {
                         .metadata(new java.util.HashMap<>())
                         .build())
                 .collect(Collectors.toList());
+        long embedStart = System.currentTimeMillis();
         List<List<Float>> embeddings = embeddingService.embedBatch(vectorChunks.stream().map(VectorChunk::getContent).toList());
+        long embedDurationMs = System.currentTimeMillis() - embedStart;
         if (embeddings == null || embeddings.size() != vectorChunks.size()) {
             return NodeResult.fail(new ClientException("embedding result size mismatch"));
         }
@@ -76,6 +82,11 @@ public class ChunkerNode implements IngestionNode {
             vectorChunks.get(i).setEmbedding(toArray(embeddings.get(i)));
         }
         context.setChunks(vectorChunks);
+        Map<String, Object> metadata = new HashMap<>(context.getMetadata() == null ? Map.of() : context.getMetadata());
+        context.setMetadata(metadata);
+        metadata.put("chunkDurationMs", chunkDurationMs);
+        metadata.put("embedDurationMs", embedDurationMs);
+        metadata.put("chunkCount", vectorChunks.size());
         return NodeResult.ok("chunked " + vectorChunks.size() + " chunks");
     }
 

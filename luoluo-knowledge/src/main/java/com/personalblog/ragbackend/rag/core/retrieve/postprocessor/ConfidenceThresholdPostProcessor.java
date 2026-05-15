@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Deprecated(forRemoval = false)
 @Component
-@Deprecated
 public class ConfidenceThresholdPostProcessor implements SearchResultPostProcessor {
     private final SearchChannelProperties searchChannelProperties;
 
@@ -35,6 +35,9 @@ public class ConfidenceThresholdPostProcessor implements SearchResultPostProcess
 
     @Override
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
+        if (chunks == null || chunks.isEmpty()) {
+            return List.of();
+        }
         double threshold = searchChannelProperties.getChannels().getVectorGlobal().getConfidenceThreshold();
         int fallbackTopK = context == null ? 1 : Math.max(context.getTopK(), 1);
         List<RetrievedChunk> filtered = chunks.stream()

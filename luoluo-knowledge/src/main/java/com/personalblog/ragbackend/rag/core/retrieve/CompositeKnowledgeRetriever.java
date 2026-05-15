@@ -8,9 +8,9 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 
+@Deprecated(forRemoval = false)
 @Service
 @Primary
-@Deprecated
 public class CompositeKnowledgeRetriever implements KnowledgeRetriever {
     private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
 

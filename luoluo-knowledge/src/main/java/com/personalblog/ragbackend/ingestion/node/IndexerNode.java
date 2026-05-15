@@ -55,6 +55,9 @@ public class IndexerNode implements IngestionNode {
         if (!StringUtils.hasText(collectionName)) {
             return NodeResult.fail(new ClientException("collection name is required"));
         }
+        if (context.isSkipIndexerWrite()) {
+            return NodeResult.ok("skipped vector indexing");
+        }
         for (VectorChunk chunk : chunks) {
             if (chunk == null || chunk.getEmbedding() == null || chunk.getEmbedding().length == 0) {
                 return NodeResult.fail(new ClientException("chunk embedding is required"));

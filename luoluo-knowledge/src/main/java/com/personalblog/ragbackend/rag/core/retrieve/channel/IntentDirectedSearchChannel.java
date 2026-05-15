@@ -43,6 +43,9 @@ public class IntentDirectedSearchChannel implements SearchChannel {
 
     @Override
     public boolean isEnabled(SearchContext context) {
+        if (context == null) {
+            return false;
+        }
         if (!properties.getChannels().getIntentDirected().isEnabled()) {
             return false;
         }
@@ -54,6 +57,14 @@ public class IntentDirectedSearchChannel implements SearchChannel {
 
     @Override
     public SearchChannelResult search(SearchContext context) {
+        if (context == null) {
+            return SearchChannelResult.builder()
+                    .channelType(getType())
+                    .channelName(getName())
+                    .chunks(List.of())
+                    .latencyMs(0L)
+                    .build();
+        }
         long startTime = System.currentTimeMillis();
         try {
             List<NodeScore> kbIntents = extractKbIntents(context);
@@ -98,6 +109,9 @@ public class IntentDirectedSearchChannel implements SearchChannel {
     }
 
     private List<NodeScore> extractKbIntents(SearchContext context) {
+        if (context == null || CollUtil.isEmpty(context.getIntents())) {
+            return List.of();
+        }
         List<NodeScore> allScores = context.getIntents().stream()
                 .flatMap(subQuestionIntent -> subQuestionIntent.nodeScores().stream())
                 .toList();

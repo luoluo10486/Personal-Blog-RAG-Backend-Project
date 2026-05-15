@@ -5,7 +5,6 @@ import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionCo
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNode;
 import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionPlan;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
-import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +13,9 @@ public class PlanIngestionNode implements KnowledgeIngestionNode {
     private static final int DEFAULT_CHUNK_SIZE = 512;
     private static final int DEFAULT_CHUNK_OVERLAP = 128;
     private static final int DEFAULT_MAX_CHUNK_COUNT = 1000;
-    private final RAGDefaultProperties ragDefaultProperties;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
 
-    public PlanIngestionNode(RAGDefaultProperties ragDefaultProperties,
-                             KnowledgeVectorSpaceResolver vectorSpaceResolver) {
-        this.ragDefaultProperties = ragDefaultProperties;
+    public PlanIngestionNode(KnowledgeVectorSpaceResolver vectorSpaceResolver) {
         this.vectorSpaceResolver = vectorSpaceResolver;
     }
 

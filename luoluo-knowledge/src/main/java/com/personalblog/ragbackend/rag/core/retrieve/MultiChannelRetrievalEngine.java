@@ -80,7 +80,9 @@ public class MultiChannelRetrievalEngine {
                 .toList();
 
         List<RetrievedChunk> chunks = results.stream()
-                .flatMap(result -> result.getChunks().stream())
+                .filter(Objects::nonNull)
+                .flatMap(result -> result.getChunks() == null ? List.<RetrievedChunk>of().stream() : result.getChunks().stream())
+                .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(ArrayList::new));
         if (enabledProcessors.isEmpty()) {
             return chunks;
@@ -88,7 +90,10 @@ public class MultiChannelRetrievalEngine {
 
         for (SearchResultPostProcessor processor : enabledProcessors) {
             try {
-                chunks = new ArrayList<>(processor.process(chunks, results, context));
+                List<RetrievedChunk> processed = processor.process(chunks, results, context);
+                if (processed != null) {
+                    chunks = new ArrayList<>(processed);
+                }
             } catch (Exception ignored) {
             }
         }
@@ -104,7 +109,15 @@ public class MultiChannelRetrievalEngine {
     }
 
     private SearchContext buildSearchContext(List<SubQuestionIntent> subIntents, int topK) {
-        String question = CollUtil.isEmpty(subIntents) ? "" : subIntents.get(0).subQuestion();
+        String question = "";
+        if (CollUtil.isNotEmpty(subIntents)) {
+            question = subIntents.stream()
+                    .filter(Objects::nonNull)
+                    .map(SubQuestionIntent::subQuestion)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("");
+        }
         return SearchContext.builder()
                 .originalQuestion(question)
                 .rewrittenQuestion(question)

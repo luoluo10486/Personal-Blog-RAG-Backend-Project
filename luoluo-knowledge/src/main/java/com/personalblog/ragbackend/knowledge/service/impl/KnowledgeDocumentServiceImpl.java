@@ -45,11 +45,12 @@ import com.personalblog.ragbackend.knowledge.service.KnowledgeChunkService;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeDocumentService;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionEngine;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionMode;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionRequest;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionResult;
-import com.personalblog.ragbackend.knowledge.service.ingest.KnowledgeIngestionNodeLog;
+import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
+import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
+import com.personalblog.ragbackend.ingestion.domain.context.NodeLog;
+import com.personalblog.ragbackend.ingestion.domain.enums.IngestionStatus;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
+import com.personalblog.ragbackend.ingestion.engine.IngestionEngine;
 import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
@@ -100,7 +101,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private final IngestionPipelineMapper ingestionPipelineMapper;
     private final KnowledgeScheduleProperties scheduleProperties;
     private final IngestionPipelineService ingestionPipelineService;
-    private final KnowledgeIngestionEngine knowledgeIngestionEngine;
+    private final IngestionEngine ingestionEngine;
     private final DocumentParserSelector documentParserSelector;
     private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
@@ -123,7 +124,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                                         IngestionPipelineMapper ingestionPipelineMapper,
                                         KnowledgeScheduleProperties scheduleProperties,
                                         IngestionPipelineService ingestionPipelineService,
-                                        KnowledgeIngestionEngine knowledgeIngestionEngine,
+                                        IngestionEngine ingestionEngine,
                                         DocumentParserSelector documentParserSelector,
                                         KnowledgeDocumentChunkService knowledgeDocumentChunkService,
                                         KnowledgeVectorSpaceResolver vectorSpaceResolver,
@@ -145,7 +146,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         this.ingestionPipelineMapper = ingestionPipelineMapper;
         this.scheduleProperties = scheduleProperties;
         this.ingestionPipelineService = ingestionPipelineService;
-        this.knowledgeIngestionEngine = knowledgeIngestionEngine;
+        this.ingestionEngine = ingestionEngine;
         this.documentParserSelector = documentParserSelector;
         this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
         this.vectorSpaceResolver = vectorSpaceResolver;
@@ -354,39 +355,64 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             throw new IllegalStateException("document file is unavailable");
         }
 
-        KnowledgeIngestionResult result = knowledgeIngestionEngine.execute(
-                ingestionPipelineService.getDefinition(String.valueOf(document.getPipelineId())),
-                new KnowledgeIngestionRequest(
-                        String.valueOf(knowledgeBase.getId()),
-                        file,
-                        KnowledgeIngestionMode.PREVIEW,
-                        document.getPipelineId(),
-                        docId,
-                        document.getSourceType(),
-                        document.getSourceLocation(),
-                        document.getDocName(),
-                        document.getFileUrl()
-                )
+        PipelineDefinition pipeline = ingestionPipelineService.getDefinition(String.valueOf(document.getPipelineId()));
+        IngestionContext previewContext = IngestionContext.builder()
+                .taskId(docId)
+                .pipelineId(String.valueOf(document.getPipelineId()))
+                .source(DocumentSource.builder()
+                        .type(com.personalblog.ragbackend.ingestion.domain.enums.SourceType.FILE)
+                        .location(document.getSourceLocation())
+                        .fileName(document.getDocName())
+                        .build())
+                .rawBytes(getBytes(file))
+                .mimeType(file.getContentType())
+                .vectorSpaceId(com.personalblog.ragbackend.rag.core.vector.VectorSpaceId.builder()
+                        .logicalName(knowledgeBase.getCollectionName())
+                        .build())
+                .status(IngestionStatus.RUNNING)
+                .logs(new ArrayList<>())
+                .metadata(new HashMap<>())
+                .skipIndexerWrite(true)
+                .build();
+
+        IngestionContext result = ingestionEngine.execute(pipeline, previewContext);
+        if (result.getStatus() == IngestionStatus.FAILED || result.getError() != null) {
+            String message = result.getError() == null ? "pipeline chunking failed" : result.getError().getMessage();
+            throw new IllegalStateException(message);
+        }
+
+        List<VectorChunk> vectorChunks = result.getChunks() == null ? List.of() : result.getChunks();
+        if (vectorChunks.isEmpty()) {
+            throw new IllegalStateException("pipeline chunking failed");
+        }
+        List<List<Float>> embeddings = vectorChunks.stream()
+                .map(chunk -> toEmbeddingList(chunk.getEmbedding()))
+                .toList();
+        DocumentChunkResponse chunkResponse = DocumentChunkResponse.success(
+                result.getMimeType(),
+                result.getMetadata() == null ? Map.<String, String>of() : result.getMetadata().entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, entry -> String.valueOf(entry.getValue()))),
+                result.getRawText() == null ? 0 : result.getRawText().length(),
+                512,
+                640,
+                128,
+                vectorChunks.stream()
+                        .map(chunk -> new DocumentChunk(
+                                chunk.getIndex() == null ? 0 : chunk.getIndex(),
+                                chunk.getMetadata() != null && chunk.getMetadata().get("sectionTitle") != null
+                                        ? String.valueOf(chunk.getMetadata().get("sectionTitle"))
+                                        : null,
+                                chunk.getContent(),
+                                chunk.getContent() == null ? 0 : chunk.getContent().length(),
+                                Boolean.TRUE.equals(chunk.getMetadata() == null ? null : chunk.getMetadata().get("overlapFromPrevious"))
+                        ))
+                        .toList()
         );
-        if (result.ingestionSummary() != null && !result.ingestionSummary().success()) {
-            throw new IllegalStateException(result.ingestionSummary().errorMessage());
-        }
-
-        DocumentChunkResponse chunkResponse = result.chunkResponse();
-        if (chunkResponse == null || !chunkResponse.success()) {
-            throw new IllegalStateException(chunkResponse == null ? "pipeline chunking failed" : chunkResponse.errorMessage());
-        }
-
-        List<List<Float>> embeddings = result.embeddings();
-        if (embeddings == null || embeddings.size() != chunkResponse.chunks().size()) {
-            throw new IllegalStateException("embedding result size mismatch");
-        }
-
-        long extractDuration = resolveNodeDuration(result.nodeLogs(), "parse");
-        long chunkDuration = resolveNodeDuration(result.nodeLogs(), "chunk");
-        long embedDuration = resolveNodeDuration(result.nodeLogs(), "embed");
-        List<VectorChunk> vectorChunks = buildVectorChunks(document, chunkResponse.chunks(), embeddings);
-        return new ChunkProcessResult(vectorChunks, extractDuration, chunkDuration, embedDuration);
+        long extractDuration = resolveNodeDuration(result.getLogs(), "parser");
+        long chunkDuration = resolveMetadataDuration(result.getMetadata(), "chunkDurationMs", resolveNodeDuration(result.getLogs(), "chunker"));
+        long embedDuration = resolveMetadataDuration(result.getMetadata(), "embedDurationMs", chunkDuration);
+        List<VectorChunk> vectorChunksWithEmbeddings = buildVectorChunks(document, chunkResponse.chunks(), embeddings);
+        return new ChunkProcessResult(vectorChunksWithEmbeddings, extractDuration, chunkDuration, embedDuration);
     }
 
     private KnowledgeDocumentChunkLogEntity insertChunkLog(KnowledgeDocumentEntity document) {
@@ -797,14 +823,51 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         });
     }
 
-    private long resolveNodeDuration(List<KnowledgeIngestionNodeLog> nodeLogs, String nodeType) {
+    private long resolveNodeDuration(List<NodeLog> nodeLogs, String nodeType) {
         if (nodeLogs == null || nodeLogs.isEmpty() || !StringUtils.hasText(nodeType)) {
             return 0L;
         }
         return nodeLogs.stream()
-                .filter(each -> nodeType.equalsIgnoreCase(each.nodeType()) || nodeType.equalsIgnoreCase(each.nodeId()))
-                .mapToLong(KnowledgeIngestionNodeLog::durationMs)
+                .filter(each -> nodeType.equalsIgnoreCase(each.getNodeType()) || nodeType.equalsIgnoreCase(each.getNodeId()))
+                .mapToLong(NodeLog::getDurationMs)
                 .sum();
+    }
+
+    private long resolveMetadataDuration(Map<String, Object> metadata, String key, long fallback) {
+        if (metadata == null || !metadata.containsKey(key)) {
+            return fallback;
+        }
+        Object value = metadata.get(key);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private List<Float> toEmbeddingList(float[] embedding) {
+        if (embedding == null || embedding.length == 0) {
+            return List.of();
+        }
+        List<Float> values = new ArrayList<>(embedding.length);
+        for (float value : embedding) {
+            values.add(value);
+        }
+        return values;
+    }
+
+    private byte[] getBytes(MultipartFile file) {
+        if (file == null) {
+            return null;
+        }
+        try {
+            return file.getBytes();
+        } catch (IOException exception) {
+            throw new IllegalStateException("read file bytes failed", exception);
+        }
     }
 
     private Map<String, Object> readChunkConfig(String chunkConfig) {

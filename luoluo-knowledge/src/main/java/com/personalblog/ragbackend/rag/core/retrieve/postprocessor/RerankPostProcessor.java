@@ -34,17 +34,25 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
-        if (chunks.isEmpty()) {
+        if (chunks == null || chunks.isEmpty()) {
             return chunks;
         }
         RerankService rerankService = rerankServiceProvider.getIfAvailable();
         if (rerankService == null) {
-            return chunks.stream().limit(Math.max(context.getTopK(), 1)).toList();
+            return chunks.stream().limit(resolveTopK(context)).toList();
         }
         try {
-            return rerankService.rerank(context.getMainQuestion(), chunks, Math.max(context.getTopK(), 1));
+            String question = context == null ? "" : context.getMainQuestion();
+            return rerankService.rerank(question, chunks, resolveTopK(context));
         } catch (RuntimeException ex) {
-            return chunks.stream().limit(Math.max(context.getTopK(), 1)).toList();
+            return chunks.stream().limit(resolveTopK(context)).toList();
         }
+    }
+
+    private int resolveTopK(SearchContext context) {
+        if (context == null || context.getTopK() <= 0) {
+            return 1;
+        }
+        return context.getTopK();
     }
 }

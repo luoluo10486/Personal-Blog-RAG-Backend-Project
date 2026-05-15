@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
+@Deprecated(forRemoval = false)
 @Service
 public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
     private final RAGDefaultProperties ragDefaultProperties;

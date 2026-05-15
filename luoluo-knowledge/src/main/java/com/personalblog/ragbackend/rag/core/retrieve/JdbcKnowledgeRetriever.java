@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+@Deprecated(forRemoval = false)
 @Service
 @ConditionalOnBean(JdbcTemplate.class)
 @ConditionalOnProperty(prefix = "rag.knowledge.jdbc", name = "enabled", havingValue = "true", matchIfMissing = true)

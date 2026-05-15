@@ -10,7 +10,7 @@ import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
+import com.personalblog.ragbackend.rag.core.intent.IntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.memory.ConversationMemoryService;
 import com.personalblog.ragbackend.rag.core.prompt.PromptContext;
@@ -35,7 +35,7 @@ public class StreamChatPipeline {
 
     private final ConversationMemoryService memoryService;
     private final QueryRewriteService queryRewriteService;
-    private final RagIntentResolver intentResolver;
+    private final IntentResolver intentResolver;
     private final IntentGuidanceService guidanceService;
     private final RetrievalEngine retrievalEngine;
     private final ObjectProvider<LLMService> llmServiceProvider;
@@ -45,7 +45,7 @@ public class StreamChatPipeline {
 
     public StreamChatPipeline(ConversationMemoryService memoryService,
                               QueryRewriteService queryRewriteService,
-                              RagIntentResolver intentResolver,
+                              IntentResolver intentResolver,
                               IntentGuidanceService guidanceService,
                               RetrievalEngine retrievalEngine,
                               ObjectProvider<LLMService> llmServiceProvider,

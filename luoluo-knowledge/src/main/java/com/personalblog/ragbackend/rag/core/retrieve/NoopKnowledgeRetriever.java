@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Deprecated(forRemoval = false)
 @Service
 public class NoopKnowledgeRetriever implements KnowledgeRetriever, KnowledgeCandidateRetriever {
     @Override
