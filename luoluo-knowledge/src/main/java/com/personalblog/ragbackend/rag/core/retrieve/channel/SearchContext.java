@@ -1,0 +1,30 @@
+package com.personalblog.ragbackend.rag.core.retrieve.channel;
+
+import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
+import lombok.Builder;
+import lombok.Data;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Data
+@Builder
+public class SearchContext {
+    private String originalQuestion;
+    private String rewrittenQuestion;
+    private List<String> subQuestions;
+    private List<SubQuestionIntent> intents;
+    private int topK;
+    @Builder.Default
+    private Map<String, Object> metadata = new HashMap<>();
+
+    public String getMainQuestion() {
+        return rewrittenQuestion != null ? rewrittenQuestion : originalQuestion;
+    }
+
+    public String getMetadataString(String key) {
+        Object value = metadata == null ? null : metadata.get(key);
+        return value == null ? "" : String.valueOf(value);
+    }
+}

@@ -1,8 +1,10 @@
 package com.personalblog.ragbackend.rag.core.retrieve.postprocessor;
 
+import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
-import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,17 +24,23 @@ public class ConfidenceThresholdPostProcessor implements SearchResultPostProcess
 
     @Override
     public int getOrder() {
-        return 10;
+        return 5;
     }
 
     @Override
-    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, RetrieveRequest request) {
+    public boolean isEnabled(SearchContext context) {
+        return context != null && StrUtil.equalsIgnoreCase(context.getMetadataString("legacyConfidenceThreshold"), "true");
+    }
+
+    @Override
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
         double threshold = searchChannelProperties.getChannels().getVectorGlobal().getConfidenceThreshold();
+        int fallbackTopK = context == null ? 1 : Math.max(context.getTopK(), 1);
         List<RetrievedChunk> filtered = chunks.stream()
                 .filter(chunk -> chunk.getScore() != null && chunk.getScore() >= threshold)
                 .toList();
         if (filtered.isEmpty()) {
-            return chunks.stream().limit(request.topK()).toList();
+            return chunks.stream().limit(fallbackTopK).toList();
         }
         return filtered;
     }

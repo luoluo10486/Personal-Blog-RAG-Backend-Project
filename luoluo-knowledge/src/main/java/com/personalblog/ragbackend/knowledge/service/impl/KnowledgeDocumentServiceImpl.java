@@ -936,12 +936,19 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private Map<String, Object> buildVectorMetadata(KnowledgeDocumentEntity document, DocumentChunk chunk) {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("documentId", String.valueOf(document.getId()));
-        metadata.put("knowledgeBaseId", String.valueOf(document.getKbId()));
+        String documentId = String.valueOf(document.getId());
+        String knowledgeBaseId = String.valueOf(document.getKbId());
+        metadata.put("documentId", documentId);
+        metadata.put("docId", documentId);
+        metadata.put("doc_id", documentId);
+        metadata.put("knowledgeBaseId", knowledgeBaseId);
+        metadata.put("kbId", knowledgeBaseId);
+        metadata.put("kb_id", knowledgeBaseId);
         metadata.put("baseCode", String.valueOf(document.getKbId()));
         metadata.put("title", document.getDocName());
         metadata.put("sourceUrl", document.getFileUrl());
         metadata.put("chunkIndex", chunk.chunkIndex());
+        metadata.put("chunk_index", chunk.chunkIndex());
         metadata.put("sectionTitle", chunk.sectionTitle());
         metadata.put("contentLength", chunk.contentLength());
         metadata.put("overlapFromPrevious", chunk.overlapFromPrevious());
@@ -972,13 +979,21 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private Map<String, Object> buildVectorMetadata(KnowledgeDocumentEntity document, KnowledgeChunkVO chunk) {
         Map<String, Object> metadata = new HashMap<>();
+        String documentId = String.valueOf(document.getId());
+        String knowledgeBaseId = String.valueOf(document.getKbId());
         metadata.put("chunkId", chunk.getId());
-        metadata.put("documentId", String.valueOf(document.getId()));
-        metadata.put("knowledgeBaseId", String.valueOf(document.getKbId()));
+        metadata.put("chunk_id", chunk.getId());
+        metadata.put("documentId", documentId);
+        metadata.put("docId", documentId);
+        metadata.put("doc_id", documentId);
+        metadata.put("knowledgeBaseId", knowledgeBaseId);
+        metadata.put("kbId", knowledgeBaseId);
+        metadata.put("kb_id", knowledgeBaseId);
         metadata.put("baseCode", String.valueOf(document.getKbId()));
         metadata.put("title", document.getDocName());
         metadata.put("sourceUrl", document.getFileUrl());
         metadata.put("chunkIndex", chunk.getChunkIndex());
+        metadata.put("chunk_index", chunk.getChunkIndex());
         metadata.put("sectionTitle", "");
         return metadata;
     }

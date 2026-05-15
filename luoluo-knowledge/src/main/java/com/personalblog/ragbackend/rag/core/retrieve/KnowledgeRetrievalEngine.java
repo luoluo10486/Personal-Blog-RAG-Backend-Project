@@ -1,74 +1,38 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.SearchResultPostProcessor;
-import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 
+@Deprecated
 @Service
 public class KnowledgeRetrievalEngine {
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeRetrievalEngine.class);
+    private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
 
-    private final List<KnowledgeCandidateRetriever> candidateRetrievers;
-    private final List<SearchResultPostProcessor> postProcessors;
-
-    public KnowledgeRetrievalEngine(List<KnowledgeCandidateRetriever> candidateRetrievers,
-                                    List<SearchResultPostProcessor> postProcessors) {
-        this.candidateRetrievers = candidateRetrievers.stream()
-                .sorted(Comparator.comparingInt(KnowledgeCandidateRetriever::getOrder))
-                .toList();
-        this.postProcessors = postProcessors.stream()
-                .sorted(Comparator.comparingInt(SearchResultPostProcessor::getOrder))
-                .toList();
+    public KnowledgeRetrievalEngine(MultiChannelRetrievalEngine multiChannelRetrievalEngine) {
+        this.multiChannelRetrievalEngine = multiChannelRetrievalEngine;
     }
 
-    @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
     public List<RetrievedChunk> retrieve(RetrieveRequest request) {
-        List<RetrievedChunk> processed = retrieveCandidates(request);
-        for (SearchResultPostProcessor processor : postProcessors) {
-            if (!processor.isEnabled(request)) {
-                continue;
-            }
-            processed = processor.process(processed, request);
-        }
-        return processed.stream().limit(request.topK()).toList();
+        return multiChannelRetrievalEngine.retrieveKnowledgeChannels(buildSearchContext(request));
     }
 
-    private List<RetrievedChunk> retrieveCandidates(RetrieveRequest request) {
-        if (candidateRetrievers.isEmpty()) {
-            return List.of();
+    private SearchContext buildSearchContext(RetrieveRequest request) {
+        HashMap<String, Object> metadata = new HashMap<>();
+        if (request.baseCode() != null) {
+            metadata.put("baseCode", request.baseCode());
         }
-
-        List<RetrievedChunk> merged = new ArrayList<>();
-        int enabledCount = 0;
-        for (KnowledgeCandidateRetriever retriever : candidateRetrievers) {
-            if (!retriever.isEnabled(request)) {
-                continue;
-            }
-            enabledCount++;
-            try {
-                List<RetrievedChunk> candidates = retriever.retrieveCandidates(request);
-                if (candidates == null || candidates.isEmpty()) {
-                    continue;
-                }
-                merged.addAll(candidates);
-            } catch (RuntimeException ex) {
-                log.warn("Knowledge candidate retriever [{}] failed, skip current retriever", retriever.getName(), ex);
-            }
+        if (request.collectionName() != null) {
+            metadata.put("collectionName", request.collectionName());
         }
-
-        if (enabledCount == 0) {
-            return List.of();
-        }
-
-        return merged.stream()
-                .sorted(Comparator.comparingDouble((RetrievedChunk chunk) -> chunk.getScore() == null ? 0D : chunk.getScore()).reversed())
-                .toList();
+        return SearchContext.builder()
+                .originalQuestion(request.question())
+                .rewrittenQuestion(request.question())
+                .topK(request.topK())
+                .metadata(metadata)
+                .build();
     }
 }

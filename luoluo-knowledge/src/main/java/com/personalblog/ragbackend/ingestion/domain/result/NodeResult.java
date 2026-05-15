@@ -15,38 +15,6 @@ public class NodeResult {
     private String message;
     private Throwable error;
 
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public void setSuccess(boolean success) {
-        this.success = success;
-    }
-
-    public boolean isShouldContinue() {
-        return shouldContinue;
-    }
-
-    public void setShouldContinue(boolean shouldContinue) {
-        this.shouldContinue = shouldContinue;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public Throwable getError() {
-        return error;
-    }
-
-    public void setError(Throwable error) {
-        this.error = error;
-    }
-
     public static NodeResult ok() {
         return new NodeResult(true, true, null, null);
     }

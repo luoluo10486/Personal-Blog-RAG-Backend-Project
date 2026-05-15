@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -70,12 +71,19 @@ public class PgVectorStoreService implements VectorStoreService {
                 """.formatted(table);
         LocalDateTime now = LocalDateTime.now();
         for (KnowledgeVectorDocument document : documents) {
-            Map<String, Object> metadata = document.metadata() == null ? Map.of() : document.metadata();
+            Map<String, Object> metadata = buildMetadata(
+                    document.metadata(),
+                    vectorSpace.collectionName(),
+                    valueOrNull(document.metadata(), "documentId", "docId", "doc_id"),
+                    valueOrNull(document.metadata(), "chunkId", "chunk_id"),
+                    null,
+                    document.vectorId()
+            );
             jdbcTemplate.update(connection -> {
                 PreparedStatement statement = connection.prepareStatement(sql);
-                statement.setObject(1, parseLong(metadata.get("knowledgeBaseId")));
-                statement.setObject(2, parseLong(metadata.get("documentId")));
-                statement.setObject(3, parseLong(metadata.get("chunkId")));
+                statement.setObject(1, parseLong(metadata, "knowledgeBaseId", "kbId", "kb_id"));
+                statement.setObject(2, parseLong(metadata, "documentId", "docId", "doc_id"));
+                statement.setObject(3, parseLong(metadata, "chunkId", "chunk_id"));
                 statement.setString(4, vectorSpace.collectionName());
                 statement.setString(5, document.vectorId());
                 statement.setString(6, vectorSpace.embeddingModel());
@@ -144,7 +152,14 @@ public class PgVectorStoreService implements VectorStoreService {
             return;
         }
         for (VectorChunk chunk : chunks) {
-            Map<String, Object> metadata = chunk.getMetadata() == null ? Map.of() : chunk.getMetadata();
+            Map<String, Object> metadata = buildMetadata(
+                    chunk.getMetadata(),
+                    collectionName,
+                    docId,
+                    chunk.getChunkId(),
+                    chunk.getIndex(),
+                    chunk.getChunkId()
+            );
             long now = Timestamp.valueOf(LocalDateTime.now()).getTime();
             jdbcTemplate.update(connection -> {
                 PreparedStatement statement = connection.prepareStatement("""
@@ -174,9 +189,9 @@ public class PgVectorStoreService implements VectorStoreService {
                             embedding = excluded.embedding,
                             update_time = excluded.update_time
                         """.formatted(qualifiedTable()));
-                statement.setObject(1, parseLong(metadata.get("knowledgeBaseId")));
-                statement.setObject(2, parseLong(metadata.get("documentId"), docId));
-                statement.setObject(3, parseLong(metadata.get("chunkId"), chunk.getChunkId()));
+                statement.setObject(1, parseLong(metadata, "knowledgeBaseId", "kbId", "kb_id"));
+                statement.setObject(2, parseLong(metadata, "documentId", "docId", "doc_id", docId));
+                statement.setObject(3, parseLong(metadata, "chunkId", "chunk_id", chunk.getChunkId()));
                 statement.setString(4, collectionName);
                 statement.setString(5, chunk.getChunkId());
                 statement.setString(6, String.valueOf(metadata.getOrDefault("embeddingModel", "")));
@@ -289,6 +304,41 @@ public class PgVectorStoreService implements VectorStoreService {
         }
     }
 
+    private Map<String, Object> buildMetadata(Map<String, Object> source,
+                                              String collectionName,
+                                              Object docId,
+                                              Object chunkId,
+                                              Integer chunkIndex,
+                                              String vectorId) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (source != null && !source.isEmpty()) {
+            metadata.putAll(source);
+        }
+        putIfAbsent(metadata, "collection_name", collectionName);
+        putIfAbsent(metadata, "collectionName", collectionName);
+        putIfAbsent(metadata, "doc_id", docId);
+        putIfAbsent(metadata, "docId", docId);
+        putIfAbsent(metadata, "documentId", docId);
+        putIfAbsent(metadata, "chunk_id", chunkId);
+        putIfAbsent(metadata, "chunkId", chunkId);
+        putIfAbsent(metadata, "vector_id", vectorId);
+        putIfAbsent(metadata, "vectorId", vectorId);
+        if (chunkIndex != null) {
+            putIfAbsent(metadata, "chunk_index", chunkIndex);
+            putIfAbsent(metadata, "chunkIndex", chunkIndex);
+        }
+        return metadata;
+    }
+
+    private void putIfAbsent(Map<String, Object> metadata, String key, Object value) {
+        if (metadata == null || key == null || value == null) {
+            return;
+        }
+        if (!metadata.containsKey(key) || metadata.get(key) == null || String.valueOf(metadata.get(key)).isBlank()) {
+            metadata.put(key, value);
+        }
+    }
+
     private Map<String, Object> parseMetadata(String metadata) {
         if (metadata == null || metadata.isBlank()) {
             return Map.of();
@@ -300,7 +350,8 @@ public class PgVectorStoreService implements VectorStoreService {
         }
     }
 
-    private Long parseLong(Object value) {
+    private Long parseLong(Map<String, Object> metadata, String... keys) {
+        Object value = valueOrNull(metadata, keys);
         if (value == null) {
             return null;
         }
@@ -311,8 +362,30 @@ public class PgVectorStoreService implements VectorStoreService {
         }
     }
 
-    private Long parseLong(Object value, String fallback) {
-        Long parsed = parseLong(value);
-        return parsed != null ? parsed : parseLong(fallback);
+    private Long parseLong(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private Object valueOrNull(Map<String, Object> metadata, String... keys) {
+        if (metadata == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (key == null) {
+                continue;
+            }
+            Object value = metadata.get(key);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 }

@@ -360,13 +360,25 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
                                                     KnowledgeBaseEntity kbDO,
                                                     KnowledgeChunkEntity chunk) {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("chunkId", String.valueOf(chunk.getId()));
-        metadata.put("documentId", String.valueOf(document.getId()));
-        metadata.put("knowledgeBaseId", String.valueOf(document.getKbId()));
-        metadata.put("baseCode", kbDO.getCollectionName());
+        String chunkId = String.valueOf(chunk.getId());
+        String documentId = String.valueOf(document.getId());
+        String knowledgeBaseId = String.valueOf(document.getKbId());
+        String collectionName = kbDO.getCollectionName();
+        metadata.put("chunkId", chunkId);
+        metadata.put("chunk_id", chunkId);
+        metadata.put("documentId", documentId);
+        metadata.put("docId", documentId);
+        metadata.put("doc_id", documentId);
+        metadata.put("knowledgeBaseId", knowledgeBaseId);
+        metadata.put("kbId", knowledgeBaseId);
+        metadata.put("kb_id", knowledgeBaseId);
+        metadata.put("baseCode", collectionName);
+        metadata.put("collectionName", collectionName);
+        metadata.put("collection_name", collectionName);
         metadata.put("title", document.getDocName());
         metadata.put("sourceUrl", document.getFileUrl());
         metadata.put("chunkIndex", chunk.getChunkIndex());
+        metadata.put("chunk_index", chunk.getChunkIndex());
         metadata.put("sectionTitle", "");
         return metadata;
     }

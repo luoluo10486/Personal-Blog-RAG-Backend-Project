@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
+import com.personalblog.ragbackend.ingestion.controller.request.DocumentSourceRequest;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionTaskCreateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
@@ -24,20 +25,14 @@ import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.IngestionTaskNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskMapper;
 import com.personalblog.ragbackend.knowledge.mapper.IngestionTaskNodeMapper;
-import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.rag.core.vector.VectorSpaceId;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -49,9 +44,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import software.amazon.awssdk.services.s3.S3Client;
-import org.springframework.transaction.annotation.Transactional;
-
 @Service
 @Transactional(rollbackFor = Exception.class)
 public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ingestion.service.IngestionTaskService {
@@ -61,26 +53,19 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
     private final IngestionTaskNodeMapper taskNodeMapper;
     private final AuthSessionService authSessionService;
     private final ObjectMapper objectMapper;
-    private final KnowledgeFileStorageService knowledgeFileStorageService;
-    private final S3Client s3Client;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public IngestionTaskServiceImpl(IngestionEngine ingestionEngine,
                                     IngestionPipelineService ingestionPipelineService,
                                     IngestionTaskMapper taskMapper,
                                     IngestionTaskNodeMapper taskNodeMapper,
                                     AuthSessionService authSessionService,
-                                    ObjectMapper objectMapper,
-                                    KnowledgeFileStorageService knowledgeFileStorageService,
-                                    S3Client s3Client) {
+                                    ObjectMapper objectMapper) {
         this.ingestionEngine = ingestionEngine;
         this.ingestionPipelineService = ingestionPipelineService;
         this.taskMapper = taskMapper;
         this.taskNodeMapper = taskNodeMapper;
         this.authSessionService = authSessionService;
         this.objectMapper = objectMapper;
-        this.knowledgeFileStorageService = knowledgeFileStorageService;
-        this.s3Client = s3Client;
     }
 
     @Override
@@ -91,7 +76,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         if (!StringUtils.hasText(request.getPipelineId())) {
             throw new IllegalArgumentException("pipelineId must not be blank");
         }
-        DocumentSource source = request.getSource();
+        DocumentSource source = toSource(request.getSource());
         if (source == null || source.getType() == null || !StringUtils.hasText(source.getLocation())) {
             throw new IllegalArgumentException("source must not be blank");
         }
@@ -346,192 +331,16 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         return truncated + "... [output truncated, original size " + json.length() + " chars]";
     }
 
-    private IngestionResult persistAndConvertResult(IngestionContext context,
-                                                    Map<String, Object> metadata,
-                                                    VectorSpaceId vectorSpaceId) {
-        IngestionTaskEntity task = new IngestionTaskEntity();
-        task.pipelineId = parsePipelineId(context.getPipelineId());
-        task.sourceType = context.getSource() == null || context.getSource().getType() == null ? null : context.getSource().getType().getValue();
-        task.sourceLocation = context.getSource() == null ? null : context.getSource().getLocation();
-        task.sourceFileName = context.getSource() == null ? null : context.getSource().getFileName();
-        task.status = normalizeTaskStatus(context.getStatus() == null ? null : context.getStatus().getValue());
-        task.chunkCount = context.getChunks() == null ? 0 : context.getChunks().size();
-        task.errorMessage = context.getError() == null ? null : context.getError().getMessage();
-        task.logsJson = toJson(context.getLogs());
-        task.metadataJson = toJson(buildMetadata(context, metadata, vectorSpaceId));
-        task.startedAt = LocalDateTime.now();
-        task.completedAt = LocalDateTime.now();
-        task.createdBy = currentUserId();
-        task.updatedBy = currentUserId();
-        task.deleted = 0;
-        task.createdAt = LocalDateTime.now();
-        task.updatedAt = LocalDateTime.now();
-        taskMapper.insert(task);
-        saveNodeLogs(task, context.getLogs());
-        return new IngestionResult(
-                stringify(task.id),
-                stringify(task.pipelineId),
-                context.getStatus(),
-                task.chunkCount,
-                context.getError() == null ? "OK" : context.getError().getMessage()
-        );
-    }
-
-    private MultipartFile resolveSourceFile(DocumentSource source) {
-        String normalizedType = source.getType() == null ? "file" : source.getType().getValue();
-        return switch (normalizedType) {
-            case "file" -> readLocalFile(source);
-            case "s3" -> readS3File(source);
-            case "url" -> downloadRemoteSource(source);
-            case "feishu" -> downloadFeishuSource(source);
-            default -> throw new IllegalArgumentException("Unsupported source type: " + source.getType());
-        };
-    }
-
-    private MultipartFile readLocalFile(DocumentSource source) {
-        String location = source.getLocation();
-        try {
-            Path path = location.startsWith("file:") ? Path.of(URI.create(location)) : Path.of(location);
-            byte[] bytes = Files.readAllBytes(path);
-            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : path.getFileName().toString();
-            return new SimpleMultipartFile(fileName, fileName, "application/octet-stream", bytes);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("read local file failed: " + exception.getMessage(), exception);
-        }
-    }
-
-    private MultipartFile readS3File(DocumentSource source) {
-        try (InputStream inputStream = knowledgeFileStorageService.openStream(source.getLocation())) {
-            byte[] bytes = inputStream.readAllBytes();
-            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
-            return new SimpleMultipartFile(fileName, fileName, "application/octet-stream", bytes);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("read s3 file failed: " + exception.getMessage(), exception);
-        }
-    }
-
-    private MultipartFile downloadRemoteSource(DocumentSource source) {
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.getLocation())).GET();
-            if (source.getCredentials() != null) {
-                source.getCredentials().forEach(builder::header);
-            }
-            HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalArgumentException("download remote source failed, HTTP status: " + response.statusCode());
-            }
-            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
-            String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
-            return new SimpleMultipartFile(fileName, fileName, contentType, response.body());
-        } catch (IOException | InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalArgumentException("download remote source failed: " + exception.getMessage(), exception);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("download remote source failed: " + exception.getMessage(), exception);
-        }
-    }
-
-    private MultipartFile downloadFeishuSource(DocumentSource source) {
-        try {
-            String accessToken = resolveFeishuAccessToken(source.getCredentials());
-            if (isFeishuDocxUrl(source.getLocation())) {
-                String docToken = extractFeishuDocToken(source.getLocation());
-                HttpRequest.Builder builder = HttpRequest.newBuilder(
-                        URI.create("https://open.feishu.cn/open-apis/docx/v1/documents/" + docToken + "/raw_content"))
-                        .GET();
-                if (StringUtils.hasText(accessToken)) {
-                    builder.header("Authorization", "Bearer " + accessToken);
-                }
-                HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
-                ensureSuccess(response.statusCode(), "download feishu document failed");
-                String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : docToken + ".txt";
-                return new SimpleMultipartFile(fileName, fileName, "text/plain", response.body());
-            }
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(source.getLocation())).GET();
-            if (StringUtils.hasText(accessToken)) {
-                builder.header("Authorization", "Bearer " + accessToken);
-            }
-            HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
-            ensureSuccess(response.statusCode(), "download feishu resource failed");
-            String fileName = StringUtils.hasText(source.getFileName()) ? source.getFileName() : resolveFileNameFromUrl(source.getLocation());
-            String contentType = response.headers().firstValue("content-type").orElse("application/octet-stream");
-            return new SimpleMultipartFile(fileName, fileName, contentType, response.body());
-        } catch (IOException | InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalArgumentException("download feishu source failed: " + exception.getMessage(), exception);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("download feishu source failed: " + exception.getMessage(), exception);
-        }
-    }
-
-    private String resolveFeishuAccessToken(Map<String, String> credentials) {
-        if (credentials == null || credentials.isEmpty()) {
+    private DocumentSource toSource(DocumentSourceRequest request) {
+        if (request == null) {
             return null;
         }
-        return firstNonBlank(credentials.get("tenantAccessToken"), credentials.get("accessToken"));
-    }
-
-    private String resolveFileNameFromUrl(String location) {
-        if (!StringUtils.hasText(location)) {
-            return "upload.bin";
-        }
-        try {
-            String path = URI.create(location).getPath();
-            if (!StringUtils.hasText(path)) {
-                return "upload.bin";
-            }
-            String fileName = Path.of(path).getFileName().toString();
-            return StringUtils.hasText(fileName) ? fileName : "upload.bin";
-        } catch (Exception ignored) {
-            return "upload.bin";
-        }
-    }
-
-    private boolean isFeishuDocxUrl(String location) {
-        return location != null && (location.contains("/docx/") || location.contains("/docs/"));
-    }
-
-    private String extractFeishuDocToken(String location) {
-        String[] parts = location.split("/");
-        for (int i = 0; i < parts.length; i++) {
-            if ("docx".equalsIgnoreCase(parts[i]) || "docs".equalsIgnoreCase(parts[i])) {
-                if (i + 1 < parts.length) {
-                    String token = parts[i + 1];
-                    int queryIndex = token.indexOf('?');
-                    return queryIndex > 0 ? token.substring(0, queryIndex) : token;
-                }
-            }
-        }
-        throw new IllegalArgumentException("unable to parse feishu document token");
-    }
-
-    private void ensureSuccess(int statusCode, String message) {
-        if (statusCode < 200 || statusCode >= 300) {
-            throw new IllegalArgumentException(message + ", HTTP status: " + statusCode);
-        }
-    }
-
-    private void saveNodeLogs(IngestionTaskEntity task, List<NodeLog> nodeLogs) {
-        if (nodeLogs == null || nodeLogs.isEmpty()) {
-            return;
-        }
-        for (NodeLog log : nodeLogs) {
-            IngestionTaskNodeEntity entity = new IngestionTaskNodeEntity();
-            entity.taskId = task.id;
-            entity.pipelineId = task.pipelineId;
-            entity.nodeId = log.getNodeId();
-            entity.nodeType = normalizeNodeType(log.getNodeType());
-            entity.nodeOrder = 0;
-            entity.status = log.isSuccess() ? "success" : "failed";
-            entity.durationMs = log.getDurationMs();
-            entity.message = log.getMessage();
-            entity.errorMessage = log.getError();
-            entity.outputJson = toJson(log.getOutput());
-            entity.deleted = 0;
-            entity.createdAt = LocalDateTime.now();
-            entity.updatedAt = LocalDateTime.now();
-            taskNodeMapper.insert(entity);
-        }
+        return DocumentSource.builder()
+                .type(request.getType())
+                .location(request.getLocation())
+                .fileName(request.getFileName())
+                .credentials(request.getCredentials())
+                .build();
     }
 
     private IngestionTaskVO toView(IngestionTaskEntity task, List<NodeLog> logs) {
@@ -581,6 +390,17 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         vo.setCreateTime(toDate(entity.createdAt));
         vo.setUpdateTime(toDate(entity.updatedAt));
         return vo;
+    }
+
+    private Map<String, Object> parseMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() {});
+        } catch (Exception ignored) {
+            return Map.of("raw", json);
+        }
     }
 
     private IngestionTaskEntity requireTask(Long id) {
@@ -694,90 +514,11 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         return metadata;
     }
 
-    private Map<String, Object> parseMap(String json) {
-        if (!StringUtils.hasText(json)) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() {});
-        } catch (Exception ignored) {
-            return Map.of("raw", json);
-        }
-    }
-
     private java.util.Date toDate(LocalDateTime time) {
         return time == null ? null : java.util.Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     private String stringify(Long value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private static final class SimpleMultipartFile implements MultipartFile {
-        private final String name;
-        private final String originalFilename;
-        private final String contentType;
-        private final byte[] content;
-
-        private SimpleMultipartFile(String name, String originalFilename, String contentType, byte[] content) {
-            this.name = name;
-            this.originalFilename = originalFilename;
-            this.contentType = contentType;
-            this.content = content == null ? new byte[0] : content.clone();
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public String getOriginalFilename() {
-            return originalFilename;
-        }
-
-        @Override
-        public String getContentType() {
-            return contentType;
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return content.length == 0;
-        }
-
-        @Override
-        public long getSize() {
-            return content.length;
-        }
-
-        @Override
-        public byte[] getBytes() {
-            return content.clone();
-        }
-
-        @Override
-        public InputStream getInputStream() {
-            return new java.io.ByteArrayInputStream(content);
-        }
-
-        @Override
-        public void transferTo(Path dest) throws IOException {
-            Files.write(dest, content);
-        }
-
-        @Override
-        public void transferTo(java.io.File dest) throws IOException, IllegalStateException {
-            Files.write(dest.toPath(), content);
-        }
     }
 }

@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.ingestion.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
@@ -26,7 +25,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
@@ -256,17 +254,6 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
             return null;
         }
         return value.toString();
-    }
-
-    private Map<String, Object> parseMap(String json) {
-        if (!StringUtils.hasText(json)) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() {});
-        } catch (Exception ignored) {
-            return Map.of("raw", json);
-        }
     }
 
     private JsonNode parseJson(String json) {

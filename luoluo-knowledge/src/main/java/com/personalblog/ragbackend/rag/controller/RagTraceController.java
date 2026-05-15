@@ -17,14 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class RagTraceController {
     private final RagTraceQueryService ragTraceQueryService;
 
     @GetMapping("/rag/traces/runs")
-    public Result<IPage<RagTraceRunVO>> pageRuns(RagTraceRunPageRequest requestParam) {
-        return Results.success(ragTraceQueryService.pageRuns(requestParam));
+    public Result<IPage<RagTraceRunVO>> pageRuns(RagTraceRunPageRequest request) {
+        return Results.success(ragTraceQueryService.pageRuns(request));
     }
 
     @GetMapping("/rag/traces/runs/{traceId}")

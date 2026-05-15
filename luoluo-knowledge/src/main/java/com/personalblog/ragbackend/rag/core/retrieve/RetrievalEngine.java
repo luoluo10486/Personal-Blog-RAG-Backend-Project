@@ -13,11 +13,11 @@ import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
 import com.personalblog.ragbackend.rag.core.prompt.ContextFormatter;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,20 +28,20 @@ import java.util.concurrent.Executor;
 
 @Service
 public class RetrievalEngine {
-    private final KnowledgeRetrievalEngine knowledgeRetrievalEngine;
+    private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
     private final ContextFormatter contextFormatter;
     private final MCPParameterExtractor mcpParameterExtractor;
     private final MCPToolRegistry mcpToolRegistry;
     private final Executor ragContextExecutor;
     private final Executor mcpBatchExecutor;
 
-    public RetrievalEngine(KnowledgeRetrievalEngine knowledgeRetrievalEngine,
+    public RetrievalEngine(MultiChannelRetrievalEngine multiChannelRetrievalEngine,
                            ContextFormatter contextFormatter,
                            MCPParameterExtractor mcpParameterExtractor,
                            MCPToolRegistry mcpToolRegistry,
                            @Qualifier("ragContextThreadPoolExecutor") Executor ragContextExecutor,
                            @Qualifier("mcpBatchThreadPoolExecutor") Executor mcpBatchExecutor) {
-        this.knowledgeRetrievalEngine = knowledgeRetrievalEngine;
+        this.multiChannelRetrievalEngine = multiChannelRetrievalEngine;
         this.contextFormatter = contextFormatter;
         this.mcpParameterExtractor = mcpParameterExtractor;
         this.mcpToolRegistry = mcpToolRegistry;
@@ -109,7 +109,7 @@ public class RetrievalEngine {
                 : KbResult.empty();
         String mcpContext = CollUtil.isEmpty(mcpIntents)
                 ? ""
-                : executeMcpAndFormat(intent.subQuestion(), mcpIntents, fallbackBaseCode, topK, conversationId, userId);
+                : executeMcpAndFormat(intent.subQuestion(), mcpIntents, conversationId, userId);
         return new SubQuestionContext(intent.subQuestion(), kbResult.context(), mcpContext, kbResult.intentChunks());
     }
 
@@ -118,7 +118,18 @@ public class RetrievalEngine {
                                        String fallbackBaseCode,
                                        int topK) {
         String baseCode = selectBaseCode(fallbackBaseCode, kbIntents);
-        List<RetrievedChunk> chunks = knowledgeRetrievalEngine.retrieve(new RetrieveRequest(baseCode, question, topK));
+        Map<String, Object> metadata = new java.util.HashMap<>();
+        if (StrUtil.isNotBlank(baseCode)) {
+            metadata.put("baseCode", baseCode);
+            metadata.put("collectionName", baseCode);
+        }
+        SearchContext searchContext = SearchContext.builder()
+                .originalQuestion(question)
+                .rewrittenQuestion(question)
+                .topK(topK)
+                .metadata(metadata)
+                .build();
+        List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(searchContext);
         if (CollUtil.isEmpty(chunks)) {
             return KbResult.empty();
         }
@@ -140,23 +151,19 @@ public class RetrievalEngine {
 
     private String executeMcpAndFormat(String question,
                                        List<NodeScore> mcpIntents,
-                                       String baseCode,
-                                       int topK,
                                        String conversationId,
                                        String userId) {
-        List<MCPResponse> responses = executeMcpTools(question, mcpIntents, baseCode, topK, conversationId, userId);
+        List<MCPResponse> responses = executeMcpTools(question, mcpIntents, conversationId, userId);
         return contextFormatter.formatMcpContext(responses, mcpIntents);
     }
 
     private List<MCPResponse> executeMcpTools(String question,
                                               List<NodeScore> mcpIntents,
-                                              String baseCode,
-                                              int topK,
                                               String conversationId,
                                               String userId) {
         List<CompletableFuture<MCPResponse>> futures = mcpIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
-                        () -> executeSingleMcpTool(question, intent, baseCode, topK, conversationId, userId),
+                        () -> executeSingleMcpTool(question, intent, conversationId, userId),
                         mcpBatchExecutor
                 ))
                 .toList();
@@ -168,8 +175,6 @@ public class RetrievalEngine {
 
     private MCPResponse executeSingleMcpTool(String question,
                                              NodeScore intent,
-                                             String baseCode,
-                                             int topK,
                                              String conversationId,
                                              String userId) {
         RagIntentNode node = intent == null ? null : intent.node();

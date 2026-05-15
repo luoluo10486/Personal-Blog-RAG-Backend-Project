@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.rag.core.retrieve;
 
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
+import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,31 +11,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CompositeKnowledgeRetrieverTest {
 
     @Test
-    void shouldDelegateToRetrievalEngine() {
-        List<KnowledgeChunk> expected = List.of(
-                new KnowledgeChunk("c1", "kb", "doc-1", "title-1", "", 0, "content-1", 0.91)
+    void shouldDelegateDirectlyToMultiChannelEngine() {
+        List<RetrievedChunk> expected = List.of(
+                new RetrievedChunk("c1", "chunk-1", 0.91f)
         );
-        RecordingKnowledgeRetrievalEngine engine = new RecordingKnowledgeRetrievalEngine(expected);
+        RecordingMultiChannelRetrievalEngine engine = new RecordingMultiChannelRetrievalEngine(expected);
         CompositeKnowledgeRetriever retriever = new CompositeKnowledgeRetriever(engine);
 
-        List<KnowledgeChunk> result = retriever.retrieve("kb", "question", 3);
+        List<RetrievedChunk> result = retriever.retrieve("kb-002", "question", 4);
 
         assertThat(result).isEqualTo(expected);
-        assertThat(engine.lastRequest).isEqualTo(new RetrieveRequest("kb", "question", 3));
+        assertThat(engine.lastContext).isNotNull();
+        assertThat(engine.lastContext.getMetadataString("baseCode")).isEqualTo("kb-002");
+        assertThat(engine.lastContext.getMetadataString("collectionName")).isEqualTo("kb-002");
+        assertThat(engine.lastContext.getMainQuestion()).isEqualTo("question");
+        assertThat(engine.lastContext.getTopK()).isEqualTo(4);
     }
 
-    private static final class RecordingKnowledgeRetrievalEngine extends KnowledgeRetrievalEngine {
-        private final List<KnowledgeChunk> response;
-        private RetrieveRequest lastRequest;
+    private static final class RecordingMultiChannelRetrievalEngine extends MultiChannelRetrievalEngine {
+        private final List<RetrievedChunk> response;
+        private SearchContext lastContext;
 
-        private RecordingKnowledgeRetrievalEngine(List<KnowledgeChunk> response) {
-            super(List.of(), List.of());
+        private RecordingMultiChannelRetrievalEngine(List<RetrievedChunk> response) {
+            super(List.of(), List.of(), Runnable::run);
             this.response = response;
         }
 
         @Override
-        public List<KnowledgeChunk> retrieve(RetrieveRequest request) {
-            this.lastRequest = request;
+        public List<RetrievedChunk> retrieveKnowledgeChannels(SearchContext context) {
+            this.lastContext = context;
             return response;
         }
     }

@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,23 +36,12 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
 
     @Override
     public IPage<RagTraceRunVO> pageRuns(RagTraceRunPageRequest request) {
-        QueryWrapper<RagTraceRunEntity> wrapper = new QueryWrapper<>();
-        wrapper.orderByDesc("create_time");
-
-        if (StrUtil.isNotBlank(request.getTraceId())) {
-            wrapper.eq("trace_id", request.getTraceId());
-        }
-        if (StrUtil.isNotBlank(request.getConversationId())) {
-            wrapper.eq("conversation_id", request.getConversationId());
-        }
-        if (StrUtil.isNotBlank(request.getTaskId())) {
-            wrapper.eq("task_id", request.getTaskId());
-        }
-        if (StrUtil.isNotBlank(request.getStatus())) {
-            wrapper.eq("status", request.getStatus());
-        }
-
-        IPage<RagTraceRunEntity> pageResult = runMapper.selectPage(request, wrapper);
+        IPage<RagTraceRunEntity> pageResult = runMapper.selectPage(request, Wrappers.<RagTraceRunEntity>query()
+                .orderByDesc("create_time")
+                .eq(StrUtil.isNotBlank(request.getTraceId()), "trace_id", request.getTraceId())
+                .eq(StrUtil.isNotBlank(request.getConversationId()), "conversation_id", request.getConversationId())
+                .eq(StrUtil.isNotBlank(request.getTaskId()), "task_id", request.getTaskId())
+                .eq(StrUtil.isNotBlank(request.getStatus()), "status", request.getStatus()));
         Map<String, String> usernameMap = loadUsernameMap(pageResult.getRecords());
         return pageResult.convert(run -> toRunVO(run, usernameMap));
     }
@@ -92,8 +82,8 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
                 .status(run.status)
                 .errorMessage(run.errorMessage)
                 .durationMs(run.durationMs)
-                .startTime(toDate(run.createdAt))
-                .endTime(toDate(run.updatedAt))
+                .startTime(toDate(run.startedAt))
+                .endTime(toDate(run.endedAt))
                 .build();
     }
 
@@ -110,8 +100,8 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
                 .status(node.status)
                 .errorMessage(node.errorMessage)
                 .durationMs(node.durationMs)
-                .startTime(toDate(node.createdAt))
-                .endTime(toDate(node.updatedAt))
+                .startTime(toDate(node.startedAt))
+                .endTime(toDate(node.endedAt))
                 .build();
     }
 
@@ -149,10 +139,10 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
         return usernameMap.get(String.valueOf(userId));
     }
 
-    private java.util.Date toDate(java.time.LocalDateTime time) {
+    private Date toDate(java.time.LocalDateTime time) {
         if (time == null) {
             return null;
         }
-        return java.util.Date.from(time.atZone(java.time.ZoneId.systemDefault()).toInstant());
+        return Date.from(time.atZone(java.time.ZoneId.systemDefault()).toInstant());
     }
 }

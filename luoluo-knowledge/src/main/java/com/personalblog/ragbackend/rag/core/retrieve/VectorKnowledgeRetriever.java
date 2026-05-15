@@ -93,7 +93,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
     private RetrievedChunk toRetrievedChunk(String baseCode, VectorSearchHit hit) {
         Map<String, Object> metadata = hit.metadata();
         return RetrievedChunk.builder()
-                .id(stringValue(metadata.getOrDefault("chunkId", hit.vectorId())))
+                .id(stringValue(firstNotNull(metadata, "chunkId", "chunk_id", "vectorId", "vector_id", hit.vectorId())))
                 .text(hit.content())
                 .score((float) hit.score())
                 .build();
@@ -110,7 +110,7 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
             return true;
         }
         Map<String, Object> metadata = hit.metadata();
-        Long chunkId = parseLong(metadata.get("chunkId"));
+        Long chunkId = parseLong(firstNotNull(metadata, "chunkId", "chunk_id", "vectorId", "vector_id"));
         if (chunkId == null) {
             return true;
         }
@@ -131,5 +131,21 @@ public class VectorKnowledgeRetriever implements KnowledgeCandidateRetriever {
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    private Object firstNotNull(Map<String, Object> metadata, String... keys) {
+        if (metadata == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            if (key == null) {
+                continue;
+            }
+            Object value = metadata.get(key);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 }

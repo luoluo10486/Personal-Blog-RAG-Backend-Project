@@ -27,14 +27,14 @@ public class IngestionPipelineController {
     private final IngestionPipelineService pipelineService;
 
     @PostMapping("/ingestion/pipelines")
-    public Result<IngestionPipelineVO> create(@RequestBody IngestionPipelineCreateRequest request) {
-        return Results.success(pipelineService.create(request));
+    public Result<IngestionPipelineVO> create(@RequestBody IngestionPipelineCreateRequest requestParam) {
+        return Results.success(pipelineService.create(requestParam));
     }
 
     @PutMapping("/ingestion/pipelines/{id}")
     public Result<IngestionPipelineVO> update(@PathVariable String id,
-                                                @RequestBody IngestionPipelineUpdateRequest request) {
-        return Results.success(pipelineService.update(id, request));
+                                              @RequestBody IngestionPipelineUpdateRequest requestParam) {
+        return Results.success(pipelineService.update(id, requestParam));
     }
 
     @GetMapping("/ingestion/pipelines/{id}")
@@ -43,10 +43,9 @@ public class IngestionPipelineController {
     }
 
     @GetMapping("/ingestion/pipelines")
-    public Result<IPage<IngestionPipelineVO>> page(@RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
-                                                     @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
-                                                     @RequestParam(value = "keyword", required = false) String keyword) {
-        return Results.success(pipelineService.page(new Page<>(pageNo, pageSize), keyword));
+    public Result<IPage<IngestionPipelineVO>> page(Page<IngestionPipelineVO> page,
+                                                   @RequestParam(value = "keyword", required = false) String keyword) {
+        return Results.success(pipelineService.page(page, keyword));
     }
 
     @DeleteMapping("/ingestion/pipelines/{id}")

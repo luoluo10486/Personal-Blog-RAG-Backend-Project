@@ -2,7 +2,6 @@ package com.personalblog.ragbackend.rag.controller;
 
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.infra.config.AIModelProperties;
 import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
@@ -17,6 +16,7 @@ import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.QueryRewri
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.RagSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.RateLimitSettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.UploadSettings;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@MemberLoginRequired
+@RequiredArgsConstructor
 public class RAGSettingsController {
     private final RAGDefaultProperties ragDefaultProperties;
     private final RAGConfigProperties ragConfigProperties;
@@ -39,18 +39,6 @@ public class RAGSettingsController {
 
     @Value("${spring.servlet.multipart.max-request-size:100MB}")
     private DataSize maxRequestSize;
-
-    public RAGSettingsController(RAGDefaultProperties ragDefaultProperties,
-                                 RAGConfigProperties ragConfigProperties,
-                                 RagRateLimitProperties ragRateLimitProperties,
-                                 MemoryProperties memoryProperties,
-                                 AIModelProperties aiModelProperties) {
-        this.ragDefaultProperties = ragDefaultProperties;
-        this.ragConfigProperties = ragConfigProperties;
-        this.ragRateLimitProperties = ragRateLimitProperties;
-        this.memoryProperties = memoryProperties;
-        this.aiModelProperties = aiModelProperties;
-    }
 
     @GetMapping("/rag/settings")
     public Result<SystemSettingsVO> settings() {

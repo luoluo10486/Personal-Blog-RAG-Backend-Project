@@ -28,7 +28,7 @@ public class PgRetrieverService implements RetrieverService {
         jdbcTemplate.execute("SET hnsw.ef_search = 200");
         String vectorLiteral = toVectorLiteral(vector);
         return jdbcTemplate.query(
-                "SELECT id, content, 1 - (embedding <=> ?::vector) AS score FROM t_knowledge_vector WHERE metadata->>'collection_name' = ? ORDER BY embedding <=> ?::vector LIMIT ?",
+                "SELECT id, content, 1 - (embedding <=> ?::vector) AS score FROM t_knowledge_vector WHERE collection_name = ? AND deleted = 0 ORDER BY embedding <=> ?::vector LIMIT ?",
                 (rs, rowNum) -> RetrievedChunk.builder()
                         .id(String.valueOf(rs.getLong("id")))
                         .text(rs.getString("content"))

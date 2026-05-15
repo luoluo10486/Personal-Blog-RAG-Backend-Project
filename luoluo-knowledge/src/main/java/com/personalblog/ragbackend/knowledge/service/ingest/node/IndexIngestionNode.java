@@ -100,16 +100,30 @@ public class IndexIngestionNode implements KnowledgeIngestionNode {
                                                      DocumentChunk chunk,
                                                      List<Float> embedding) {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("chunkId", String.valueOf(chunkEntity.getId()));
-        metadata.put("documentId", context.getDocumentId() == null ? "" : String.valueOf(context.getDocumentId()));
-        metadata.put("knowledgeBaseId", context.getKnowledgeBaseId() == null ? "" : String.valueOf(context.getKnowledgeBaseId()));
+        String chunkId = String.valueOf(chunkEntity.getId());
+        String documentId = context.getDocumentId() == null ? "" : String.valueOf(context.getDocumentId());
+        String knowledgeBaseId = context.getKnowledgeBaseId() == null ? "" : String.valueOf(context.getKnowledgeBaseId());
+        String collectionName = context.getPlan() == null || context.getPlan().vectorSpace() == null
+                ? ""
+                : context.getPlan().vectorSpace().collectionName();
+        metadata.put("chunkId", chunkId);
+        metadata.put("chunk_id", chunkId);
+        metadata.put("documentId", documentId);
+        metadata.put("docId", documentId);
+        metadata.put("doc_id", documentId);
+        metadata.put("knowledgeBaseId", knowledgeBaseId);
+        metadata.put("kbId", knowledgeBaseId);
+        metadata.put("kb_id", knowledgeBaseId);
         metadata.put("baseCode", context.getPlan().baseCode());
+        metadata.put("collectionName", collectionName);
+        metadata.put("collection_name", collectionName);
         metadata.put("title", context.getFile() == null ? "" : context.getFile().getOriginalFilename());
         metadata.put("sourceUrl", "");
         metadata.put("chunkIndex", chunk.chunkIndex());
+        metadata.put("chunk_index", chunk.chunkIndex());
         metadata.put("sectionTitle", chunk.sectionTitle());
         return new KnowledgeVectorDocument(
-                String.valueOf(chunkEntity.getId()),
+                chunkId,
                 chunk.content(),
                 embedding,
                 metadata

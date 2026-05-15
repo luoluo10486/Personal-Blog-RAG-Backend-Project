@@ -2,234 +2,172 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.rerank.RerankService;
-import com.personalblog.ragbackend.knowledge.config.KnowledgeProperties;
-import com.personalblog.ragbackend.knowledge.domain.KnowledgeChunk;
-import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.ConfidenceThresholdPostProcessor;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannel;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelType;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.DeduplicatePostProcessor;
 import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.RerankPostProcessor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KnowledgeRetrievalEngineTest {
 
     @Test
-    void shouldFilterByConfidenceThresholdBeforeReturningTopK() {
-        KnowledgeProperties properties = new KnowledgeProperties();
-        properties.getSearch().setConfidenceThreshold(0.6);
-        properties.getSearch().getRerank().setEnabled(false);
+    void shouldForwardRequestToMultiChannelEngine() {
+        List<RetrievedChunk> expected = List.of(chunk("c1", "answer-1", 0.9f));
+        RecordingMultiChannelRetrievalEngine multiChannelRetrievalEngine = new RecordingMultiChannelRetrievalEngine(expected);
+        KnowledgeRetrievalEngine adapter = new KnowledgeRetrievalEngine(multiChannelRetrievalEngine);
 
-        KnowledgeCandidateRetriever retriever = new StubCandidateRetriever(List.of(
-                chunk("c1", 0.95),
-                chunk("c2", 0.72),
-                chunk("c3", 0.45)
-        ));
+        List<RetrievedChunk> result = adapter.retrieve(new RetrieveRequest("kb-001", "what is rag", 3));
 
-        KnowledgeRetrievalEngine engine = new KnowledgeRetrievalEngine(
-                List.of(retriever),
-                List.of(
-                        new DeduplicatePostProcessor(),
-                        new ConfidenceThresholdPostProcessor(properties),
-                        new RerankPostProcessor(properties, emptyProvider())
-                )
-        );
-
-        List<KnowledgeChunk> results = engine.retrieve(new RetrieveRequest("default", "score", 5));
-
-        assertThat(results).extracting(KnowledgeChunk::id).containsExactly("c1", "c2");
+        assertThat(result).isEqualTo(expected);
+        assertThat(multiChannelRetrievalEngine.lastContext).isNotNull();
+        assertThat(multiChannelRetrievalEngine.lastContext.getMetadataString("baseCode")).isEqualTo("kb-001");
+        assertThat(multiChannelRetrievalEngine.lastContext.getMetadataString("collectionName")).isEqualTo("kb-001");
+        assertThat(multiChannelRetrievalEngine.lastContext.getMainQuestion()).isEqualTo("what is rag");
+        assertThat(multiChannelRetrievalEngine.lastContext.getTopK()).isEqualTo(3);
     }
 
     @Test
-    void shouldFallbackToTopKWhenThresholdFiltersEverythingOut() {
-        KnowledgeProperties properties = new KnowledgeProperties();
-        properties.getSearch().setConfidenceThreshold(0.99);
-        properties.getSearch().getRerank().setEnabled(false);
-
-        KnowledgeCandidateRetriever retriever = new StubCandidateRetriever(List.of(
-                chunk("c1", 0.65),
-                chunk("c2", 0.52),
-                chunk("c3", 0.41)
+    void shouldDeduplicateBeforeRerankInMultiChannelEngine() {
+        RecordingRerankService rerankService = new RecordingRerankService(List.of(
+                chunk("c2", "answer-2", 0.98f),
+                chunk("c1", "answer-1", 0.96f)
         ));
 
-        KnowledgeRetrievalEngine engine = new KnowledgeRetrievalEngine(
-                List.of(retriever),
+        MultiChannelRetrievalEngine engine = new MultiChannelRetrievalEngine(
+                List.of(
+                        channel("intent", 1, List.of(
+                                chunk("c1", "intent-1", 0.70f),
+                                chunk("c2", "intent-2", 0.60f)
+                        )),
+                        channel("vector", 20, List.of(
+                                chunk("c1", "vector-1", 0.70f),
+                                chunk("c3", "vector-3", 0.50f)
+                        ))
+                ),
                 List.of(
                         new DeduplicatePostProcessor(),
-                        new ConfidenceThresholdPostProcessor(properties),
-                        new RerankPostProcessor(properties, emptyProvider())
-                )
+                        new RerankPostProcessor(fixedProvider(rerankService))
+                ),
+                directExecutor()
         );
 
-        List<KnowledgeChunk> results = engine.retrieve(new RetrieveRequest("default", "logistics", 2));
+        List<RetrievedChunk> result = engine.retrieveKnowledgeChannels(
+                List.of(new com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent("what is rag", List.of())),
+                2
+        );
 
-        assertThat(results).extracting(KnowledgeChunk::id).containsExactly("c1", "c2");
+        assertThat(rerankService.lastQuery).isEqualTo("what is rag");
+        assertThat(rerankService.lastCandidates).extracting(RetrievedChunk::getId)
+                .containsExactly("c1", "c2", "c3");
+        assertThat(rerankService.lastTopN).isEqualTo(2);
+        assertThat(result).extracting(RetrievedChunk::getId).containsExactly("c2", "c1");
     }
 
-    @Test
-    void shouldApplyRerankAsPostProcessorWhenEnabled() {
-        KnowledgeProperties properties = new KnowledgeProperties();
-        properties.getSearch().setConfidenceThreshold(0.1);
-        properties.getSearch().getRerank().setEnabled(true);
+    private static SearchChannel channel(String name, int priority, List<RetrievedChunk> chunks) {
+        return new SearchChannel() {
+            @Override
+            public String getName() {
+                return name;
+            }
 
-        KnowledgeCandidateRetriever retriever = new StubCandidateRetriever(List.of(
-                chunk("c1", 0.92),
-                chunk("c2", 0.88)
-        ));
+            @Override
+            public int getPriority() {
+                return priority;
+            }
 
-        RerankService rerankService = (query, candidates, topN) -> List.of(
-                new RetrievedChunk("c2", "second", 0.99f),
-                new RetrievedChunk("c1", "first", 0.66f)
-        );
+            @Override
+            public boolean isEnabled(SearchContext context) {
+                return true;
+            }
 
-        KnowledgeRetrievalEngine engine = new KnowledgeRetrievalEngine(
-                List.of(retriever),
-                List.of(
-                        new DeduplicatePostProcessor(),
-                        new ConfidenceThresholdPostProcessor(properties),
-                        new RerankPostProcessor(properties, fixedProvider(rerankService))
-                )
-        );
+            @Override
+            public SearchChannelResult search(SearchContext context) {
+                return SearchChannelResult.builder()
+                        .channelType("intent".equals(name) ? SearchChannelType.INTENT_DIRECTED : SearchChannelType.VECTOR_GLOBAL)
+                        .channelName(name)
+                        .chunks(chunks)
+                        .build();
+            }
 
-        List<KnowledgeChunk> results = engine.retrieve(new RetrieveRequest("default", "refund policy", 2));
-
-        assertThat(results).extracting(KnowledgeChunk::id).containsExactly("c2", "c1");
-        assertThat(results.get(0).score()).isCloseTo(0.99d, org.assertj.core.data.Offset.offset(1e-6d));
+            @Override
+            public SearchChannelType getType() {
+                return "intent".equals(name) ? SearchChannelType.INTENT_DIRECTED : SearchChannelType.VECTOR_GLOBAL;
+            }
+        };
     }
 
-    @Test
-    void shouldPreferRealRetrieverBeforeNoopAndMergeResultsByScore() {
-        KnowledgeProperties properties = new KnowledgeProperties();
-        properties.getSearch().setConfidenceThreshold(0.0);
-        properties.getSearch().getRerank().setEnabled(false);
-
-        KnowledgeCandidateRetriever noop = new StubCandidateRetriever("noop", 1000, List.of());
-        KnowledgeCandidateRetriever jdbc = new StubCandidateRetriever("jdbc", 10, List.of(
-                chunk("c1", 0.42),
-                chunk("c2", 0.81)
-        ));
-
-        KnowledgeRetrievalEngine engine = new KnowledgeRetrievalEngine(
-                List.of(noop, jdbc),
-                List.of(
-                        new DeduplicatePostProcessor(),
-                        new ConfidenceThresholdPostProcessor(properties),
-                        new RerankPostProcessor(properties, emptyProvider())
-                )
-        );
-
-        List<KnowledgeChunk> results = engine.retrieve(new RetrieveRequest("default", "question", 2));
-
-        assertThat(results).extracting(KnowledgeChunk::id).containsExactly("c2", "c1");
+    private static RetrievedChunk chunk(String id, String text, float score) {
+        return new RetrievedChunk(id, text, score);
     }
 
-    @Test
-    void shouldKeepHighestScoreWhenMultipleRetrieversReturnSameChunk() {
-        KnowledgeProperties properties = new KnowledgeProperties();
-        properties.getSearch().setConfidenceThreshold(0.0);
-        properties.getSearch().getRerank().setEnabled(false);
-
-        KnowledgeCandidateRetriever first = new StubCandidateRetriever("keyword", 10, List.of(
-                chunk("c1", 0.55),
-                chunk("c2", 0.61)
-        ));
-        KnowledgeCandidateRetriever second = new StubCandidateRetriever("vector", 20, List.of(
-                chunk("c1", 0.89),
-                chunk("c3", 0.74)
-        ));
-
-        KnowledgeRetrievalEngine engine = new KnowledgeRetrievalEngine(
-                List.of(second, first),
-                List.of(
-                        new DeduplicatePostProcessor(),
-                        new ConfidenceThresholdPostProcessor(properties),
-                        new RerankPostProcessor(properties, emptyProvider())
-                )
-        );
-
-        List<KnowledgeChunk> results = engine.retrieve(new RetrieveRequest("default", "question", 3));
-
-        assertThat(results).extracting(KnowledgeChunk::id).containsExactly("c1", "c3", "c2");
-        assertThat(results.get(0).score()).isEqualTo(0.89d);
-    }
-
-    private static KnowledgeChunk chunk(String id, double score) {
-        return new KnowledgeChunk(
-                id,
-                "default",
-                "doc-" + id,
-                "title-" + id,
-                "https://example.com/" + id,
-                1,
-                "content-" + id,
-                score
-        );
-    }
-
-    private static ObjectProvider<RerankService> emptyProvider() {
-        return new FixedObjectProvider(null);
+    private static Executor directExecutor() {
+        return Runnable::run;
     }
 
     private static ObjectProvider<RerankService> fixedProvider(RerankService service) {
-        return new FixedObjectProvider(service);
+        return new ObjectProvider<>() {
+            @Override
+            public RerankService getObject(Object... args) {
+                return service;
+            }
+
+            @Override
+            public RerankService getIfAvailable() {
+                return service;
+            }
+
+            @Override
+            public RerankService getIfUnique() {
+                return service;
+            }
+
+            @Override
+            public RerankService getObject() {
+                return service;
+            }
+        };
     }
 
-    private record StubCandidateRetriever(String name, int order, List<KnowledgeChunk> candidates)
-            implements KnowledgeCandidateRetriever {
+    private static final class RecordingMultiChannelRetrievalEngine extends MultiChannelRetrievalEngine {
+        private final List<RetrievedChunk> response;
+        private SearchContext lastContext;
 
-        private StubCandidateRetriever(List<KnowledgeChunk> candidates) {
-            this("stub", 100, candidates);
+        private RecordingMultiChannelRetrievalEngine(List<RetrievedChunk> response) {
+            super(List.of(), List.of(), directExecutor());
+            this.response = response;
         }
 
         @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public int getOrder() {
-            return order;
-        }
-
-        @Override
-        public List<KnowledgeChunk> retrieveCandidates(RetrieveRequest request) {
-            return candidates;
+        public List<RetrievedChunk> retrieveKnowledgeChannels(SearchContext context) {
+            this.lastContext = context;
+            return response;
         }
     }
 
-    private static final class FixedObjectProvider implements ObjectProvider<RerankService> {
-        private final RerankService value;
+    private static final class RecordingRerankService implements RerankService {
+        private final List<RetrievedChunk> response;
+        private String lastQuery;
+        private List<RetrievedChunk> lastCandidates;
+        private int lastTopN;
 
-        private FixedObjectProvider(RerankService value) {
-            this.value = value;
+        private RecordingRerankService(List<RetrievedChunk> response) {
+            this.response = response;
         }
 
         @Override
-        public RerankService getObject(Object... args) {
-            if (value == null) {
-                throw new IllegalStateException("No object available");
-            }
-            return value;
-        }
-
-        @Override
-        public RerankService getIfAvailable() {
-            return value;
-        }
-
-        @Override
-        public RerankService getIfUnique() {
-            return value;
-        }
-
-        @Override
-        public RerankService getObject() {
-            if (value == null) {
-                throw new IllegalStateException("No object available");
-            }
-            return value;
+        public List<RetrievedChunk> rerank(String query, List<RetrievedChunk> candidates, int topN) {
+            this.lastQuery = query;
+            this.lastCandidates = candidates;
+            this.lastTopN = topN;
+            return response;
         }
     }
 }

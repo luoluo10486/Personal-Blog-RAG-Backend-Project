@@ -1,4 +1,8 @@
 package com.personalblog.ragbackend.rag.controller.request;
 
-public record ConversationUpdateRequest(String title) {
+import lombok.Data;
+
+@Data
+public class ConversationUpdateRequest {
+    private String title;
 }

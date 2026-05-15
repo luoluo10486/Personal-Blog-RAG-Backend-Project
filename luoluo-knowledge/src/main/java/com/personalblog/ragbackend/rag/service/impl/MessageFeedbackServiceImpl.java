@@ -80,7 +80,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     @Override
     public void submitFeedbackByEvent(MessageFeedbackEvent event) {
         if (event == null || event.getMessageId() == null || event.getUserId() == null) {
-            throw new IllegalArgumentException("反馈事件参数不完整");
+            throw new IllegalArgumentException("feedback event is invalid");
         }
         RagConversationMessageEntity message = loadAssistantMessage(event.getMessageId(), event.getUserId());
         upsertFeedback(event.getMessageId(), event.getUserId(), message.getConversationId(),
@@ -146,7 +146,7 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
                 .eq(RagConversationMessageEntity::getRole, "assistant")
                 .last("limit 1"));
         if (message == null) {
-            throw new IllegalArgumentException("只允许对当前用户的助手消息反馈");
+            throw new IllegalArgumentException("assistant message not found");
         }
         return message;
     }
@@ -154,23 +154,23 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     private String requireCurrentUserId() {
         String userId = UserContext.getUserId();
         if (!StrUtil.isNotBlank(userId)) {
-            throw new IllegalArgumentException("当前用户未登录");
+            throw new IllegalArgumentException("current user not found");
         }
         return userId;
     }
 
     private void validateRequest(String messageId, MessageFeedbackRequest request) {
-        Assert.notBlank(messageId, () -> new IllegalArgumentException("messageId 不能为空"));
-        Assert.notNull(request, () -> new IllegalArgumentException("请求体不能为空"));
+        Assert.notBlank(messageId, () -> new IllegalArgumentException("messageId cannot be blank"));
+        Assert.notNull(request, () -> new IllegalArgumentException("request cannot be null"));
         validateFeedback(request.getVote());
     }
 
     private void validateFeedback(Integer vote) {
         if (vote == null) {
-            throw new IllegalArgumentException("vote 不能为空");
+            throw new IllegalArgumentException("vote cannot be null");
         }
         if (vote != 1 && vote != -1) {
-            throw new IllegalArgumentException("vote 只能是 1 或 -1");
+            throw new IllegalArgumentException("vote must be 1 or -1");
         }
     }
 }

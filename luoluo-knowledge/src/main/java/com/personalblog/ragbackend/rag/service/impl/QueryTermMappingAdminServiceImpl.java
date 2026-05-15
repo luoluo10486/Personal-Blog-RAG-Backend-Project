@@ -3,9 +3,9 @@ package com.personalblog.ragbackend.rag.service.impl;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.knowledge.dao.entity.QueryTermMappingEntity;
 import com.personalblog.ragbackend.knowledge.mapper.QueryTermMappingMapper;
 import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingCreateRequest;
@@ -16,57 +16,61 @@ import com.personalblog.ragbackend.rag.service.QueryTermMappingAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.ZoneId;
 import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
 public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminService {
+
     private final QueryTermMappingMapper queryTermMappingMapper;
 
     @Override
     public String create(QueryTermMappingCreateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new IllegalArgumentException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
         String targetTerm = StrUtil.trimToNull(requestParam.getTargetTerm());
-        Assert.notBlank(sourceTerm, () -> new IllegalArgumentException("原始词不能为空"));
-        Assert.notBlank(targetTerm, () -> new IllegalArgumentException("目标词不能为空"));
+        Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
+        Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
 
-        QueryTermMappingEntity record = new QueryTermMappingEntity();
-        record.sourceTerm = sourceTerm;
-        record.targetTerm = targetTerm;
-        record.matchType = requestParam.getMatchType() == null ? 1 : requestParam.getMatchType();
-        record.priority = requestParam.getPriority() == null ? 0 : requestParam.getPriority();
-        record.enabled = requestParam.getEnabled() == null ? 1 : (requestParam.getEnabled() ? 1 : 0);
-        record.remark = StrUtil.trimToNull(requestParam.getRemark());
+        QueryTermMappingEntity record = QueryTermMappingEntity.builder()
+                .sourceTerm(sourceTerm)
+                .targetTerm(targetTerm)
+                .matchType(requestParam.getMatchType() == null ? 1 : requestParam.getMatchType())
+                .priority(requestParam.getPriority() == null ? 0 : requestParam.getPriority())
+                .enabled(requestParam.getEnabled() == null ? 1 : (requestParam.getEnabled() ? 1 : 0))
+                .remark(StrUtil.trimToNull(requestParam.getRemark()))
+                .build();
         queryTermMappingMapper.insert(record);
-        return String.valueOf(record.id);
+        return String.valueOf(record.getId());
     }
 
     @Override
     public void update(String id, QueryTermMappingUpdateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new IllegalArgumentException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
         QueryTermMappingEntity record = loadById(id);
+
         if (requestParam.getSourceTerm() != null) {
             String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
-            Assert.notBlank(sourceTerm, () -> new IllegalArgumentException("原始词不能为空"));
-            record.sourceTerm = sourceTerm;
+            Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
+            record.setSourceTerm(sourceTerm);
         }
         if (requestParam.getTargetTerm() != null) {
             String targetTerm = StrUtil.trimToNull(requestParam.getTargetTerm());
-            Assert.notBlank(targetTerm, () -> new IllegalArgumentException("目标词不能为空"));
-            record.targetTerm = targetTerm;
+            Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
+            record.setTargetTerm(targetTerm);
         }
         if (requestParam.getMatchType() != null) {
-            record.matchType = requestParam.getMatchType();
+            record.setMatchType(requestParam.getMatchType());
         }
         if (requestParam.getPriority() != null) {
-            record.priority = requestParam.getPriority();
+            record.setPriority(requestParam.getPriority());
         }
         if (requestParam.getEnabled() != null) {
-            record.enabled = requestParam.getEnabled() ? 1 : 0;
+            record.setEnabled(requestParam.getEnabled() ? 1 : 0);
         }
         if (requestParam.getRemark() != null) {
-            record.remark = StrUtil.trimToNull(requestParam.getRemark());
+            record.setRemark(StrUtil.trimToNull(requestParam.getRemark()));
         }
         queryTermMappingMapper.updateById(record);
     }
@@ -74,7 +78,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
     @Override
     public void delete(String id) {
         QueryTermMappingEntity record = loadById(id);
-        queryTermMappingMapper.deleteById(record.id);
+        queryTermMappingMapper.deleteById(record.getId());
     }
 
     @Override
@@ -91,37 +95,44 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         );
         IPage<QueryTermMappingEntity> result = queryTermMappingMapper.selectPage(
                 page,
-                new QueryWrapper<QueryTermMappingEntity>()
+                Wrappers.lambdaQuery(QueryTermMappingEntity.class)
                         .and(StrUtil.isNotBlank(keyword), wrapper -> wrapper
-                                .like("source_term", keyword)
+                                .like(QueryTermMappingEntity::getSourceTerm, keyword)
                                 .or()
-                                .like("target_term", keyword))
-                        .orderByAsc("priority")
-                        .orderByDesc("update_time")
+                                .like(QueryTermMappingEntity::getTargetTerm, keyword))
+                        .orderByAsc(QueryTermMappingEntity::getPriority)
+                        .orderByDesc(QueryTermMappingEntity::getUpdatedAt)
         );
         return result.convert(this::toVO);
     }
 
     private QueryTermMappingEntity loadById(String id) {
         QueryTermMappingEntity record = queryTermMappingMapper.selectOne(
-                new QueryWrapper<QueryTermMappingEntity>()
-                        .eq("id", id)
+                Wrappers.lambdaQuery(QueryTermMappingEntity.class)
+                        .eq(QueryTermMappingEntity::getId, id)
         );
-        Assert.notNull(record, () -> new IllegalArgumentException("映射规则不存在"));
+        Assert.notNull(record, () -> new ClientException("映射规则不存在"));
         return record;
     }
 
     private QueryTermMappingVO toVO(QueryTermMappingEntity record) {
         return QueryTermMappingVO.builder()
-                .id(String.valueOf(record.id))
-                .sourceTerm(record.sourceTerm)
-                .targetTerm(record.targetTerm)
-                .matchType(record.matchType)
-                .priority(record.priority)
-                .enabled(record.enabled != null && record.enabled == 1)
-                .remark(record.remark)
-                .createTime(record.createdAt == null ? null : Date.from(record.createdAt.atZone(java.time.ZoneId.systemDefault()).toInstant()))
-                .updateTime(record.updatedAt == null ? null : Date.from(record.updatedAt.atZone(java.time.ZoneId.systemDefault()).toInstant()))
+                .id(String.valueOf(record.getId()))
+                .sourceTerm(record.getSourceTerm())
+                .targetTerm(record.getTargetTerm())
+                .matchType(record.getMatchType())
+                .priority(record.getPriority())
+                .enabled(record.getEnabled() != null && record.getEnabled() == 1)
+                .remark(record.getRemark())
+                .createTime(toDate(record.getCreatedAt()))
+                .updateTime(toDate(record.getUpdatedAt()))
                 .build();
+    }
+
+    private Date toDate(java.time.LocalDateTime time) {
+        if (time == null) {
+            return null;
+        }
+        return Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 }

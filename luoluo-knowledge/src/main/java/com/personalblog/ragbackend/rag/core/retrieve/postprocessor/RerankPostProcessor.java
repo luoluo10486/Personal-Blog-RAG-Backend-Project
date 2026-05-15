@@ -2,7 +2,8 @@ package com.personalblog.ragbackend.rag.core.retrieve.postprocessor;
 
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.rerank.RerankService;
-import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -23,27 +24,27 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public int getOrder() {
-        return 20;
+        return 10;
     }
 
     @Override
-    public boolean isEnabled(RetrieveRequest request) {
+    public boolean isEnabled(SearchContext context) {
         return rerankServiceProvider.getIfAvailable() != null;
     }
 
     @Override
-    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, RetrieveRequest request) {
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
         if (chunks.isEmpty()) {
             return chunks;
         }
         RerankService rerankService = rerankServiceProvider.getIfAvailable();
         if (rerankService == null) {
-            return chunks.stream().limit(request.topK()).toList();
+            return chunks.stream().limit(Math.max(context.getTopK(), 1)).toList();
         }
         try {
-            return rerankService.rerank(request.question(), chunks, request.topK());
+            return rerankService.rerank(context.getMainQuestion(), chunks, Math.max(context.getTopK(), 1));
         } catch (RuntimeException ex) {
-            return chunks.stream().limit(request.topK()).toList();
+            return chunks.stream().limit(Math.max(context.getTopK(), 1)).toList();
         }
     }
 }
