@@ -29,7 +29,7 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public boolean isEnabled(SearchContext context) {
-        return rerankServiceProvider.getIfAvailable() != null;
+        return true;
     }
 
     @Override

@@ -10,6 +10,7 @@ import java.util.List;
 
 @Service
 @Primary
+@Deprecated
 public class CompositeKnowledgeRetriever implements KnowledgeRetriever {
     private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
 

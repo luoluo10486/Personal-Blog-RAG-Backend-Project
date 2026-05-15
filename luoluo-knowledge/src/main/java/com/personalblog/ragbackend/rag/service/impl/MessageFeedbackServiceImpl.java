@@ -5,6 +5,7 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.RagMessageFeedbackEntity;
 import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
@@ -79,9 +80,10 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
 
     @Override
     public void submitFeedbackByEvent(MessageFeedbackEvent event) {
-        if (event == null || event.getMessageId() == null || event.getUserId() == null) {
-            throw new IllegalArgumentException("feedback event is invalid");
-        }
+        Assert.notNull(event, () -> new ClientException("feedback event is invalid"));
+        Assert.notBlank(event.getMessageId(), () -> new ClientException("messageId cannot be blank"));
+        Assert.notBlank(event.getUserId(), () -> new ClientException("userId cannot be blank"));
+        Assert.notNull(event.getVote(), () -> new ClientException("vote cannot be null"));
         RagConversationMessageEntity message = loadAssistantMessage(event.getMessageId(), event.getUserId());
         upsertFeedback(event.getMessageId(), event.getUserId(), message.getConversationId(),
                 event.getVote(), event.getReason(), event.getComment(), event.getSubmitTime());
@@ -143,10 +145,11 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         RagConversationMessageEntity message = conversationMessageMapper.selectOne(Wrappers.<RagConversationMessageEntity>lambdaQuery()
                 .eq(RagConversationMessageEntity::getId, messageId)
                 .eq(RagConversationMessageEntity::getUserId, userId)
+                .eq(RagConversationMessageEntity::getDeleted, 0)
                 .eq(RagConversationMessageEntity::getRole, "assistant")
                 .last("limit 1"));
         if (message == null) {
-            throw new IllegalArgumentException("assistant message not found");
+            throw new ClientException("assistant message not found");
         }
         return message;
     }
@@ -154,23 +157,23 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
     private String requireCurrentUserId() {
         String userId = UserContext.getUserId();
         if (!StrUtil.isNotBlank(userId)) {
-            throw new IllegalArgumentException("current user not found");
+            throw new ClientException("current user not found");
         }
         return userId;
     }
 
     private void validateRequest(String messageId, MessageFeedbackRequest request) {
-        Assert.notBlank(messageId, () -> new IllegalArgumentException("messageId cannot be blank"));
-        Assert.notNull(request, () -> new IllegalArgumentException("request cannot be null"));
+        Assert.notBlank(messageId, () -> new ClientException("messageId cannot be blank"));
+        Assert.notNull(request, () -> new ClientException("request cannot be null"));
         validateFeedback(request.getVote());
     }
 
     private void validateFeedback(Integer vote) {
         if (vote == null) {
-            throw new IllegalArgumentException("vote cannot be null");
+            throw new ClientException("vote cannot be null");
         }
         if (vote != 1 && vote != -1) {
-            throw new IllegalArgumentException("vote must be 1 or -1");
+            throw new ClientException("vote must be 1 or -1");
         }
     }
 }

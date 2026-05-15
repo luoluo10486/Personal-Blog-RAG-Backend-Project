@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@Deprecated
 public class ConfidenceThresholdPostProcessor implements SearchResultPostProcessor {
     private final SearchChannelProperties searchChannelProperties;
 

@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ConversationMessageServiceImpl implements ConversationMessageService {
@@ -97,16 +98,17 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
         Map<String, Integer> votesByMessageId = feedbackService.getUserVotes(userId, assistantMessageIds);
 
         return records.stream()
-                .map(record -> new ConversationMessageVO(
-                        String.valueOf(record.getId()),
-                        record.getConversationId(),
-                        record.getRole(),
-                        record.getContent(),
-                        record.getThinkingContent(),
-                        record.getThinkingDuration(),
-                        votesByMessageId.get(String.valueOf(record.getId())),
-                        toDate(record.getCreatedAt())))
-                .toList();
+                .map(record -> ConversationMessageVO.builder()
+                        .id(String.valueOf(record.getId()))
+                        .conversationId(record.getConversationId())
+                        .role(record.getRole())
+                        .content(record.getContent())
+                        .thinkingContent(record.getThinkingContent())
+                        .thinkingDuration(record.getThinkingDuration())
+                        .vote(votesByMessageId.get(String.valueOf(record.getId())))
+                        .createTime(toDate(record.getCreatedAt()))
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Transactional(rollbackFor = Exception.class)

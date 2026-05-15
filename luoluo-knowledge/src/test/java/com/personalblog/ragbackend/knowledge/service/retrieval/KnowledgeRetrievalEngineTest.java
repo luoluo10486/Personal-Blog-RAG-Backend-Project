@@ -6,7 +6,7 @@ import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannel;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelType;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
-import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.DeduplicatePostProcessor;
+import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.DeduplicationPostProcessor;
 import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.RerankPostProcessor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -53,7 +53,7 @@ class KnowledgeRetrievalEngineTest {
                         ))
                 ),
                 List.of(
-                        new DeduplicatePostProcessor(),
+                        new DeduplicationPostProcessor(),
                         new RerankPostProcessor(fixedProvider(rerankService))
                 ),
                 directExecutor()

@@ -3,6 +3,7 @@ package com.personalblog.ragbackend.rag.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
@@ -26,6 +27,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,8 +56,12 @@ public class ConversationServiceImpl implements ConversationService {
             return List.of();
         }
         return records.stream()
-                .map(item -> new ConversationVO(item.getConversationId(), item.getTitle(), toDate(item.getLastTime())))
-                .toList();
+                .map(item -> ConversationVO.builder()
+                        .conversationId(item.getConversationId())
+                        .title(item.getTitle())
+                        .lastTime(toDate(item.getLastTime()))
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -94,7 +100,7 @@ public class ConversationServiceImpl implements ConversationService {
     public void rename(String conversationId, ConversationUpdateRequest request) {
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId) || request == null || StrUtil.isBlank(request.getTitle())) {
-            throw new IllegalArgumentException("Conversation not found");
+            throw new ClientException("Conversation not found");
         }
         int maxLen = memoryProperties.getTitleMaxLength();
         if (maxLen <= 0) {
@@ -102,7 +108,7 @@ public class ConversationServiceImpl implements ConversationService {
         }
         String title = request.getTitle().trim();
         if (title.length() > maxLen) {
-            throw new IllegalArgumentException("Conversation title length cannot exceed " + maxLen + " characters");
+            throw new ClientException("Conversation title length cannot exceed " + maxLen + " characters");
         }
 
         RagConversationEntity record = conversationMapper.selectOne(
@@ -113,7 +119,7 @@ public class ConversationServiceImpl implements ConversationService {
                         .last("limit 1")
         );
         if (record == null) {
-            throw new IllegalArgumentException("Conversation not found");
+            throw new ClientException("Conversation not found");
         }
         record.setTitle(title);
         conversationMapper.updateById(record);
@@ -124,7 +130,7 @@ public class ConversationServiceImpl implements ConversationService {
     public void delete(String conversationId) {
         String userId = UserContext.getUserId();
         if (StrUtil.isBlank(conversationId) || StrUtil.isBlank(userId)) {
-            throw new IllegalArgumentException("Conversation not found");
+            throw new ClientException("Conversation not found");
         }
         RagConversationEntity record = conversationMapper.selectOne(
                 Wrappers.lambdaQuery(RagConversationEntity.class)
@@ -134,7 +140,7 @@ public class ConversationServiceImpl implements ConversationService {
                         .last("limit 1")
         );
         if (record == null) {
-            throw new IllegalArgumentException("Conversation not found");
+            throw new ClientException("Conversation not found");
         }
 
         conversationMapper.deleteById(record.getId());

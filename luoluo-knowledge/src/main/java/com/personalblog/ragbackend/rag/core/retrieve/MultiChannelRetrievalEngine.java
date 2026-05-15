@@ -28,12 +28,8 @@ public class MultiChannelRetrievalEngine {
     public MultiChannelRetrievalEngine(List<SearchChannel> searchChannels,
                                        List<SearchResultPostProcessor> postProcessors,
                                        @Qualifier("ragRetrievalThreadPoolExecutor") Executor ragRetrievalExecutor) {
-        this.searchChannels = searchChannels == null ? List.of() : searchChannels.stream()
-                .sorted(Comparator.comparingInt(SearchChannel::getPriority))
-                .toList();
-        this.postProcessors = postProcessors == null ? List.of() : postProcessors.stream()
-                .sorted(Comparator.comparingInt(SearchResultPostProcessor::getOrder))
-                .toList();
+        this.searchChannels = searchChannels == null ? List.of() : List.copyOf(searchChannels);
+        this.postProcessors = postProcessors == null ? List.of() : List.copyOf(postProcessors);
         this.ragRetrievalExecutor = ragRetrievalExecutor;
     }
 
@@ -55,6 +51,7 @@ public class MultiChannelRetrievalEngine {
     private List<SearchChannelResult> executeSearchChannels(SearchContext context) {
         List<SearchChannel> enabledChannels = searchChannels.stream()
                 .filter(channel -> channel.isEnabled(context))
+                .sorted(Comparator.comparingInt(SearchChannel::getPriority))
                 .toList();
         if (enabledChannels.isEmpty()) {
             return List.of();
@@ -79,6 +76,7 @@ public class MultiChannelRetrievalEngine {
     private List<RetrievedChunk> executePostProcessors(List<SearchChannelResult> results, SearchContext context) {
         List<SearchResultPostProcessor> enabledProcessors = postProcessors.stream()
                 .filter(processor -> processor.isEnabled(context))
+                .sorted(Comparator.comparingInt(SearchResultPostProcessor::getOrder))
                 .toList();
 
         List<RetrievedChunk> chunks = results.stream()

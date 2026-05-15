@@ -19,14 +19,11 @@ public class RagIntentResolver {
     private static final int MAX_INTENT_COUNT = 8;
     private static final double MIN_SCORE = 0.15D;
 
-    private final RagIntentCatalogService catalogService;
     private final IntentClassifier intentClassifier;
     private final Executor intentClassifyExecutor;
 
-    public RagIntentResolver(RagIntentCatalogService catalogService,
-                             @Qualifier("defaultIntentClassifier") IntentClassifier intentClassifier,
+    public RagIntentResolver(@Qualifier("defaultIntentClassifier") IntentClassifier intentClassifier,
                              @Qualifier("intentClassifyThreadPoolExecutor") Executor intentClassifyExecutor) {
-        this.catalogService = catalogService;
         this.intentClassifier = intentClassifier;
         this.intentClassifyExecutor = intentClassifyExecutor;
     }
@@ -40,14 +37,18 @@ public class RagIntentResolver {
                 ? rewriteResult.subQuestions()
                 : List.of(StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), ""));
         if (CollUtil.isEmpty(subQuestions)) {
-            return List.of(new SubQuestionIntent(
-                    StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), ""),
-                    classify(StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), ""))
-            ));
+            String rewrittenQuestion = StrUtil.blankToDefault(rewriteResult.rewrittenQuestion(), "");
+            return List.of(new SubQuestionIntent(rewrittenQuestion, classify(rewrittenQuestion)));
         }
         List<CompletableFuture<SubQuestionIntent>> tasks = subQuestions.stream()
                 .map(subQuestion -> CompletableFuture.supplyAsync(
-                        () -> new SubQuestionIntent(subQuestion, classify(subQuestion)),
+                        () -> {
+                            try {
+                                return new SubQuestionIntent(subQuestion, classify(subQuestion));
+                            } catch (Exception exception) {
+                                return new SubQuestionIntent(subQuestion, List.of());
+                            }
+                        },
                         intentClassifyExecutor
                 ))
                 .toList();
@@ -60,17 +61,53 @@ public class RagIntentResolver {
     }
 
     public IntentGroup mergeIntentGroup(List<SubQuestionIntent> subIntents) {
-        return catalogService.mergeIntentGroup(subIntents);
+        List<NodeScore> mcpIntents = new ArrayList<>();
+        List<NodeScore> kbIntents = new ArrayList<>();
+        if (CollUtil.isEmpty(subIntents)) {
+            return new IntentGroup(mcpIntents, kbIntents);
+        }
+        for (SubQuestionIntent subIntent : subIntents) {
+            if (subIntent == null) {
+                continue;
+            }
+            mcpIntents.addAll(filterMcp(subIntent.nodeScores()));
+            kbIntents.addAll(filterKb(subIntent.nodeScores()));
+        }
+        return new IntentGroup(mcpIntents, kbIntents);
     }
 
     public boolean isSystemOnly(List<NodeScore> nodeScores) {
-        return catalogService.isSystemOnly(nodeScores);
+        return nodeScores != null
+                && nodeScores.size() == 1
+                && nodeScores.get(0) != null
+                && nodeScores.get(0).node() != null
+                && nodeScores.get(0).node().isSystem();
     }
 
     private List<NodeScore> classify(String question) {
         return intentClassifier.classifyTargets(question).stream()
                 .filter(score -> score != null && score.score() >= MIN_SCORE)
                 .limit(MAX_INTENT_COUNT)
+                .toList();
+    }
+
+    private List<NodeScore> filterKb(List<NodeScore> nodeScores) {
+        if (CollUtil.isEmpty(nodeScores)) {
+            return List.of();
+        }
+        return nodeScores.stream()
+                .filter(score -> score != null
+                        && score.node() != null
+                        && score.node().isKb())
+                .toList();
+    }
+
+    private List<NodeScore> filterMcp(List<NodeScore> nodeScores) {
+        if (CollUtil.isEmpty(nodeScores)) {
+            return List.of();
+        }
+        return nodeScores.stream()
+                .filter(score -> score != null && score.node() != null && score.node().isMcp())
                 .toList();
     }
 

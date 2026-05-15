@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class DeduplicatePostProcessor implements SearchResultPostProcessor {
+public class DeduplicationPostProcessor implements SearchResultPostProcessor {
 
     @Override
     public String getName() {
@@ -25,9 +25,7 @@ public class DeduplicatePostProcessor implements SearchResultPostProcessor {
     }
 
     @Override
-    public List<RetrievedChunk> process(List<RetrievedChunk> chunks,
-                                        List<SearchChannelResult> results,
-                                        SearchContext context) {
+    public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
         if (results == null || results.isEmpty()) {
             return deduplicateInOrder(chunks);
         }
@@ -35,8 +33,8 @@ public class DeduplicatePostProcessor implements SearchResultPostProcessor {
         Map<String, RetrievedChunk> deduplicated = new LinkedHashMap<>();
         results.stream()
                 .sorted((left, right) -> Integer.compare(
-                        channelPriority(left.getChannelType()),
-                        channelPriority(right.getChannelType())
+                        channelPriority(left == null ? null : left.getChannelType()),
+                        channelPriority(right == null ? null : right.getChannelType())
                 ))
                 .forEach(result -> {
                     if (result == null || result.getChunks() == null) {
@@ -99,6 +97,8 @@ public class DeduplicatePostProcessor implements SearchResultPostProcessor {
         return switch (type) {
             case INTENT_DIRECTED -> 1;
             case VECTOR_GLOBAL -> 2;
+            case KEYWORD_ES -> 3;
+            case HYBRID -> 4;
         };
     }
 }
