@@ -5,3 +5,5 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentSchedul
 
 public interface KnowledgeDocumentScheduleMapper extends BaseMapper<KnowledgeDocumentScheduleEntity> {
 }
+
+

@@ -264,3 +264,5 @@ public class KnowledgeDocumentEntity {
         this.updatedAt = updatedAt;
     }
 }
+
+

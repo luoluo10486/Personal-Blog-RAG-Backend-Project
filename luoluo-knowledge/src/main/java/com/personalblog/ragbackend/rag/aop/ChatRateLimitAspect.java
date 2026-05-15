@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.rag.aop;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.common.context.UserContext;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
 import com.personalblog.ragbackend.rag.config.RagTraceProperties;
 import com.personalblog.ragbackend.rag.service.RagTraceRecordService;
@@ -154,3 +154,4 @@ public class ChatRateLimitAspect {
         }
     }
 }
+

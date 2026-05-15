@@ -5,3 +5,5 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 
 public interface KnowledgeBaseMapper extends BaseMapper<KnowledgeBaseEntity> {
 }
+
+

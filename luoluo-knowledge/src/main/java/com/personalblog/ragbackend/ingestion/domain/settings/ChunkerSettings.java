@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.ingestion.domain.settings;
 
-import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
+import com.personalblog.ragbackend.core.chunk.ChunkingMode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

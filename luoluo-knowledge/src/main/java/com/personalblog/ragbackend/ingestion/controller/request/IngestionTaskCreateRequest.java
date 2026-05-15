@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.ingestion.controller.request;
 
 import com.personalblog.ragbackend.rag.core.vector.VectorSpaceId;
+import com.personalblog.ragbackend.rag.controller.request.DocumentSourceRequest;
 import lombok.Data;
 
 import java.util.Map;

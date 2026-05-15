@@ -1,7 +1,6 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseCreateRequest;
@@ -10,7 +9,7 @@ import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseUpd
 import com.personalblog.ragbackend.knowledge.controller.vo.ChunkStrategyVO;
 import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeBaseVO;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeBaseService;
-import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
+import com.personalblog.ragbackend.core.chunk.ChunkingMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Arrays;
 
 @RestController
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class KnowledgeBaseController {
     private final KnowledgeBaseService knowledgeBaseService;

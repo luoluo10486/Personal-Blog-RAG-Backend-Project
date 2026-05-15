@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
-import com.personalblog.ragbackend.knowledge.dao.entity.QueryTermMappingEntity;
+import com.personalblog.ragbackend.rag.dao.entity.QueryTermMappingEntity;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeQueryRewriteResult;
-import com.personalblog.ragbackend.knowledge.mapper.QueryTermMappingMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.QueryTermMappingMapper;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
@@ -219,3 +219,4 @@ public class QueryTermRewriteService {
     private record RewriteOutput(String rewrite, List<String> subQuestions) {
     }
 }
+

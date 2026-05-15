@@ -7,8 +7,8 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.service.ConversationGroupService;
 import com.personalblog.ragbackend.rag.service.ConversationMessageService;
@@ -113,7 +113,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             }
 
             RagConversationSummaryEntity latestSummary = conversationGroupService.findLatestSummary(conversationId, String.valueOf(userId));
-            List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> latestUserTurns =
+            List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> latestUserTurns =
                     conversationGroupService.listLatestUserOnlyMessages(
                             conversationId,
                             String.valueOf(userId),
@@ -133,7 +133,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                 return;
             }
 
-            List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> toSummarize =
+            List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> toSummarize =
                     conversationGroupService.listMessagesBetweenIds(
                             conversationId,
                             String.valueOf(userId),
@@ -169,7 +169,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         }
     }
 
-    private String summarizeMessages(List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> messages,
+    private String summarizeMessages(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> messages,
                                      String existingSummary) {
         List<ChatMessage> histories = toHistoryMessages(messages);
         if (CollUtil.isEmpty(histories)) {
@@ -186,7 +186,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
         if (StrUtil.isNotBlank(existingSummary)) {
             summaryMessages.add(ChatMessage.assistant(
-                    "历史摘要（仅用于合并去重，不得作为事实来源；如与本轮对话冲突，以本轮对话为准）：\n"
+                    "鍘嗗彶鎽樿锛堜粎鐢ㄤ簬鍚堝苟鍘婚噸锛屼笉寰椾綔涓轰簨瀹炴潵婧愶紱濡備笌鏈疆瀵硅瘽鍐茬獊锛屼互鏈疆瀵硅瘽涓哄噯锛夛細\n"
                             + existingSummary.trim()
             ));
         }
@@ -206,7 +206,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         }
     }
 
-    private List<ChatMessage> toHistoryMessages(List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> messages) {
+    private List<ChatMessage> toHistoryMessages(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> messages) {
         if (CollUtil.isEmpty(messages)) {
             return List.of();
         }
@@ -254,17 +254,17 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         return afterId;
     }
 
-    private String resolveCutoffId(List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> latestUserTurns) {
+    private String resolveCutoffId(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> latestUserTurns) {
         if (CollUtil.isEmpty(latestUserTurns)) {
             return null;
         }
-        com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity oldest = latestUserTurns.get(latestUserTurns.size() - 1);
+        com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity oldest = latestUserTurns.get(latestUserTurns.size() - 1);
         return oldest == null || oldest.getId() == null ? null : String.valueOf(oldest.getId());
     }
 
-    private String resolveLastMessageId(List<com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity> toSummarize) {
+    private String resolveLastMessageId(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> toSummarize) {
         for (int i = toSummarize.size() - 1; i >= 0; i--) {
-            com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity item = toSummarize.get(i);
+            com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity item = toSummarize.get(i);
             if (item != null && item.getId() != null) {
                 return String.valueOf(item.getId());
             }
@@ -272,3 +272,5 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         return null;
     }
 }
+
+

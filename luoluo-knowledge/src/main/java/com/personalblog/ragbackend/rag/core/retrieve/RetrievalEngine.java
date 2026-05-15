@@ -51,15 +51,6 @@ public class RetrievalEngine {
 
     @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
     public RetrievalContext retrieve(List<SubQuestionIntent> subIntents, int topK) {
-        return retrieve(subIntents, null, topK, null, null);
-    }
-
-    @RagTraceNode(name = "retrieval-engine", type = "RETRIEVE")
-    public RetrievalContext retrieve(List<SubQuestionIntent> subIntents,
-                                     String fallbackBaseCode,
-                                     int topK,
-                                     String conversationId,
-                                     String userId) {
         if (CollUtil.isEmpty(subIntents)) {
             return RetrievalContext.empty();
         }
@@ -67,7 +58,7 @@ public class RetrievalEngine {
         int finalTopK = topK > 0 ? topK : 5;
         List<CompletableFuture<SubQuestionContext>> tasks = subIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
-                        () -> buildSubQuestionContext(intent, fallbackBaseCode, finalTopK, conversationId, userId),
+                        () -> buildSubQuestionContext(intent, finalTopK, null, null),
                         ragContextExecutor
                 ))
                 .toList();
@@ -101,7 +92,6 @@ public class RetrievalEngine {
     }
 
     private SubQuestionContext buildSubQuestionContext(SubQuestionIntent intent,
-                                                       String fallbackBaseCode,
                                                        int fallbackTopK,
                                                        String conversationId,
                                                        String userId) {
@@ -110,7 +100,7 @@ public class RetrievalEngine {
         int topK = resolveSubQuestionTopK(kbIntents, fallbackTopK);
 
         KbResult kbResult = CollUtil.isNotEmpty(kbIntents) || CollUtil.isEmpty(mcpIntents)
-                ? retrieveKnowledge(intent.subQuestion(), kbIntents, fallbackBaseCode, topK)
+                ? retrieveKnowledge(intent.subQuestion(), kbIntents, topK)
                 : KbResult.empty();
         String mcpContext = CollUtil.isEmpty(mcpIntents)
                 ? ""
@@ -120,19 +110,11 @@ public class RetrievalEngine {
 
     private KbResult retrieveKnowledge(String question,
                                        List<NodeScore> kbIntents,
-                                       String fallbackBaseCode,
                                        int topK) {
-        String baseCode = selectBaseCode(fallbackBaseCode, kbIntents);
-        Map<String, Object> metadata = new java.util.HashMap<>();
-        if (StrUtil.isNotBlank(baseCode)) {
-            metadata.put("baseCode", baseCode);
-            metadata.put("collectionName", baseCode);
-        }
         SearchContext searchContext = SearchContext.builder()
                 .originalQuestion(question)
                 .rewrittenQuestion(question)
                 .topK(topK)
-                .metadata(metadata)
                 .build();
         List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(searchContext);
         if (CollUtil.isEmpty(chunks)) {
@@ -232,16 +214,6 @@ public class RetrievalEngine {
                 .filter(value -> value != null && value > 0)
                 .max(Integer::compareTo)
                 .orElse(fallbackTopK);
-    }
-
-    private String selectBaseCode(String fallbackBaseCode, List<NodeScore> kbIntents) {
-        return kbIntents.stream()
-                .map(NodeScore::node)
-                .filter(Objects::nonNull)
-                .map(node -> firstNotBlank(node.collectionName, node.intentCode, node.name))
-                .filter(StrUtil::isNotBlank)
-                .findFirst()
-                .orElse(StrUtil.blankToDefault(fallbackBaseCode, ""));
     }
 
     private void appendSection(StringBuilder builder, String question, String context) {

@@ -2,12 +2,12 @@ package com.personalblog.ragbackend.rag.service.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.rag.service.ConversationGroupService;
 import org.springframework.stereotype.Service;
 
@@ -123,3 +123,4 @@ public class ConversationGroupServiceImpl implements ConversationGroupService {
         );
     }
 }
+

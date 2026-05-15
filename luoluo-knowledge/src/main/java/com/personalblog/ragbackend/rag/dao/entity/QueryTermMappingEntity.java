@@ -1,0 +1,45 @@
+package com.personalblog.ragbackend.rag.dao.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@TableName("t_query_term_mapping")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class QueryTermMappingEntity {
+    @TableId(value = "id", type = IdType.AUTO)
+    public Long id;
+    @TableField("domain")
+    public String domain;
+    @TableField("source_term")
+    public String sourceTerm;
+    @TableField("target_term")
+    public String targetTerm;
+    @TableField("match_type")
+    public Integer matchType;
+    @TableField("priority")
+    public Integer priority;
+    @TableField("enabled")
+    public Integer enabled;
+    @TableField("remark")
+    public String remark;
+    @TableLogic
+    @TableField("deleted")
+    public Integer deleted;
+    @TableField("create_time")
+    public LocalDateTime createdAt;
+    @TableField("update_time")
+    public LocalDateTime updatedAt;
+}
+

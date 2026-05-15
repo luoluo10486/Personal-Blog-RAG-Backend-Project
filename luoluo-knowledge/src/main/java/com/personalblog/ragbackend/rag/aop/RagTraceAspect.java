@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
@@ -284,3 +284,4 @@ public class RagTraceAspect {
         return message.substring(0, maxLength);
     }
 }
+

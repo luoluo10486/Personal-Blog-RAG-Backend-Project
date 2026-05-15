@@ -2,7 +2,6 @@ package com.personalblog.ragbackend.rag.service.pipeline;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
@@ -10,34 +9,28 @@ import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.intent.IntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
 import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
-import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 @Service
 public class RagQueryPipeline {
-    private final RAGDefaultProperties ragDefaultProperties;
     private final QueryRewriteService queryRewriteService;
     private final IntentResolver intentResolver;
     private final IntentGuidanceService guidanceService;
     private final ObjectProvider<LLMService> llmServiceProvider;
 
-    public RagQueryPipeline(RAGDefaultProperties ragDefaultProperties,
-                            QueryRewriteService queryRewriteService,
+    public RagQueryPipeline(QueryRewriteService queryRewriteService,
                             IntentResolver intentResolver,
                             IntentGuidanceService guidanceService,
                             ObjectProvider<LLMService> llmServiceProvider) {
-        this.ragDefaultProperties = ragDefaultProperties;
         this.queryRewriteService = queryRewriteService;
         this.intentResolver = intentResolver;
         this.guidanceService = guidanceService;
@@ -45,16 +38,15 @@ public class RagQueryPipeline {
     }
 
     @RagTraceNode(name = "rag-query-pipeline", type = "PIPELINE")
-    public RagQueryPlan prepare(String baseCode, String question, List<ChatMessage> memory) {
+    public RagQueryPlan prepare(String question, List<ChatMessage> memory) {
         List<String> steps = new ArrayList<>();
-        String normalizedBaseCode = normalizeBaseCode(baseCode);
-        steps.add("normalize-base");
-
         RewriteResult rewriteResult = queryRewriteService.rewriteWithSplit(question, memory);
         steps.add("rewrite:" + rewriteResult.subQuestions().size());
 
         List<SubQuestionIntent> subIntents = intentResolver.resolve(rewriteResult);
         steps.add("intent:" + subIntents.size());
+        IntentGroup intentGroup = intentResolver.mergeIntentGroup(subIntents);
+        int topK = selectTopK(intentGroup);
 
         GuidanceDecision guidanceDecision = guidanceService.detectAmbiguity(rewriteResult.rewrittenQuestion(), subIntents);
         if (guidanceDecision.isPrompt()) {
@@ -62,17 +54,15 @@ public class RagQueryPipeline {
             return new RagQueryPlan(
                     question,
                     rewriteResult.rewrittenQuestion(),
-                    normalizedBaseCode,
-                    10,
+                    topK,
                     subIntents,
-                    intentResolver.mergeIntentGroup(subIntents),
+                    intentGroup,
                     guidanceDecision,
                     guidanceDecision.getPrompt(),
                     steps
             );
         }
 
-        IntentGroup intentGroup = intentResolver.mergeIntentGroup(subIntents);
         boolean allSystemOnly = subIntents.stream()
                 .allMatch(subQuestionIntent -> intentResolver.isSystemOnly(subQuestionIntent.nodeScores()));
         if (allSystemOnly) {
@@ -81,8 +71,7 @@ public class RagQueryPipeline {
             return new RagQueryPlan(
                     question,
                     rewriteResult.rewrittenQuestion(),
-                    normalizedBaseCode,
-                    10,
+                    topK,
                     subIntents,
                     intentGroup,
                     guidanceDecision,
@@ -91,13 +80,10 @@ public class RagQueryPipeline {
             );
         }
 
-        String selectedBaseCode = selectBaseCode(normalizedBaseCode, intentGroup);
-        int topK = selectTopK(intentGroup);
-        steps.add("route:" + selectedBaseCode + "#" + topK);
+        steps.add("route#" + topK);
         return new RagQueryPlan(
                 question,
                 rewriteResult.rewrittenQuestion(),
-                selectedBaseCode,
                 topK,
                 subIntents,
                 intentGroup,
@@ -157,46 +143,15 @@ public class RagQueryPipeline {
                 .orElse("");
     }
 
-    private String selectBaseCode(String fallbackBaseCode, IntentGroup intentGroup) {
-        if (intentGroup == null || CollUtil.isEmpty(intentGroup.kbIntents())) {
-            return fallbackBaseCode;
-        }
-        return intentGroup.kbIntents().stream()
-                .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
-                .map(NodeScore::node)
-                .filter(node -> node != null)
-                .map(node -> firstNotBlank(node.collectionName, node.intentCode, node.name))
-                .filter(StrUtil::isNotBlank)
-                .findFirst()
-                .orElse(fallbackBaseCode);
-    }
-
     private int selectTopK(IntentGroup intentGroup) {
         if (intentGroup == null || CollUtil.isEmpty(intentGroup.kbIntents())) {
             return 10;
         }
         return intentGroup.kbIntents().stream()
-                .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
                 .map(NodeScore::node)
                 .filter(node -> node != null && node.topK != null && node.topK > 0)
                 .mapToInt(node -> node.topK)
-                .findFirst()
+                .max()
                 .orElse(10);
-    }
-
-    private String normalizeBaseCode(String baseCode) {
-        if (StrUtil.isBlank(baseCode)) {
-            return ragDefaultProperties.getCollectionName();
-        }
-        return baseCode.trim();
-    }
-
-    private String firstNotBlank(String... values) {
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value.trim();
-            }
-        }
-        return "";
     }
 }

@@ -8,13 +8,11 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegistry {
@@ -22,16 +20,16 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
     private static final double MIN_SCORE = 0.15D;
 
     private final RagIntentCatalogService catalogService;
-    private final ObjectProvider<LLMService> llmServiceProvider;
+    private final LLMService llmService;
     private final ObjectMapper objectMapper;
     private final PromptTemplateLoader promptTemplateLoader;
 
     public DefaultIntentClassifier(RagIntentCatalogService catalogService,
-                                   ObjectProvider<LLMService> llmServiceProvider,
+                                   LLMService llmService,
                                    ObjectMapper objectMapper,
                                    PromptTemplateLoader promptTemplateLoader) {
         this.catalogService = catalogService;
-        this.llmServiceProvider = llmServiceProvider;
+        this.llmService = llmService;
         this.objectMapper = objectMapper;
         this.promptTemplateLoader = promptTemplateLoader;
     }
@@ -41,11 +39,6 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         List<RagIntentNode> leafNodes = catalogService.listLeafNodes();
         if (CollUtil.isEmpty(leafNodes) || StrUtil.isBlank(question)) {
             return List.of();
-        }
-
-        LLMService llmService = llmServiceProvider.getIfAvailable();
-        if (llmService == null) {
-            return fallbackScore(question, leafNodes);
         }
 
         try {
@@ -66,7 +59,7 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             }
         } catch (Exception ignored) {
         }
-        return fallbackScore(question, leafNodes);
+        return List.of();
     }
 
     @Override
@@ -111,36 +104,6 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         return scores;
     }
 
-    private List<NodeScore> fallbackScore(String question, List<RagIntentNode> leafNodes) {
-        String normalizedQuestion = normalize(question);
-        return leafNodes.stream()
-                .map(node -> new NodeScore(node, lexicalScore(normalizedQuestion, node), "fallback"))
-                .filter(score -> score.score() >= MIN_SCORE)
-                .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
-                .limit(MAX_INTENT_COUNT)
-                .toList();
-    }
-
-    private double lexicalScore(String normalizedQuestion, RagIntentNode node) {
-        String text = normalize(StrUtil.blankToDefault(node.getFullPath(), node.getName()) + " "
-                + StrUtil.blankToDefault(node.getDescription(), "") + " "
-                + String.join(" ", node.getExamples()));
-        if (StrUtil.isBlank(text) || StrUtil.isBlank(normalizedQuestion)) {
-            return 0D;
-        }
-        int hits = 0;
-        String[] tokens = normalizedQuestion.split("\\s+");
-        for (String token : tokens) {
-            if (token.isBlank()) {
-                continue;
-            }
-            if (text.contains(token)) {
-                hits++;
-            }
-        }
-        return Math.min(1D, hits / Math.max(1D, tokens.length));
-    }
-
     private List<NodeScore> capAndSort(List<NodeScore> scores) {
         return scores.stream()
                 .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
@@ -170,13 +133,6 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
                 "prompt/intent-classifier.st",
                 java.util.Map.of("intent_list", builder.toString().trim())
         );
-    }
-
-    private String normalize(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.toLowerCase(Locale.ROOT).replaceAll("[\\p{Punct}\\s]+", " ").trim();
     }
 
     private String stripCodeFence(String raw) {

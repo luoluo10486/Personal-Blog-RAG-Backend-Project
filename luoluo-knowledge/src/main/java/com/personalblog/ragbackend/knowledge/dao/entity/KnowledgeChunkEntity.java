@@ -176,3 +176,5 @@ public class KnowledgeChunkEntity {
         this.updatedAt = updatedAt;
     }
 }
+
+

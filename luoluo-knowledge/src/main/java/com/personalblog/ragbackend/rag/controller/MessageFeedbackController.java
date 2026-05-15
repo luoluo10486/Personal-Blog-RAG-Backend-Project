@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.rag.controller;
 
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.rag.controller.request.MessageFeedbackRequest;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class MessageFeedbackController {
     private final MessageFeedbackService feedbackService;

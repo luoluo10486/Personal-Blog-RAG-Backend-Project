@@ -2,8 +2,6 @@ package com.personalblog.ragbackend.rag.service.pipeline;
 
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.rag.service.StreamChatEventHandler;
-import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
-import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 
 import java.util.List;
 
@@ -14,12 +12,8 @@ public class StreamChatContext {
     private boolean deepThinking;
     private Long userId;
     private String userIdText;
-    private String baseCode;
-    private int topK;
     private StreamChatEventHandler callback;
     private List<ChatMessage> history = List.of();
-    private RewriteResult rewriteResult;
-    private List<SubQuestionIntent> subIntents = List.of();
 
     public static Builder builder() {
         return new Builder();
@@ -49,14 +43,6 @@ public class StreamChatContext {
         return userIdText;
     }
 
-    public String getBaseCode() {
-        return baseCode;
-    }
-
-    public int getTopK() {
-        return topK;
-    }
-
     public StreamChatEventHandler getCallback() {
         return callback;
     }
@@ -67,22 +53,6 @@ public class StreamChatContext {
 
     public void setHistory(List<ChatMessage> history) {
         this.history = history == null ? List.of() : history;
-    }
-
-    public RewriteResult getRewriteResult() {
-        return rewriteResult;
-    }
-
-    public void setRewriteResult(RewriteResult rewriteResult) {
-        this.rewriteResult = rewriteResult;
-    }
-
-    public List<SubQuestionIntent> getSubIntents() {
-        return subIntents;
-    }
-
-    public void setSubIntents(List<SubQuestionIntent> subIntents) {
-        this.subIntents = subIntents == null ? List.of() : subIntents;
     }
 
     public static final class Builder {
@@ -115,16 +85,6 @@ public class StreamChatContext {
 
         public Builder userIdText(String userIdText) {
             context.userIdText = userIdText;
-            return this;
-        }
-
-        public Builder baseCode(String baseCode) {
-            context.baseCode = baseCode;
-            return this;
-        }
-
-        public Builder topK(int topK) {
-            context.topK = topK;
             return this;
         }
 

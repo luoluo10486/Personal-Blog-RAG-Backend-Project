@@ -1,8 +1,8 @@
 package com.personalblog.ragbackend.rag.service;
 
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
 
 import java.util.Date;
 import java.util.List;
@@ -20,3 +20,4 @@ public interface ConversationGroupService {
 
     RagConversationEntity findConversation(String conversationId, String userId);
 }
+

@@ -8,7 +8,6 @@ import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
 import com.personalblog.ragbackend.infra.config.AIModelProperties;
 import com.personalblog.ragbackend.rag.aop.ChatRateLimit;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
-import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.service.pipeline.StreamChatContext;
 import com.personalblog.ragbackend.rag.service.pipeline.StreamChatPipeline;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceContext;
@@ -72,8 +71,6 @@ public class RAGChatServiceImpl implements RAGChatService {
                 .deepThinking(Boolean.TRUE.equals(deepThinking))
                 .userId(resolveUserId(userIdText))
                 .userIdText(userIdText)
-                .baseCode(ragDefaultProperties.getCollectionName())
-                .topK(RAGConstant.DEFAULT_TOP_K)
                 .callback(callback)
                 .build();
 

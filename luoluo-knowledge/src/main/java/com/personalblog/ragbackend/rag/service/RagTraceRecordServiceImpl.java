@@ -1,10 +1,10 @@
 package com.personalblog.ragbackend.rag.service;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagTraceNodeMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagTraceRunMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagTraceNodeMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagTraceRunMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -68,3 +68,4 @@ public class RagTraceRecordServiceImpl implements RagTraceRecordService {
                 .eq("node_id", nodeId));
     }
 }
+

@@ -9,9 +9,9 @@ import com.google.gson.Gson;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.ingestion.service.IntentTreeService;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
-import com.personalblog.ragbackend.knowledge.mapper.IntentNodeMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.IntentNodeMapper;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeUpdateRequest;
 import com.personalblog.ragbackend.rag.controller.vo.IntentNodeTreeVO;
@@ -376,3 +376,4 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         }
     }
 }
+

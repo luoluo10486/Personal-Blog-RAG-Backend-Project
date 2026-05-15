@@ -1,7 +1,6 @@
 package com.personalblog.ragbackend.rag.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingCreateRequest;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RequiredArgsConstructor
 @RestController
-@MemberLoginRequired
 public class QueryTermMappingController {
     private final QueryTermMappingAdminService queryTermMappingAdminService;
 

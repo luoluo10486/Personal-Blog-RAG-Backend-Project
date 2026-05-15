@@ -1,7 +1,6 @@
 package com.personalblog.ragbackend.rag.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeBatchRequest;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class IntentTreeController {
     private final IntentTreeService intentTreeService;

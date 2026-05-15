@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.rag.controller.request;
 
-import com.personalblog.ragbackend.knowledge.domain.enums.SourceType;
+import com.personalblog.ragbackend.ingestion.domain.enums.SourceType;
 import lombok.Data;
 
 import java.util.Map;

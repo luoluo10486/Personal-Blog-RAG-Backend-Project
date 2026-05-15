@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.personalblog.ragbackend.framework.exception.ClientException;
-import com.personalblog.ragbackend.knowledge.dao.entity.QueryTermMappingEntity;
-import com.personalblog.ragbackend.knowledge.mapper.QueryTermMappingMapper;
+import com.personalblog.ragbackend.rag.dao.entity.QueryTermMappingEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.QueryTermMappingMapper;
 import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingPageRequest;
 import com.personalblog.ragbackend.rag.controller.request.QueryTermMappingUpdateRequest;
@@ -27,11 +27,11 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
 
     @Override
     public String create(QueryTermMappingCreateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
         String targetTerm = StrUtil.trimToNull(requestParam.getTargetTerm());
-        Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
-        Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
+                Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
+                Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
 
         QueryTermMappingEntity record = QueryTermMappingEntity.builder()
                 .sourceTerm(sourceTerm)
@@ -47,17 +47,17 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
 
     @Override
     public void update(String id, QueryTermMappingUpdateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         QueryTermMappingEntity record = loadById(id);
 
         if (requestParam.getSourceTerm() != null) {
             String sourceTerm = StrUtil.trimToNull(requestParam.getSourceTerm());
-            Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
+                    Assert.notBlank(sourceTerm, () -> new ClientException("原始词不能为空"));
             record.setSourceTerm(sourceTerm);
         }
         if (requestParam.getTargetTerm() != null) {
             String targetTerm = StrUtil.trimToNull(requestParam.getTargetTerm());
-            Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
+                    Assert.notBlank(targetTerm, () -> new ClientException("目标词不能为空"));
             record.setTargetTerm(targetTerm);
         }
         if (requestParam.getMatchType() != null) {
@@ -111,7 +111,7 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
                 Wrappers.lambdaQuery(QueryTermMappingEntity.class)
                         .eq(QueryTermMappingEntity::getId, id)
         );
-        Assert.notNull(record, () -> new ClientException("映射规则不存在"));
+                Assert.notNull(record, () -> new ClientException("映射规则不存在"));
         return record;
     }
 
@@ -136,3 +136,5 @@ public class QueryTermMappingAdminServiceImpl implements QueryTermMappingAdminSe
         return Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 }
+
+

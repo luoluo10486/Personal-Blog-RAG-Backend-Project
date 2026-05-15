@@ -4,12 +4,12 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.rag.controller.vo.ConversationMessageVO;
 import com.personalblog.ragbackend.rag.enums.ConversationMessageOrder;
 import com.personalblog.ragbackend.rag.service.bo.ConversationMessageBO;
@@ -133,3 +133,4 @@ public class ConversationMessageServiceImpl implements ConversationMessageServic
         return Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 }
+

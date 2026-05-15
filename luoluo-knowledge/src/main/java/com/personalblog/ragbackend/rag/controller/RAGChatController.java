@@ -1,6 +1,5 @@
 package com.personalblog.ragbackend.rag.controller;
 
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.framework.idempotent.IdempotentSubmit;
@@ -17,7 +16,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * 对齐 RAgent 入口形状的流式聊天控制器。
  */
 @RestController
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class RAGChatController {
     private final RAGChatService ragChatService;

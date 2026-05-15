@@ -5,3 +5,5 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
 
 public interface KnowledgeChunkMapper extends BaseMapper<KnowledgeChunkEntity> {
 }
+
+

@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.rag.service;
 
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
 
 import java.time.LocalDateTime;
 
@@ -26,3 +26,4 @@ public interface RagTraceRecordService {
                     long durationMs,
                     String extraData);
 }
+

@@ -79,3 +79,5 @@ public class KnowledgeDocumentChunkLogEntity {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }
+
+

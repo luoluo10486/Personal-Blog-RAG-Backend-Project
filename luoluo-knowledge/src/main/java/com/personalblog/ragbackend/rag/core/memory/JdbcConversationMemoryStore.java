@@ -5,10 +5,10 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -165,3 +165,4 @@ public class JdbcConversationMemoryStore implements ConversationMemoryStore {
         return text.substring(0, maxLength);
     }
 }
+

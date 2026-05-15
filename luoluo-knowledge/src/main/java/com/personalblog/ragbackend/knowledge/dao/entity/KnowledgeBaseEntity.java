@@ -154,3 +154,5 @@ public class KnowledgeBaseEntity {
         this.updatedAt = updatedAt;
     }
 }
+
+

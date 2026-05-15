@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.ingestion.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.personalblog.ragbackend.knowledge.dao.entity.IntentNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.IntentNodeUpdateRequest;
 import com.personalblog.ragbackend.rag.controller.vo.IntentNodeTreeVO;
@@ -25,3 +25,4 @@ public interface IntentTreeService extends IService<IntentNodeEntity> {
 
     int initFromFactory();
 }
+

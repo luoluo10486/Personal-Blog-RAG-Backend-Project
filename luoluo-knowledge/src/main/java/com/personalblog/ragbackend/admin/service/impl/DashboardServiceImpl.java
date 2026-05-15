@@ -10,12 +10,12 @@ import com.personalblog.ragbackend.admin.controller.vo.DashboardTrendPointVO;
 import com.personalblog.ragbackend.admin.controller.vo.DashboardTrendSeriesVO;
 import com.personalblog.ragbackend.admin.controller.vo.DashboardTrendsVO;
 import com.personalblog.ragbackend.admin.service.DashboardService;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagTraceRunMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagTraceRunMapper;
 import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
 import org.springframework.stereotype.Service;
@@ -639,3 +639,5 @@ public class DashboardServiceImpl implements DashboardService {
                                String compareLabel) {
     }
 }
+
+

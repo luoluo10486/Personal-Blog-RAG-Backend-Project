@@ -123,7 +123,15 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         if (context == null) {
             return List.of();
         }
-        String baseCode = firstNotBlank(metadataString(context, "baseCode"), metadataString(context, "collectionName"));
+        String baseCode = "";
+        if (context.getMetadata() != null) {
+            Object baseCodeValue = context.getMetadata().get("baseCode");
+            Object collectionNameValue = context.getMetadata().get("collectionName");
+            baseCode = firstNotBlank(
+                    baseCodeValue == null ? "" : String.valueOf(baseCodeValue),
+                    collectionNameValue == null ? "" : String.valueOf(collectionNameValue)
+            );
+        }
         if (StrUtil.isNotBlank(baseCode)) {
             String collectionName = knowledgeVectorSpaceResolver.resolve(baseCode).collectionName();
             return StrUtil.isNotBlank(collectionName) ? List.of(collectionName) : List.of();
@@ -141,14 +149,6 @@ public class VectorGlobalSearchChannel implements SearchChannel {
             }
         }
         return new ArrayList<>(collections);
-    }
-
-    private String metadataString(SearchContext context, String key) {
-        if (context == null || context.getMetadata() == null || key == null) {
-            return "";
-        }
-        Object value = context.getMetadata().get(key);
-        return value == null ? "" : String.valueOf(value);
     }
 
     private String firstNotBlank(String... values) {

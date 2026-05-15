@@ -1,7 +1,6 @@
 package com.personalblog.ragbackend.knowledge.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.personalblog.ragbackend.common.satoken.annotation.MemberLoginRequired;
 import com.personalblog.ragbackend.common.web.domain.Result;
 import com.personalblog.ragbackend.common.web.domain.Results;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeDocumentPageRequest;
@@ -32,7 +31,6 @@ import java.util.List;
 
 @RestController
 @Validated
-@MemberLoginRequired
 @RequiredArgsConstructor
 public class KnowledgeDocumentController {
     private final KnowledgeDocumentService knowledgeDocumentService;

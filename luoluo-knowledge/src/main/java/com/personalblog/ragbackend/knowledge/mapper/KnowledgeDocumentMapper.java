@@ -5,3 +5,5 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 
 public interface KnowledgeDocumentMapper extends BaseMapper<KnowledgeDocumentEntity> {
 }
+
+

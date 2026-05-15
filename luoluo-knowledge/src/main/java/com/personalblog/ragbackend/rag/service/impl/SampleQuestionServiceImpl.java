@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.personalblog.ragbackend.framework.exception.ClientException;
-import com.personalblog.ragbackend.knowledge.dao.entity.SampleQuestionEntity;
-import com.personalblog.ragbackend.knowledge.mapper.SampleQuestionMapper;
+import com.personalblog.ragbackend.rag.dao.entity.SampleQuestionEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.SampleQuestionMapper;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionCreateRequest;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionPageRequest;
 import com.personalblog.ragbackend.rag.controller.request.SampleQuestionUpdateRequest;
@@ -30,9 +30,9 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
 
     @Override
     public String create(SampleQuestionCreateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         String question = StrUtil.trimToNull(requestParam.getQuestion());
-        Assert.notBlank(question, () -> new ClientException("示例问题内容不能为空"));
+        Assert.notBlank(question, () -> new ClientException("绀轰緥闂鍐呭涓嶈兘涓虹┖"));
 
         SampleQuestionEntity record = SampleQuestionEntity.builder()
                 .title(StrUtil.trimToNull(requestParam.getTitle()))
@@ -45,12 +45,12 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
 
     @Override
     public void update(String id, SampleQuestionUpdateRequest requestParam) {
-        Assert.notNull(requestParam, () -> new ClientException("请求不能为空"));
+        Assert.notNull(requestParam, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         SampleQuestionEntity record = loadById(id);
 
         if (requestParam.getQuestion() != null) {
             String question = StrUtil.trimToNull(requestParam.getQuestion());
-            Assert.notBlank(question, () -> new ClientException("示例问题内容不能为空"));
+            Assert.notBlank(question, () -> new ClientException("绀轰緥闂鍐呭涓嶈兘涓虹┖"));
             record.setQuestion(question);
         }
         if (requestParam.getTitle() != null) {
@@ -115,7 +115,7 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
                         .eq(SampleQuestionEntity::getId, id)
                         .eq(SampleQuestionEntity::getDeleted, 0)
         );
-        Assert.notNull(record, () -> new ClientException("示例问题不存在"));
+                Assert.notNull(record, () -> new ClientException("示例问题不存在"));
         return record;
     }
 
@@ -137,3 +137,5 @@ public class SampleQuestionServiceImpl implements SampleQuestionService {
         return Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 }
+
+

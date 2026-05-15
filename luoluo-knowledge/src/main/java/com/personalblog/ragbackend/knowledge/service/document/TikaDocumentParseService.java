@@ -1,6 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
-import com.personalblog.ragbackend.knowledge.core.parser.DocumentParser;
+import com.personalblog.ragbackend.core.parser.DocumentParser;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;

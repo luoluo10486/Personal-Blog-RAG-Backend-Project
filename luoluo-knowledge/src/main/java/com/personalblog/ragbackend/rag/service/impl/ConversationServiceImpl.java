@@ -7,12 +7,12 @@ import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationSummaryEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationSummaryMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.rag.controller.request.ConversationUpdateRequest;
@@ -205,3 +205,4 @@ public class ConversationServiceImpl implements ConversationService {
         }
     }
 }
+

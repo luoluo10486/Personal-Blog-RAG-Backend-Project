@@ -6,10 +6,10 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.framework.exception.ClientException;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationMessageEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagMessageFeedbackEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMessageMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagMessageFeedbackMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagMessageFeedbackEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagMessageFeedbackMapper;
 import com.personalblog.ragbackend.knowledge.mq.MessageWrapper;
 import com.personalblog.ragbackend.rag.controller.request.MessageFeedbackRequest;
 import com.personalblog.ragbackend.rag.mq.event.MessageFeedbackEvent;
@@ -177,3 +177,4 @@ public class MessageFeedbackServiceImpl implements MessageFeedbackService {
         }
     }
 }
+

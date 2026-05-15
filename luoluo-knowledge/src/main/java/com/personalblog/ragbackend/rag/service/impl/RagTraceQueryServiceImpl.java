@@ -4,10 +4,10 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceNodeEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagTraceRunEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagTraceNodeMapper;
-import com.personalblog.ragbackend.knowledge.mapper.RagTraceRunMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceNodeEntity;
+import com.personalblog.ragbackend.rag.dao.entity.RagTraceRunEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagTraceNodeMapper;
+import com.personalblog.ragbackend.rag.dao.mapper.RagTraceRunMapper;
 import com.personalblog.ragbackend.member.domain.MemberUser;
 import com.personalblog.ragbackend.member.mapper.MemberUserMapper;
 import com.personalblog.ragbackend.rag.controller.request.RagTraceRunPageRequest;
@@ -146,3 +146,4 @@ public class RagTraceQueryServiceImpl implements RagTraceQueryService {
         return Date.from(time.atZone(java.time.ZoneId.systemDefault()).toInstant());
     }
 }
+

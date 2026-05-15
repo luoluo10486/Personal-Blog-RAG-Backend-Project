@@ -1,8 +1,8 @@
 package com.personalblog.ragbackend.knowledge.service.document;
 
-import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingMode;
-import com.personalblog.ragbackend.knowledge.core.chunk.ChunkingStrategyFactory;
-import com.personalblog.ragbackend.knowledge.core.chunk.TextChunkingOptions;
+import com.personalblog.ragbackend.core.chunk.ChunkingMode;
+import com.personalblog.ragbackend.core.chunk.ChunkingStrategyFactory;
+import com.personalblog.ragbackend.core.chunk.TextChunkingOptions;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunk;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;

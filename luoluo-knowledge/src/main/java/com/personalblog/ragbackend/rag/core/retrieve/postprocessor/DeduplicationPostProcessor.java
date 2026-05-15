@@ -96,9 +96,7 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
         }
         return switch (type) {
             case INTENT_DIRECTED -> 1;
-            case KEYWORD_ES -> 2;
-            case VECTOR_GLOBAL -> 3;
-            case HYBRID -> 4;
+            case VECTOR_GLOBAL -> 2;
         };
     }
 }

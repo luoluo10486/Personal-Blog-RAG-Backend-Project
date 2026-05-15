@@ -154,3 +154,5 @@ public class KnowledgeVectorRefEntity {
         this.updatedAt = updatedAt;
     }
 }
+
+

@@ -4,8 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
-import com.personalblog.ragbackend.knowledge.dao.entity.RagConversationEntity;
-import com.personalblog.ragbackend.knowledge.mapper.RagConversationMapper;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationEntity;
+import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
 import com.personalblog.ragbackend.rag.core.memory.ConversationMemoryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -127,3 +127,4 @@ public class RagConversationService {
         return conversation == null ? null : conversation.getTitle();
     }
 }
+
