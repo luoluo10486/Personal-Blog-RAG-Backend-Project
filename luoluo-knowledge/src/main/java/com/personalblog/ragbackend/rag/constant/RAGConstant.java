@@ -13,6 +13,7 @@ public class RAGConstant {
     public static final String GUIDANCE_PROMPT_PATH = "prompt/guidance-prompt.st";
     public static final String GUIDANCE_AMBIGUITY_CHECK_PROMPT_PATH = "prompt/guidance-ambiguity-check.st";
     public static final String QUERY_REWRITE_AND_SPLIT_PROMPT_PATH = "prompt/user-question-rewrite.st";
+    public static final String INTENT_CLASSIFIER_PROMPT_PATH = "prompt/intent-classifier.st";
 
     private RAGConstant() {
     }

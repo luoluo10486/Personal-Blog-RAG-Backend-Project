@@ -19,8 +19,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class MultiChannelRetrievalEngine {
+    private static final Logger log = LoggerFactory.getLogger(MultiChannelRetrievalEngine.class);
+
     private final List<SearchChannel> searchChannels;
     private final List<SearchResultPostProcessor> postProcessors;
     private final Executor ragRetrievalExecutor;
@@ -60,8 +65,10 @@ public class MultiChannelRetrievalEngine {
         List<CompletableFuture<SearchChannelResult>> futures = enabledChannels.stream()
                 .map(channel -> CompletableFuture.supplyAsync(() -> {
                     try {
+                        log.info("执行检索通道：{}", channel.getName());
                         return channel.search(context);
                     } catch (Exception exception) {
+                        log.error("检索通道 {} 执行失败", channel.getName(), exception);
                         return emptyResult(channel);
                     }
                 }, ragRetrievalExecutor))
@@ -121,6 +128,13 @@ public class MultiChannelRetrievalEngine {
         return SearchContext.builder()
                 .originalQuestion(question)
                 .rewrittenQuestion(question)
+                .subQuestions(CollUtil.isEmpty(subIntents)
+                        ? List.of()
+                        : subIntents.stream()
+                                .filter(Objects::nonNull)
+                                .map(SubQuestionIntent::subQuestion)
+                                .filter(Objects::nonNull)
+                                .toList())
                 .intents(subIntents)
                 .topK(Math.max(topK, 1))
                 .build();
@@ -131,6 +145,7 @@ public class MultiChannelRetrievalEngine {
             return SearchContext.builder()
                     .originalQuestion("")
                     .rewrittenQuestion("")
+                    .subQuestions(List.of())
                     .topK(1)
                     .build();
         }

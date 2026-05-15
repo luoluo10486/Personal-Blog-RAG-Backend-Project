@@ -4,17 +4,16 @@ import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.rerank.RerankService;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
 public class RerankPostProcessor implements SearchResultPostProcessor {
-    private final ObjectProvider<RerankService> rerankServiceProvider;
+    private final RerankService rerankService;
 
-    public RerankPostProcessor(ObjectProvider<RerankService> rerankServiceProvider) {
-        this.rerankServiceProvider = rerankServiceProvider;
+    public RerankPostProcessor(RerankService rerankService) {
+        this.rerankService = rerankService;
     }
 
     @Override
@@ -36,10 +35,6 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
         if (chunks == null || chunks.isEmpty()) {
             return chunks;
-        }
-        RerankService rerankService = rerankServiceProvider.getIfAvailable();
-        if (rerankService == null) {
-            return chunks.stream().limit(resolveTopK(context)).toList();
         }
         try {
             String question = context == null ? "" : context.getMainQuestion();

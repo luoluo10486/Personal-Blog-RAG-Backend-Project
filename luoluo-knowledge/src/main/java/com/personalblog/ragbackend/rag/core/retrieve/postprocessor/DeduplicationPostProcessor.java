@@ -85,6 +85,9 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
     }
 
     private String generateChunkKey(RetrievedChunk chunk) {
+        if (chunk == null) {
+            return "";
+        }
         return chunk.getId() != null
                 ? chunk.getId()
                 : String.valueOf(chunk.getText() == null ? 0 : chunk.getText().hashCode());
@@ -97,6 +100,8 @@ public class DeduplicationPostProcessor implements SearchResultPostProcessor {
         return switch (type) {
             case INTENT_DIRECTED -> 1;
             case VECTOR_GLOBAL -> 2;
+            case KEYWORD_ES -> 3;
+            case HYBRID -> 4;
         };
     }
 }

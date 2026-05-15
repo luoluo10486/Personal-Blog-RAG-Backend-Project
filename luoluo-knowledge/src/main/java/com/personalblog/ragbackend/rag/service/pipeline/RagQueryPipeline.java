@@ -9,7 +9,7 @@ import com.personalblog.ragbackend.rag.core.guidance.GuidanceDecision;
 import com.personalblog.ragbackend.rag.core.guidance.IntentGuidanceService;
 import com.personalblog.ragbackend.rag.core.intent.IntentGroup;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
-import com.personalblog.ragbackend.rag.core.intent.IntentResolver;
+import com.personalblog.ragbackend.rag.core.intent.RagIntentResolver;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.rewrite.QueryRewriteService;
 import com.personalblog.ragbackend.rag.core.rewrite.RewriteResult;
@@ -23,12 +23,12 @@ import java.util.List;
 @Service
 public class RagQueryPipeline {
     private final QueryRewriteService queryRewriteService;
-    private final IntentResolver intentResolver;
+    private final RagIntentResolver intentResolver;
     private final IntentGuidanceService guidanceService;
     private final ObjectProvider<LLMService> llmServiceProvider;
 
     public RagQueryPipeline(QueryRewriteService queryRewriteService,
-                            IntentResolver intentResolver,
+                            RagIntentResolver intentResolver,
                             IntentGuidanceService guidanceService,
                             ObjectProvider<LLMService> llmServiceProvider) {
         this.queryRewriteService = queryRewriteService;

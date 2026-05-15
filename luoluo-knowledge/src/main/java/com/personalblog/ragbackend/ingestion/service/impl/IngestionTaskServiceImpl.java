@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.ingestion.service.impl;
 
+import cn.hutool.core.lang.Assert;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -10,28 +11,29 @@ import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionTaskCreateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskEntity;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskNodeEntity;
+import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskMapper;
+import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskNodeMapper;
 import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
 import com.personalblog.ragbackend.ingestion.domain.context.IngestionContext;
 import com.personalblog.ragbackend.ingestion.domain.context.NodeLog;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionStatus;
 import com.personalblog.ragbackend.ingestion.domain.enums.SourceType;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
 import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.ingestion.domain.result.IngestionResult;
 import com.personalblog.ragbackend.ingestion.engine.IngestionEngine;
 import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
+import com.personalblog.ragbackend.ingestion.service.IngestionTaskService;
 import com.personalblog.ragbackend.ingestion.util.MimeTypeDetector;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskEntity;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskNodeEntity;
-import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskMapper;
-import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskNodeMapper;
-import com.personalblog.ragbackend.rag.core.vector.VectorSpaceId;
 import com.personalblog.ragbackend.rag.controller.request.DocumentSourceRequest;
+import com.personalblog.ragbackend.rag.core.vector.VectorSpaceId;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -47,7 +49,8 @@ import java.util.Set;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
-public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ingestion.service.IngestionTaskService {
+public class IngestionTaskServiceImpl implements IngestionTaskService {
+
     private final IngestionEngine ingestionEngine;
     private final IngestionPipelineService ingestionPipelineService;
     private final IngestionTaskMapper taskMapper;
@@ -71,33 +74,27 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
 
     @Override
     public IngestionResult execute(IngestionTaskCreateRequest request) {
-        if (request == null) {
-            throw new ClientException("request must not be blank");
-        }
-        if (!StringUtils.hasText(request.getPipelineId())) {
-            throw new ClientException("pipelineId must not be blank");
-        }
+        Assert.notNull(request, () -> new ClientException("request must not be blank"));
         DocumentSource source = toSource(request.getSource());
         return executeInternal(request.getPipelineId(), source, null, null, request.getVectorSpaceId());
     }
 
     @Override
     public IngestionResult upload(String pipelineId, MultipartFile file) {
-        if (!StringUtils.hasText(pipelineId)) {
-            throw new ClientException("pipelineId must not be blank");
+        Assert.notNull(file, () -> new ClientException("file must not be blank"));
+        try {
+            byte[] bytes = file.getBytes();
+            String fileName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "upload.bin";
+            String mimeType = MimeTypeDetector.detect(bytes, fileName);
+            DocumentSource source = DocumentSource.builder()
+                    .type(SourceType.FILE)
+                    .location(fileName)
+                    .fileName(fileName)
+                    .build();
+            return executeInternal(pipelineId, source, bytes, mimeType, null);
+        } catch (Exception exception) {
+            throw new ClientException("read file bytes failed: " + exception.getMessage());
         }
-        if (file == null) {
-            throw new ClientException("file must not be blank");
-        }
-        byte[] bytes = getBytes(file);
-        String fileName = StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "upload.bin";
-        String mimeType = MimeTypeDetector.detect(bytes, fileName);
-        DocumentSource source = DocumentSource.builder()
-                .type(SourceType.FILE)
-                .location(fileName)
-                .fileName(fileName)
-                .build();
-        return executeInternal(pipelineId, source, bytes, mimeType, null);
     }
 
     @Override
@@ -204,7 +201,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
             entity.taskId = task.id;
             entity.pipelineId = task.pipelineId;
             entity.nodeId = log.getNodeId();
-            entity.nodeType = normalizeNodeType(log.getNodeType());
+            entity.nodeType = normalizeNodeTypeForOutput(log.getNodeType());
             entity.nodeOrder = nodeOrderMap.getOrDefault(log.getNodeId(), 0);
             entity.status = resolveNodeStatus(log);
             entity.durationMs = log.getDurationMs();
@@ -223,8 +220,8 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         if (pipeline == null || pipeline.getNodes() == null || pipeline.getNodes().isEmpty()) {
             return orderMap;
         }
-        Map<String, com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig> nodeMap = new LinkedHashMap<>();
-        for (com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig node : pipeline.getNodes()) {
+        Map<String, NodeConfig> nodeMap = new LinkedHashMap<>();
+        for (NodeConfig node : pipeline.getNodes()) {
             if (node == null || !StringUtils.hasText(node.getNodeId())) {
                 continue;
             }
@@ -234,7 +231,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
             return orderMap;
         }
         Set<String> referenced = new HashSet<>();
-        for (com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig node : nodeMap.values()) {
+        for (NodeConfig node : nodeMap.values()) {
             if (StringUtils.hasText(node.getNextNodeId())) {
                 referenced.add(node.getNextNodeId());
             }
@@ -249,7 +246,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
             while (StringUtils.hasText(current) && !visited.contains(current)) {
                 orderMap.put(current, order++);
                 visited.add(current);
-                com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig config = nodeMap.get(current);
+                NodeConfig config = nodeMap.get(current);
                 if (config == null) {
                     break;
                 }
@@ -323,9 +320,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
     }
 
     private DocumentSource toSource(DocumentSourceRequest request) {
-        if (request == null) {
-            throw new ClientException("source must not be blank");
-        }
+        Assert.notNull(request, () -> new ClientException("source must not be blank"));
         DocumentSource source = DocumentSource.builder()
                 .type(request.getType())
                 .location(request.getLocation())
@@ -342,7 +337,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         IngestionTaskVO vo = new IngestionTaskVO();
         vo.setId(stringify(task.id));
         vo.setPipelineId(stringify(task.pipelineId));
-        vo.setSourceType(task.sourceType);
+        vo.setSourceType(normalizeSourceType(task.sourceType));
         vo.setSourceLocation(task.sourceLocation);
         vo.setSourceFileName(task.sourceFileName);
         vo.setStatus(normalizeTaskStatus(task.status));
@@ -375,7 +370,7 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         vo.setTaskId(stringify(entity.taskId));
         vo.setPipelineId(stringify(entity.pipelineId));
         vo.setNodeId(entity.nodeId);
-        vo.setNodeType(normalizeNodeType(entity.nodeType));
+        vo.setNodeType(normalizeNodeTypeForOutput(entity.nodeType));
         vo.setNodeOrder(entity.nodeOrder);
         vo.setStatus(normalizeTaskStatus(entity.status));
         vo.setDurationMs(entity.durationMs);
@@ -458,14 +453,36 @@ public class IngestionTaskServiceImpl implements com.personalblog.ragbackend.ing
         }
     }
 
+    private String normalizeSourceType(String sourceType) {
+        if (!StringUtils.hasText(sourceType)) {
+            return sourceType;
+        }
+        try {
+            return SourceType.fromValue(sourceType).getValue();
+        } catch (IllegalArgumentException ex) {
+            return sourceType;
+        }
+    }
+
     private String normalizeNodeType(String nodeType) {
         if (!StringUtils.hasText(nodeType)) {
             return nodeType;
         }
         try {
             return IngestionNodeType.fromValue(nodeType).getValue();
-        } catch (IllegalArgumentException ignored) {
+        } catch (IllegalArgumentException ex) {
             return nodeType.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        }
+    }
+
+    private String normalizeNodeTypeForOutput(String nodeType) {
+        if (!StringUtils.hasText(nodeType)) {
+            return nodeType;
+        }
+        try {
+            return IngestionNodeType.fromValue(nodeType).getValue();
+        } catch (IllegalArgumentException ex) {
+            return nodeType.trim();
         }
     }
 

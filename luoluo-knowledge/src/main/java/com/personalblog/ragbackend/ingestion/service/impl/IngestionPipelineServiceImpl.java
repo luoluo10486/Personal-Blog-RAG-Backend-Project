@@ -1,36 +1,38 @@
 package com.personalblog.ragbackend.ingestion.service.impl;
 
+import cn.hutool.core.lang.Assert;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.common.auth.service.AuthSessionService;
+import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineCreateRequest;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineNodeRequest;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineUpdateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineVO;
-import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
-import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
-import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
 import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineEntity;
 import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineNodeEntity;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionPipelineNodeMapper;
-import com.personalblog.ragbackend.framework.exception.ClientException;
+import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.NodeConfig;
+import com.personalblog.ragbackend.ingestion.domain.pipeline.PipelineDefinition;
+import com.personalblog.ragbackend.ingestion.service.IngestionPipelineService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
-public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend.ingestion.service.IngestionPipelineService {
+public class IngestionPipelineServiceImpl implements IngestionPipelineService {
+
     private final IngestionPipelineMapper pipelineMapper;
     private final IngestionPipelineNodeMapper nodeMapper;
     private final AuthSessionService authSessionService;
@@ -46,10 +48,9 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
         this.objectMapper = objectMapper;
     }
 
+    @Override
     public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
-        if (request == null) {
-            throw new ClientException("请求不能为空");
-        }
+        Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         String name = normalizeName(request.getName());
         IngestionPipelineEntity entity = new IngestionPipelineEntity();
         entity.name = name;
@@ -68,10 +69,9 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
         return get(String.valueOf(entity.id));
     }
 
+    @Override
     public IngestionPipelineVO update(String id, IngestionPipelineUpdateRequest request) {
-        if (request == null) {
-            throw new ClientException("请求不能为空");
-        }
+        Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
         if (StringUtils.hasText(request.getName())) {
@@ -89,6 +89,7 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
         return get(id);
     }
 
+    @Override
     public IngestionPipelineVO get(String id) {
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
@@ -108,12 +109,13 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
         return result;
     }
 
+    @Override
     public void delete(String id) {
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineEntity entity = requirePipeline(pipelineId);
         entity.deleted = 1;
         entity.updatedBy = currentUserId();
-        pipelineMapper.deleteById(entity);
+        pipelineMapper.deleteById(pipelineId);
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
     }
 
@@ -213,7 +215,7 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
         IngestionPipelineNodeVO vo = new IngestionPipelineNodeVO();
         vo.setId(String.valueOf(entity.id));
         vo.setNodeId(entity.nodeId);
-        vo.setNodeType(normalizeNodeType(entity.nodeType));
+        vo.setNodeType(normalizeNodeTypeForOutput(entity.nodeType));
         vo.setSettings(parseJson(entity.settingsJson));
         vo.setCondition(parseJson(entity.conditionJson));
         vo.setNextNodeId(blankToNull(entity.nextNodeId));
@@ -249,6 +251,17 @@ public class IngestionPipelineServiceImpl implements com.personalblog.ragbackend
             throw new ClientException("nodeType must not be blank");
         }
         return IngestionNodeType.fromValue(value).getValue();
+    }
+
+    private String normalizeNodeTypeForOutput(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        try {
+            return IngestionNodeType.fromValue(value).getValue();
+        } catch (IllegalArgumentException exception) {
+            return value.trim();
+        }
     }
 
     private String blankToNull(String value) {

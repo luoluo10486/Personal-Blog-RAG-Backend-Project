@@ -13,7 +13,6 @@ import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
 import com.personalblog.ragbackend.rag.core.prompt.ContextFormatter;
-import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -111,12 +110,8 @@ public class RetrievalEngine {
     private KbResult retrieveKnowledge(String question,
                                        List<NodeScore> kbIntents,
                                        int topK) {
-        SearchContext searchContext = SearchContext.builder()
-                .originalQuestion(question)
-                .rewrittenQuestion(question)
-                .topK(topK)
-                .build();
-        List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(searchContext);
+        List<SubQuestionIntent> subIntents = List.of(new SubQuestionIntent(question, List.of()));
+        List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(subIntents, topK);
         if (CollUtil.isEmpty(chunks)) {
             return KbResult.empty();
         }
