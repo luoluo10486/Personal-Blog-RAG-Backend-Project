@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.rag.core.retrieve.channel;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.NodeScoreFilters;
@@ -19,15 +18,12 @@ import java.util.concurrent.Executor;
 @Component
 public class IntentDirectedSearchChannel implements SearchChannel {
     private final SearchChannelProperties properties;
-    private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
     private final IntentParallelRetriever parallelRetriever;
 
     public IntentDirectedSearchChannel(RetrieverService retrieverService,
                                        SearchChannelProperties properties,
-                                       KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
                                        @Qualifier("ragContextThreadPoolExecutor") Executor executor) {
         this.properties = properties;
-        this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
         this.parallelRetriever = new IntentParallelRetriever(retrieverService, executor);
     }
 
@@ -81,7 +77,7 @@ public class IntentDirectedSearchChannel implements SearchChannel {
             List<IntentParallelRetriever.IntentTask> tasks = kbIntents.stream()
                     .map(nodeScore -> new IntentParallelRetriever.IntentTask(
                             nodeScore,
-                            resolveCollectionName(context, nodeScore),
+                            resolveCollectionName(nodeScore),
                             resolveTopK(nodeScore, context.getTopK(), topKMultiplier)
                     ))
                     .toList();
@@ -118,16 +114,15 @@ public class IntentDirectedSearchChannel implements SearchChannel {
         return NodeScoreFilters.kb(allScores, properties.getChannels().getIntentDirected().getMinIntentScore());
     }
 
-    private String resolveCollectionName(SearchContext context, NodeScore nodeScore) {
+    private String resolveCollectionName(NodeScore nodeScore) {
         if (nodeScore == null || nodeScore.node() == null) {
-            return context.getMetadataString("collectionName");
+            return "";
         }
         RagIntentNode node = nodeScore.node();
         if (StrUtil.isNotBlank(node.getCollectionName())) {
             return node.getCollectionName().trim();
         }
-        String baseCode = context.getMetadataString("baseCode");
-        return StrUtil.isNotBlank(baseCode) ? knowledgeVectorSpaceResolver.resolve(baseCode).collectionName() : "";
+        return "";
     }
 
     private int resolveTopK(NodeScore nodeScore, int fallbackTopK, int multiplier) {

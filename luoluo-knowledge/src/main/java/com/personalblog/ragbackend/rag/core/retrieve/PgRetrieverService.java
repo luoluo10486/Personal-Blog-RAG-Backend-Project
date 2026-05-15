@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,14 +11,14 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@ConditionalOnBean(JdbcTemplate.class)
+@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
 public class PgRetrieverService implements RetrieverService {
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingService embeddingService;
 
     @Override
     public List<RetrievedChunk> retrieve(RetrieveRequest request) {
-        List<Float> embedding = embeddingService.embed(request.question());
+        List<Float> embedding = embeddingService.embed(request.getQuery());
         float[] vector = normalize(toArray(embedding));
         return retrieveByVector(vector, request);
     }
@@ -35,9 +35,9 @@ public class PgRetrieverService implements RetrieverService {
                         .score(rs.getFloat("score"))
                         .build(),
                 vectorLiteral,
-                request.collectionName(),
+                request.getCollectionName(),
                 vectorLiteral,
-                request.topK()
+                request.getTopK()
         );
     }
 

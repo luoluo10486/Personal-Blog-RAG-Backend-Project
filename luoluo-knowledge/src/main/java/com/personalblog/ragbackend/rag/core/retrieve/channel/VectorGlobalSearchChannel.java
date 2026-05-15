@@ -123,7 +123,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         if (context == null) {
             return List.of();
         }
-        String baseCode = firstNotBlank(context.getMetadataString("baseCode"), context.getMetadataString("collectionName"));
+        String baseCode = firstNotBlank(metadataString(context, "baseCode"), metadataString(context, "collectionName"));
         if (StrUtil.isNotBlank(baseCode)) {
             String collectionName = knowledgeVectorSpaceResolver.resolve(baseCode).collectionName();
             return StrUtil.isNotBlank(collectionName) ? List.of(collectionName) : List.of();
@@ -134,7 +134,6 @@ public class VectorGlobalSearchChannel implements SearchChannel {
                 Wrappers.lambdaQuery(KnowledgeBaseEntity.class)
                         .select(KnowledgeBaseEntity::getCollectionName)
                         .eq(KnowledgeBaseEntity::getDeleted, 0)
-                        .eq(KnowledgeBaseEntity::getStatus, "ACTIVE")
         );
         for (KnowledgeBaseEntity knowledgeBase : knowledgeBases) {
             if (knowledgeBase != null && StrUtil.isNotBlank(knowledgeBase.getCollectionName())) {
@@ -142,6 +141,14 @@ public class VectorGlobalSearchChannel implements SearchChannel {
             }
         }
         return new ArrayList<>(collections);
+    }
+
+    private String metadataString(SearchContext context, String key) {
+        if (context == null || context.getMetadata() == null || key == null) {
+            return "";
+        }
+        Object value = context.getMetadata().get(key);
+        return value == null ? "" : String.valueOf(value);
     }
 
     private String firstNotBlank(String... values) {

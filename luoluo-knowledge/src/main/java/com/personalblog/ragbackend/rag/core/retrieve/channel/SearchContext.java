@@ -22,9 +22,4 @@ public class SearchContext {
     public String getMainQuestion() {
         return rewrittenQuestion != null ? rewrittenQuestion : originalQuestion;
     }
-
-    public String getMetadataString(String key) {
-        Object value = metadata == null ? null : metadata.get(key);
-        return value == null ? "" : String.valueOf(value);
-    }
 }
