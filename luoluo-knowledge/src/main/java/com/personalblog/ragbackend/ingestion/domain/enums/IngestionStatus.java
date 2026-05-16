@@ -21,6 +21,9 @@ public enum IngestionStatus {
             return null;
         }
         String normalized = normalize(value);
+        if ("success".equalsIgnoreCase(normalized)) {
+            return COMPLETED;
+        }
         for (IngestionStatus status : values()) {
             if (status.value.equalsIgnoreCase(normalized) || status.name().equalsIgnoreCase(normalized)) {
                 return status;

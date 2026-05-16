@@ -13,6 +13,7 @@ public class KnowledgeDocumentChunkLogVO {
     private String chunkStrategy;
     private String pipelineId;
     private String pipelineName;
+    private Long durationMs;
     private Long extractDuration;
     private Long chunkDuration;
     private Long embedDuration;
@@ -20,6 +21,8 @@ public class KnowledgeDocumentChunkLogVO {
     private Long otherDuration;
     private Long totalDuration;
     private Integer chunkCount;
+    private String message;
+    private String remark;
     private String errorMessage;
     private Date startTime;
     private Date endTime;

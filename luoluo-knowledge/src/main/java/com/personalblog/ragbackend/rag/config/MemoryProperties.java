@@ -23,6 +23,10 @@ public class MemoryProperties {
 
     private Integer summaryStartTurns = 9;
 
+    @Min(1)
+    @Max(10080)
+    private Integer ttlMinutes = 1440;
+
     @Min(200)
     @Max(1000)
     private Integer summaryMaxChars = 200;

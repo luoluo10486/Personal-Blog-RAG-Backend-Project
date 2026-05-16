@@ -9,8 +9,8 @@ import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseCre
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBasePageRequest;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeBaseUpdateRequest;
 import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeBaseVO;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeBaseService;
@@ -50,16 +50,16 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     public String create(KnowledgeBaseCreateRequest requestParam) {
         String name = requireText(requestParam.getName(), "knowledge base name is required");
         String normalizedName = name.replaceAll("\\s+", "");
-        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                .eq(KnowledgeBaseEntity::getName, normalizedName)
-                .eq(KnowledgeBaseEntity::getDeleted, 0));
+        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseDO>()
+                .eq(KnowledgeBaseDO::getName, normalizedName)
+                .eq(KnowledgeBaseDO::getDeleted, 0));
         if (nameCount > 0) {
             throw new IllegalArgumentException("knowledge base name already exists");
         }
         String collectionName = requireText(requestParam.getCollectionName(), "collection name is required");
         assertCollectionAvailable(collectionName, null);
 
-        KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
+        KnowledgeBaseDO entity = new KnowledgeBaseDO();
         entity.setName(requestParam.getName());
         entity.setEmbeddingModel(StringUtils.hasText(requestParam.getEmbeddingModel())
                 ? requestParam.getEmbeddingModel().trim()
@@ -88,13 +88,13 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional
     public void update(KnowledgeBaseUpdateRequest requestParam) {
-        KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(requestParam.getId()));
+        KnowledgeBaseDO entity = requireKnowledgeBase(parseId(requestParam.getId()));
         if (StringUtils.hasText(requestParam.getName())) {
             String name = requestParam.getName().trim().replaceAll("\\s+", "");
-            long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                    .eq(KnowledgeBaseEntity::getName, name)
-                    .eq(KnowledgeBaseEntity::getDeleted, 0)
-                    .ne(KnowledgeBaseEntity::getId, entity.getId()));
+            long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseDO>()
+                    .eq(KnowledgeBaseDO::getName, name)
+                    .eq(KnowledgeBaseDO::getDeleted, 0)
+                    .ne(KnowledgeBaseDO::getId, entity.getId()));
             if (nameCount > 0) {
                 throw new IllegalArgumentException("knowledge base name already exists");
             }
@@ -103,10 +103,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (StringUtils.hasText(requestParam.getEmbeddingModel())) {
             String embeddingModel = requestParam.getEmbeddingModel().trim();
             if (!embeddingModel.equals(entity.getEmbeddingModel())) {
-                long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                        .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
-                        .gt(KnowledgeDocumentEntity::getChunkCount, 0)
-                        .eq(KnowledgeDocumentEntity::getDeleted, 0));
+                long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                        .eq(KnowledgeDocumentDO::getKbId, entity.getId())
+                        .gt(KnowledgeDocumentDO::getChunkCount, 0)
+                        .eq(KnowledgeDocumentDO::getDeleted, 0));
                 if (documentCount > 0) {
                     throw new IllegalArgumentException("knowledge base already has vectorized documents, embedding model cannot be changed");
                 }
@@ -120,15 +120,15 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional
     public void rename(String kbId, KnowledgeBaseUpdateRequest requestParam) {
-        KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(kbId));
+        KnowledgeBaseDO entity = requireKnowledgeBase(parseId(kbId));
         if (!StringUtils.hasText(requestParam.getName())) {
             throw new IllegalArgumentException("knowledge base name is required");
         }
         String name = requestParam.getName().trim().replaceAll("\\s+", "");
-        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                .eq(KnowledgeBaseEntity::getName, name)
-                .eq(KnowledgeBaseEntity::getDeleted, 0)
-                .ne(KnowledgeBaseEntity::getId, entity.getId()));
+        long nameCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBaseDO>()
+                .eq(KnowledgeBaseDO::getName, name)
+                .eq(KnowledgeBaseDO::getDeleted, 0)
+                .ne(KnowledgeBaseDO::getId, entity.getId()));
         if (nameCount > 0) {
             throw new IllegalArgumentException("knowledge base name already exists");
         }
@@ -140,10 +140,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     @Transactional
     public void delete(String kbId) {
-        KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(kbId));
-        long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
-                .eq(KnowledgeDocumentEntity::getDeleted, 0));
+        KnowledgeBaseDO entity = requireKnowledgeBase(parseId(kbId));
+        long documentCount = knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                .eq(KnowledgeDocumentDO::getKbId, entity.getId())
+                .eq(KnowledgeDocumentDO::getDeleted, 0));
         if (documentCount > 0) {
             throw new IllegalArgumentException("knowledge base still has documents");
         }
@@ -152,36 +152,36 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public KnowledgeBaseVO queryById(String kbId) {
-        KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(kbId));
-        KnowledgeBaseVO vo = toView(entity, knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
-                .eq(KnowledgeDocumentEntity::getDeleted, 0)));
+        KnowledgeBaseDO entity = requireKnowledgeBase(parseId(kbId));
+        KnowledgeBaseVO vo = toView(entity, knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                .eq(KnowledgeDocumentDO::getKbId, entity.getId())
+                .eq(KnowledgeDocumentDO::getDeleted, 0)));
         return vo;
     }
 
     @Override
     public IPage<KnowledgeBaseVO> pageQuery(KnowledgeBasePageRequest requestParam) {
-        Page<KnowledgeBaseEntity> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
-        IPage<KnowledgeBaseEntity> result = knowledgeBaseMapper.selectPage(
+        Page<KnowledgeBaseDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
+        IPage<KnowledgeBaseDO> result = knowledgeBaseMapper.selectPage(
                 page,
-                new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                        .like(StringUtils.hasText(requestParam.getName()), KnowledgeBaseEntity::getName, requestParam.getName())
-                        .orderByDesc(KnowledgeBaseEntity::getUpdatedAt)
+                new LambdaQueryWrapper<KnowledgeBaseDO>()
+                        .like(StringUtils.hasText(requestParam.getName()), KnowledgeBaseDO::getName, requestParam.getName())
+                        .orderByDesc(KnowledgeBaseDO::getUpdatedAt)
         );
-        List<Long> kbIds = result.getRecords().stream().map(KnowledgeBaseEntity::getId).toList();
+        List<Long> kbIds = result.getRecords().stream().map(KnowledgeBaseDO::getId).toList();
         Map<Long, Long> documentCountMap = kbIds.isEmpty()
                 ? Map.of()
-                : knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                        .in(KnowledgeDocumentEntity::getKbId, kbIds)
-                        .eq(KnowledgeDocumentEntity::getDeleted, 0))
+                : knowledgeDocumentMapper.selectList(new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                        .in(KnowledgeDocumentDO::getKbId, kbIds)
+                        .eq(KnowledgeDocumentDO::getDeleted, 0))
                 .stream()
-                .collect(Collectors.groupingBy(KnowledgeDocumentEntity::getKbId, Collectors.counting()));
+                .collect(Collectors.groupingBy(KnowledgeDocumentDO::getKbId, Collectors.counting()));
         return result.convert(entity -> {
             return toView(entity, documentCountMap.getOrDefault(entity.getId(), 0L));
         });
     }
 
-    private KnowledgeBaseVO toView(KnowledgeBaseEntity entity, Long documentCount) {
+    private KnowledgeBaseVO toView(KnowledgeBaseDO entity, Long documentCount) {
         KnowledgeBaseVO vo = BeanUtil.toBean(entity, KnowledgeBaseVO.class);
         vo.setId(String.valueOf(entity.getId()));
         vo.setDocumentCount(documentCount);
@@ -191,8 +191,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         return vo;
     }
 
-    private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
-        KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
+    private KnowledgeBaseDO requireKnowledgeBase(Long kbId) {
+        KnowledgeBaseDO entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
             throw new IllegalArgumentException("knowledge base not found");
         }
@@ -214,8 +214,8 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     }
 
     private void assertCollectionAvailable(String collectionName, Long currentKbId) {
-        KnowledgeBaseEntity existing = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                .eq(KnowledgeBaseEntity::getCollectionName, collectionName)
+        KnowledgeBaseDO existing = knowledgeBaseMapper.selectOne(new LambdaQueryWrapper<KnowledgeBaseDO>()
+                .eq(KnowledgeBaseDO::getCollectionName, collectionName)
                 .last("limit 1"));
         if (existing != null && !existing.getId().equals(currentKbId)) {
             throw new IllegalArgumentException("collection name already exists");
@@ -233,3 +233,4 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         }
     }
 }
+

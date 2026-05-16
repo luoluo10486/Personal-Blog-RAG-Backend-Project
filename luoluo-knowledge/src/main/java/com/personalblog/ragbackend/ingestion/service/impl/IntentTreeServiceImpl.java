@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.ingestion.service.IntentTreeService;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
 import com.personalblog.ragbackend.rag.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.rag.dao.mapper.IntentNodeMapper;
@@ -50,7 +50,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         Map<String, List<IntentNodeEntity>> parentMap = list.stream()
                 .collect(Collectors.groupingBy(node -> {
                     String parent = node.parentCode;
-                    return parent == null ? "ROOT" : parent;
+                    return StrUtil.isBlank(parent) ? "ROOT" : parent;
                 }));
 
         List<IntentNodeEntity> roots = parentMap.getOrDefault("ROOT", Collections.emptyList());
@@ -77,7 +77,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
             throw new IllegalArgumentException("TOPIC level KB intent must provide kbId");
         }
 
-        KnowledgeBaseEntity kbEntity = null;
+        KnowledgeBaseDO kbEntity = null;
         if (StrUtil.isNotBlank(requestParam.getKbId())) {
             kbEntity = knowledgeBaseMapper.selectById(requestParam.getKbId());
             if (kbEntity == null || kbEntity.getDeleted() != null && kbEntity.getDeleted() == 1) {
@@ -91,9 +91,9 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         node.collectionName = kbEntity == null ? null : kbEntity.getCollectionName();
         node.name = requestParam.getName();
         node.level = requestParam.getLevel();
-        node.parentCode = requestParam.getParentCode();
-        node.description = requestParam.getDescription();
-        node.mcpToolId = requestParam.getMcpToolId();
+        node.parentCode = blankToNull(requestParam.getParentCode());
+        node.description = blankToNull(requestParam.getDescription());
+        node.mcpToolId = blankToNull(requestParam.getMcpToolId());
         node.examples = requestParam.getExamples() == null ? null : GSON.toJson(requestParam.getExamples());
         node.topK = normalizeTopK(requestParam.getTopK());
         node.kind = requestParam.getKind() == null ? 0 : requestParam.getKind();
@@ -101,9 +101,9 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
         node.enabled = requestParam.getEnabled() == null ? 1 : requestParam.getEnabled();
         node.createBy = UserContext.getUsername();
         node.updateBy = UserContext.getUsername();
-        node.paramPromptTemplate = requestParam.getParamPromptTemplate();
-        node.promptSnippet = requestParam.getPromptSnippet();
-        node.promptTemplate = requestParam.getPromptTemplate();
+        node.paramPromptTemplate = blankToNull(requestParam.getParamPromptTemplate());
+        node.promptSnippet = blankToNull(requestParam.getPromptSnippet());
+        node.promptTemplate = blankToNull(requestParam.getPromptTemplate());
         node.deleted = 0;
         node.createdAt = java.time.LocalDateTime.now();
         node.updatedAt = java.time.LocalDateTime.now();
@@ -127,16 +127,19 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
             node.level = req.getLevel();
         }
         if (req.getParentCode() != null) {
-            node.parentCode = req.getParentCode();
+            node.parentCode = blankToNull(req.getParentCode());
         }
         if (req.getDescription() != null) {
-            node.description = req.getDescription();
+            node.description = blankToNull(req.getDescription());
         }
         if (req.getExamples() != null) {
             node.examples = GSON.toJson(req.getExamples());
         }
         if (req.getCollectionName() != null) {
-            node.collectionName = req.getCollectionName();
+            node.collectionName = blankToNull(req.getCollectionName());
+        }
+        if (req.getMcpToolId() != null) {
+            node.mcpToolId = blankToNull(req.getMcpToolId());
         }
         if (req.getTopK() != null) {
             node.topK = normalizeTopK(req.getTopK());
@@ -151,13 +154,13 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
             node.enabled = req.getEnabled();
         }
         if (req.getPromptSnippet() != null) {
-            node.promptSnippet = req.getPromptSnippet();
+            node.promptSnippet = blankToNull(req.getPromptSnippet());
         }
         if (req.getPromptTemplate() != null) {
-            node.promptTemplate = req.getPromptTemplate();
+            node.promptTemplate = blankToNull(req.getPromptTemplate());
         }
         if (req.getParamPromptTemplate() != null) {
-            node.paramPromptTemplate = req.getParamPromptTemplate();
+            node.paramPromptTemplate = blankToNull(req.getParamPromptTemplate());
         }
         node.updateBy = UserContext.getUsername();
         node.updatedAt = java.time.LocalDateTime.now();
@@ -320,7 +323,7 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
     private Map<String, List<IntentNodeEntity>> buildChildrenMap(List<IntentNodeEntity> nodes) {
         return nodes.stream().collect(Collectors.groupingBy(node -> {
             String parentCode = node.parentCode;
-            return parentCode == null ? "ROOT" : parentCode;
+            return StrUtil.isBlank(parentCode) ? "ROOT" : parentCode;
         }));
     }
 
@@ -375,5 +378,10 @@ public class IntentTreeServiceImpl extends ServiceImpl<IntentNodeMapper, IntentN
             return null;
         }
     }
+
+    private String blankToNull(String value) {
+        return StrUtil.isBlank(value) ? null : value.trim();
+    }
 }
+
 

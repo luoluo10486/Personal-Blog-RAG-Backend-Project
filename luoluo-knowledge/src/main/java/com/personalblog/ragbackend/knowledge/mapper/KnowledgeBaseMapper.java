@@ -1,9 +1,9 @@
 package com.personalblog.ragbackend.knowledge.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
 
-public interface KnowledgeBaseMapper extends BaseMapper<KnowledgeBaseEntity> {
+public interface KnowledgeBaseMapper extends BaseMapper<KnowledgeBaseDO> {
 }
 
 

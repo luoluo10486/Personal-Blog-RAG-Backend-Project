@@ -277,6 +277,23 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         if (context.getMetadata() != null) {
             metadata.putAll(context.getMetadata());
         }
+        if (context.getSource() != null) {
+            if (context.getSource().getType() != null) {
+                metadata.putIfAbsent("sourceType", context.getSource().getType().getValue());
+            }
+            if (StringUtils.hasText(context.getSource().getLocation())) {
+                metadata.putIfAbsent("sourceLocation", context.getSource().getLocation());
+            }
+            if (StringUtils.hasText(context.getSource().getFileName())) {
+                metadata.putIfAbsent("sourceFileName", context.getSource().getFileName());
+            }
+        }
+        if (StringUtils.hasText(context.getPipelineId())) {
+            metadata.putIfAbsent("pipelineId", context.getPipelineId());
+        }
+        if (context.getVectorSpaceId() != null) {
+            metadata.putIfAbsent("vectorSpaceId", context.getVectorSpaceId());
+        }
         if (context.getKeywords() != null && !context.getKeywords().isEmpty()) {
             metadata.put("keywords", context.getKeywords());
         }

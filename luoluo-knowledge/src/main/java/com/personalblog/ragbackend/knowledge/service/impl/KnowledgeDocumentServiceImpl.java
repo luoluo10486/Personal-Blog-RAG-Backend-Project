@@ -18,12 +18,12 @@ import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentSear
 import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentVO;
 import com.personalblog.ragbackend.core.chunk.ChunkingMode;
 import com.personalblog.ragbackend.core.chunk.TextChunkingOptions;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkDO;
 import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineDO;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefDO;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunk;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
@@ -166,7 +166,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     @Transactional
     public KnowledgeDocumentVO upload(String kbId, KnowledgeDocumentUploadRequest requestParam, MultipartFile file) {
-        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(parseId(kbId));
+        KnowledgeBaseDO knowledgeBase = requireKnowledgeBase(parseId(kbId));
 
         SourceType sourceType = normalizeSourceType(requestParam.getSourceType());
         validateSourceAndSchedule(sourceType, requestParam.getSourceLocation(), requestParam.getScheduleEnabled(), requestParam.getScheduleCron());
@@ -188,7 +188,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             chunkConfig = blankToNull(requestParam.getChunkConfig());
         }
         StoredFileDTO storedFile = storeUploadedFile(knowledgeBase.getCollectionName(), requestParam, file);
-        KnowledgeDocumentEntity entity = new KnowledgeDocumentEntity();
+        KnowledgeDocumentDO entity = new KnowledgeDocumentDO();
         entity.setKbId(knowledgeBase.getId());
         entity.setDocName(StringUtils.hasText(storedFile.getOriginalFilename()) ? storedFile.getOriginalFilename() : resolveDocName(file));
         entity.setEnabled(1);
@@ -216,13 +216,13 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     @Transactional
     public void startChunk(String docId) {
-        KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        KnowledgeDocumentDO document = requireDocument(parseId(docId));
         int updated = knowledgeDocumentMapper.update(
                 null,
-                new LambdaUpdateWrapper<KnowledgeDocumentEntity>()
-                        .set(KnowledgeDocumentEntity::getStatus, DocumentStatus.RUNNING.getCode())
-                        .eq(KnowledgeDocumentEntity::getId, document.getId())
-                        .ne(KnowledgeDocumentEntity::getStatus, DocumentStatus.RUNNING.getCode())
+                new LambdaUpdateWrapper<KnowledgeDocumentDO>()
+                        .set(KnowledgeDocumentDO::getStatus, DocumentStatus.RUNNING.getCode())
+                        .eq(KnowledgeDocumentDO::getId, document.getId())
+                        .ne(KnowledgeDocumentDO::getStatus, DocumentStatus.RUNNING.getCode())
         );
         if (updated <= 0) {
             throw new IllegalArgumentException("document is already running");
@@ -245,7 +245,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     @Override
     public void executeChunk(String docId) {
-        KnowledgeDocumentEntity document = knowledgeDocumentMapper.selectById(parseId(docId));
+        KnowledgeDocumentDO document = knowledgeDocumentMapper.selectById(parseId(docId));
         if (document == null) {
             log.warn("document not found, skip chunk task, docId={}", docId);
             return;
@@ -257,10 +257,10 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                                       long embedDuration) {
     }
 
-    private void runChunkTask(KnowledgeDocumentEntity document) {
+    private void runChunkTask(KnowledgeDocumentDO document) {
         String docId = String.valueOf(document.getId());
         ProcessMode processMode = normalizeProcessMode(document.getProcessMode());
-        KnowledgeDocumentChunkLogEntity chunkLog = insertChunkLog(document);
+        KnowledgeDocumentChunkLogDO chunkLog = insertChunkLog(document);
 
         long totalStartTime = System.currentTimeMillis();
         long extractDuration = 0L;
@@ -298,7 +298,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
-    private ChunkProcessResult runChunkProcess(KnowledgeDocumentEntity document) {
+    private ChunkProcessResult runChunkProcess(KnowledgeDocumentDO document) {
         MultipartFile file = knowledgeFileStorageService.restore(document.getFileUrl(), document.getDocName(), document.getFileType());
         if (file == null || file.isEmpty()) {
             throw new IllegalStateException("document file is unavailable");
@@ -343,13 +343,13 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return new ChunkProcessResult(vectorChunks, extractDuration, chunkDuration, embedDuration);
     }
 
-    private ChunkProcessResult runPipelineProcess(KnowledgeDocumentEntity document) {
+    private ChunkProcessResult runPipelineProcess(KnowledgeDocumentDO document) {
         String docId = String.valueOf(document.getId());
         if (document.getPipelineId() == null) {
             throw new IllegalStateException("Pipeline mode requires pipeline id: docId=" + docId);
         }
 
-        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
+        KnowledgeBaseDO knowledgeBase = requireKnowledgeBase(document.getKbId());
         MultipartFile file = knowledgeFileStorageService.restore(document.getFileUrl(), document.getDocName(), document.getFileType());
         if (file == null || file.isEmpty()) {
             throw new IllegalStateException("document file is unavailable");
@@ -415,8 +415,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return new ChunkProcessResult(vectorChunksWithEmbeddings, extractDuration, chunkDuration, embedDuration);
     }
 
-    private KnowledgeDocumentChunkLogEntity insertChunkLog(KnowledgeDocumentEntity document) {
-        KnowledgeDocumentChunkLogEntity entity = new KnowledgeDocumentChunkLogEntity();
+    private KnowledgeDocumentChunkLogDO insertChunkLog(KnowledgeDocumentDO document) {
+        KnowledgeDocumentChunkLogDO entity = new KnowledgeDocumentChunkLogDO();
         entity.setDocId(document.getId());
         entity.setStatus(DocumentStatus.RUNNING.getCode());
         entity.setProcessMode(document.getProcessMode());
@@ -438,7 +438,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                                 long persistDuration,
                                 long totalDuration,
                                 String errorMessage) {
-        KnowledgeDocumentChunkLogEntity entity = new KnowledgeDocumentChunkLogEntity();
+        KnowledgeDocumentChunkLogDO entity = new KnowledgeDocumentChunkLogDO();
         entity.setId(logId);
         entity.setStatus(status);
         entity.setChunkCount(chunkCount);
@@ -456,14 +456,14 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(String docId) {
-        KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        KnowledgeDocumentDO document = requireDocument(parseId(docId));
         if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
         deleteDocumentArtifacts(document);
         knowledgeDocumentMapper.deleteById(document.getId());
-        knowledgeDocumentChunkLogMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentChunkLogEntity>()
-                .eq(KnowledgeDocumentChunkLogEntity::getDocId, document.getId()));
+        knowledgeDocumentChunkLogMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentChunkLogDO>()
+                .eq(KnowledgeDocumentChunkLogDO::getDocId, document.getId()));
         knowledgeDocumentScheduleService.deleteByDocId(String.valueOf(document.getId()));
         deleteStoredFileQuietly(document.getFileUrl());
     }
@@ -476,7 +476,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void update(String docId, KnowledgeDocumentUpdateRequest requestParam) {
-        KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        KnowledgeDocumentDO document = requireDocument(parseId(docId));
         if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
@@ -489,7 +489,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 ? blankToNull(requestParam.getSourceLocation())
                 : document.getSourceLocation();
         boolean finalScheduleEnabled = requestParam.getScheduleEnabled() != null
-                ? requestParam.getScheduleEnabled() == 1
+                ? requestParam.getScheduleEnabled()
                 : document.getScheduleEnabled() != null && document.getScheduleEnabled() == 1;
         String finalScheduleCron = requestParam.getScheduleCron() != null
                 ? blankToNull(requestParam.getScheduleCron())
@@ -533,7 +533,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             scheduleChanged = true;
         }
         if (requestParam.getScheduleEnabled() != null) {
-            document.setScheduleEnabled(requestParam.getScheduleEnabled());
+            document.setScheduleEnabled(Boolean.TRUE.equals(requestParam.getScheduleEnabled()) ? 1 : 0);
             scheduleChanged = true;
         }
         if (requestParam.getScheduleCron() != null) {
@@ -550,15 +550,15 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     public IPage<KnowledgeDocumentVO> page(String kbId, KnowledgeDocumentPageRequest requestParam) {
         requireKnowledgeBase(parseId(kbId));
-        Page<KnowledgeDocumentEntity> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
-        IPage<KnowledgeDocumentEntity> result = knowledgeDocumentMapper.selectPage(
+        Page<KnowledgeDocumentDO> page = new Page<>(requestParam.getCurrent(), requestParam.getSize());
+        IPage<KnowledgeDocumentDO> result = knowledgeDocumentMapper.selectPage(
                 page,
-                new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                        .eq(KnowledgeDocumentEntity::getKbId, parseId(kbId))
-                        .eq(KnowledgeDocumentEntity::getDeleted, 0)
-                        .like(StringUtils.hasText(requestParam.getKeyword()), KnowledgeDocumentEntity::getDocName, requestParam.getKeyword())
-                        .eq(StringUtils.hasText(requestParam.getStatus()), KnowledgeDocumentEntity::getStatus, requestParam.getStatus())
-                        .orderByDesc(KnowledgeDocumentEntity::getCreatedAt)
+                new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                        .eq(KnowledgeDocumentDO::getKbId, parseId(kbId))
+                        .eq(KnowledgeDocumentDO::getDeleted, 0)
+                        .like(StringUtils.hasText(requestParam.getKeyword()), KnowledgeDocumentDO::getDocName, requestParam.getKeyword())
+                        .eq(StringUtils.hasText(requestParam.getStatus()), KnowledgeDocumentDO::getStatus, requestParam.getStatus())
+                        .orderByDesc(KnowledgeDocumentDO::getCreatedAt)
         );
         return result.convert(this::toView);
     }
@@ -566,11 +566,11 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enable(String docId, boolean enabled) {
-        KnowledgeDocumentEntity document = requireDocument(parseId(docId));
+        KnowledgeDocumentDO document = requireDocument(parseId(docId));
         if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
-        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
+        KnowledgeBaseDO knowledgeBase = requireKnowledgeBase(document.getKbId());
         int targetEnabled = enabled ? 1 : 0;
         if (document.getEnabled() != null && document.getEnabled() == targetEnabled) {
             return;
@@ -623,23 +623,23 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             return Collections.emptyList();
         }
         int size = Math.min(Math.max(limit, 1), 20);
-        IPage<KnowledgeDocumentEntity> result = knowledgeDocumentMapper.selectPage(
+        IPage<KnowledgeDocumentDO> result = knowledgeDocumentMapper.selectPage(
                 new Page<>(1, size),
-                new LambdaQueryWrapper<KnowledgeDocumentEntity>()
-                        .eq(KnowledgeDocumentEntity::getDeleted, 0)
-                        .like(StringUtils.hasText(keyword), KnowledgeDocumentEntity::getDocName, keyword)
-                        .orderByDesc(KnowledgeDocumentEntity::getUpdatedAt)
+                new LambdaQueryWrapper<KnowledgeDocumentDO>()
+                        .eq(KnowledgeDocumentDO::getDeleted, 0)
+                        .like(StringUtils.hasText(keyword), KnowledgeDocumentDO::getDocName, keyword)
+                        .orderByDesc(KnowledgeDocumentDO::getUpdatedAt)
         );
         List<Long> kbIds = result.getRecords().stream()
-                .map(KnowledgeDocumentEntity::getKbId)
+                .map(KnowledgeDocumentDO::getKbId)
                 .distinct()
                 .toList();
         Map<Long, String> kbNameMap = kbIds.isEmpty()
                 ? Map.of()
-                : knowledgeBaseMapper.selectList(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                        .in(KnowledgeBaseEntity::getId, kbIds))
+                : knowledgeBaseMapper.selectList(new LambdaQueryWrapper<KnowledgeBaseDO>()
+                        .in(KnowledgeBaseDO::getId, kbIds))
                 .stream()
-                .collect(Collectors.toMap(KnowledgeBaseEntity::getId, KnowledgeBaseEntity::getName, (left, right) -> left));
+                .collect(Collectors.toMap(KnowledgeBaseDO::getId, KnowledgeBaseDO::getName, (left, right) -> left));
         return result.getRecords().stream().map(entity -> {
             KnowledgeDocumentSearchVO vo = BeanUtil.toBean(entity, KnowledgeDocumentSearchVO.class);
             vo.setId(String.valueOf(entity.getId()));
@@ -651,18 +651,18 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     @Override
     public IPage<KnowledgeDocumentChunkLogVO> getChunkLogs(String docId, Page<KnowledgeDocumentChunkLogVO> page) {
-        Page<KnowledgeDocumentChunkLogEntity> mpPage = new Page<>(page.getCurrent(), page.getSize());
-        IPage<KnowledgeDocumentChunkLogEntity> result = knowledgeDocumentChunkLogMapper.selectPage(
+        Page<KnowledgeDocumentChunkLogDO> mpPage = new Page<>(page.getCurrent(), page.getSize());
+        IPage<KnowledgeDocumentChunkLogDO> result = knowledgeDocumentChunkLogMapper.selectPage(
                 mpPage,
-                new LambdaQueryWrapper<KnowledgeDocumentChunkLogEntity>()
-                        .eq(KnowledgeDocumentChunkLogEntity::getDocId, parseId(docId))
-                        .orderByDesc(KnowledgeDocumentChunkLogEntity::getCreatedAt)
+                new LambdaQueryWrapper<KnowledgeDocumentChunkLogDO>()
+                        .eq(KnowledgeDocumentChunkLogDO::getDocId, parseId(docId))
+                        .orderByDesc(KnowledgeDocumentChunkLogDO::getCreatedAt)
         );
-        List<KnowledgeDocumentChunkLogEntity> records = result.getRecords();
+        List<KnowledgeDocumentChunkLogDO> records = result.getRecords();
         Map<Long, String> pipelineNameMap = new HashMap<>();
         if (!records.isEmpty()) {
             Set<Long> pipelineIds = records.stream()
-                    .map(KnowledgeDocumentChunkLogEntity::getPipelineId)
+                    .map(KnowledgeDocumentChunkLogDO::getPipelineId)
                     .filter(java.util.Objects::nonNull)
                     .collect(Collectors.toCollection(HashSet::new));
             if (!pipelineIds.isEmpty()) {
@@ -679,6 +679,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             vo.setId(String.valueOf(each.getId()));
             vo.setDocId(String.valueOf(each.getDocId()));
             vo.setPipelineId(each.getPipelineId() == null ? null : String.valueOf(each.getPipelineId()));
+            vo.setDurationMs(each.getTotalDuration());
+            vo.setMessage(each.getMessage());
+            vo.setRemark(StringUtils.hasText(each.getMessage()) ? each.getMessage() : each.getErrorMessage());
             if (each.getPipelineId() != null) {
                 vo.setPipelineName(pipelineNameMap.get(each.getPipelineId()));
             }
@@ -697,7 +700,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return voPage;
     }
 
-    private KnowledgeDocumentVO toView(KnowledgeDocumentEntity entity) {
+    private KnowledgeDocumentVO toView(KnowledgeDocumentDO entity) {
         KnowledgeDocumentVO vo = BeanUtil.toBean(entity, KnowledgeDocumentVO.class);
         vo.setId(String.valueOf(entity.getId()));
         vo.setKbId(String.valueOf(entity.getKbId()));
@@ -709,19 +712,19 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return vo;
     }
 
-    private void deleteDocumentArtifacts(KnowledgeDocumentEntity document) {
+    private void deleteDocumentArtifacts(KnowledgeDocumentDO document) {
         deleteDocumentVectors(document);
         knowledgeChunkService.deleteByDocId(String.valueOf(document.getId()));
     }
 
-    private void deleteDocumentVectors(KnowledgeDocumentEntity document) {
-        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
+    private void deleteDocumentVectors(KnowledgeDocumentDO document) {
+        KnowledgeBaseDO knowledgeBase = requireKnowledgeBase(document.getKbId());
         vectorStoreService.deleteDocumentVectors(knowledgeBase.getCollectionName(), String.valueOf(document.getId()));
-        knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
-                .eq(KnowledgeVectorRefEntity::getDocId, document.getId()));
+        knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefDO>()
+                .eq(KnowledgeVectorRefDO::getDocId, document.getId()));
     }
 
-    private List<VectorChunk> buildVectorChunks(KnowledgeDocumentEntity document,
+    private List<VectorChunk> buildVectorChunks(KnowledgeDocumentDO document,
                                                 List<DocumentChunk> chunks,
                                                 List<List<Float>> embeddings) {
         if (chunks == null || chunks.isEmpty()) {
@@ -743,7 +746,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return vectorChunks;
     }
 
-    private TextChunkingOptions buildChunkingOptions(KnowledgeDocumentEntity document) {
+    private TextChunkingOptions buildChunkingOptions(KnowledgeDocumentDO document) {
         ChunkingMode chunkingMode = ChunkingMode.from(document.getChunkStrategy());
         Map<String, Object> chunkConfig = readChunkConfig(document.getChunkConfig());
         if (ChunkingMode.FIXED_SIZE == chunkingMode) {
@@ -760,7 +763,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     private void markChunkFailed(Long docId) {
         transactionOperations.executeWithoutResult(status -> {
-            KnowledgeDocumentEntity update = new KnowledgeDocumentEntity();
+            KnowledgeDocumentDO update = new KnowledgeDocumentDO();
             update.setId(docId);
             update.setStatus(DocumentStatus.FAILED.getCode());
             update.setUpdatedBy(parseUserId(UserContext.getUserId()));
@@ -843,21 +846,21 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
-    private int persistChunksAndVectorsAtomically(KnowledgeDocumentEntity document,
+    private int persistChunksAndVectorsAtomically(KnowledgeDocumentDO document,
                                                   List<VectorChunk> chunkResults) {
-        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
+        KnowledgeBaseDO knowledgeBase = requireKnowledgeBase(document.getKbId());
         List<VectorChunk> safeChunks = chunkResults == null ? List.of() : chunkResults;
         transactionOperations.executeWithoutResult(status -> {
-            knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                    .eq(KnowledgeChunkEntity::getDocId, document.getId()));
-            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
-                    .eq(KnowledgeVectorRefEntity::getDocId, document.getId()));
+            knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkDO>()
+                    .eq(KnowledgeChunkDO::getDocId, document.getId()));
+            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefDO>()
+                    .eq(KnowledgeVectorRefDO::getDocId, document.getId()));
 
             vectorStoreService.deleteDocumentVectors(knowledgeBase.getCollectionName(), String.valueOf(document.getId()));
 
-            List<KnowledgeChunkEntity> persistedChunks = new ArrayList<>(safeChunks.size());
+            List<KnowledgeChunkDO> persistedChunks = new ArrayList<>(safeChunks.size());
             for (VectorChunk chunk : safeChunks) {
-                KnowledgeChunkEntity entity = new KnowledgeChunkEntity();
+                KnowledgeChunkDO entity = new KnowledgeChunkDO();
                 entity.setKbId(document.getKbId());
                 entity.setDocId(document.getId());
                 entity.setChunkIndex(chunk.getIndex());
@@ -887,18 +890,18 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return safeChunks.size();
     }
 
-    private void insertVectorRefs(KnowledgeDocumentEntity document,
-                                  KnowledgeBaseEntity knowledgeBase,
-                                  List<KnowledgeChunkEntity> persistedChunks,
+    private void insertVectorRefs(KnowledgeDocumentDO document,
+                                  KnowledgeBaseDO knowledgeBase,
+                                  List<KnowledgeChunkDO> persistedChunks,
                                   List<VectorChunk> vectorChunks) {
         if (persistedChunks == null || persistedChunks.isEmpty()) {
             return;
         }
         int embeddingDim = vectorSpaceResolver.resolve(String.valueOf(knowledgeBase.getId())).dimension();
         for (int index = 0; index < persistedChunks.size(); index++) {
-            KnowledgeChunkEntity chunkEntity = persistedChunks.get(index);
+            KnowledgeChunkDO chunkEntity = persistedChunks.get(index);
             VectorChunk vectorChunk = vectorChunks.get(index);
-            KnowledgeVectorRefEntity entity = new KnowledgeVectorRefEntity();
+            KnowledgeVectorRefDO entity = new KnowledgeVectorRefDO();
             entity.setKbId(document.getKbId());
             entity.setDocId(document.getId());
             entity.setChunkId(chunkEntity.getId());
@@ -912,7 +915,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
-    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentEntity document, DocumentChunk chunk) {
+    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentDO document, DocumentChunk chunk) {
         Map<String, Object> metadata = new HashMap<>();
         String documentId = String.valueOf(document.getId());
         String knowledgeBaseId = String.valueOf(document.getKbId());
@@ -933,15 +936,15 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return metadata;
     }
 
-    private void upsertVectorRefs(KnowledgeDocumentEntity document,
-                                  KnowledgeBaseEntity knowledgeBase,
+    private void upsertVectorRefs(KnowledgeDocumentDO document,
+                                  KnowledgeBaseDO knowledgeBase,
                                   List<KnowledgeChunkVO> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
         int embeddingDim = vectorSpaceResolver.resolve(String.valueOf(knowledgeBase.getId())).dimension();
         for (KnowledgeChunkVO chunk : chunks) {
-            KnowledgeVectorRefEntity entity = new KnowledgeVectorRefEntity();
+            KnowledgeVectorRefDO entity = new KnowledgeVectorRefDO();
             entity.setKbId(document.getKbId());
             entity.setDocId(document.getId());
             entity.setChunkId(parseLong(chunk.getId()));
@@ -955,7 +958,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         }
     }
 
-    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentEntity document, KnowledgeChunkVO chunk) {
+    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentDO document, KnowledgeChunkVO chunk) {
         Map<String, Object> metadata = new HashMap<>();
         String documentId = String.valueOf(document.getId());
         String knowledgeBaseId = String.valueOf(document.getKbId());
@@ -1041,16 +1044,16 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 .build();
     }
 
-    private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
-        KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
+    private KnowledgeBaseDO requireKnowledgeBase(Long kbId) {
+        KnowledgeBaseDO entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
             throw new IllegalArgumentException("knowledge base not found");
         }
         return entity;
     }
 
-    private KnowledgeDocumentEntity requireDocument(Long docId) {
-        KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(docId);
+    private KnowledgeDocumentDO requireDocument(Long docId) {
+        KnowledgeDocumentDO entity = knowledgeDocumentMapper.selectById(docId);
         if (entity == null) {
             throw new IllegalArgumentException("document not found");
         }
@@ -1149,3 +1152,4 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         return values;
     }
 }
+

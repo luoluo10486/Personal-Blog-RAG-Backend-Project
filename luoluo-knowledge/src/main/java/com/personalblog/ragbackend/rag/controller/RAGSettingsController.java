@@ -56,6 +56,8 @@ public class RAGSettingsController {
                         .defaultConfig(toDefaultSettings())
                         .queryRewrite(QueryRewriteSettings.builder()
                                 .enabled(ragConfigProperties.getQueryRewriteEnabled())
+                                .maxHistoryMessages(ragConfigProperties.getQueryRewriteMaxHistoryMessages())
+                                .maxHistoryChars(ragConfigProperties.getQueryRewriteMaxHistoryChars())
                                 .build())
                         .rateLimit(RateLimitSettings.builder()
                                 .global(GlobalRateLimit.builder()
@@ -86,6 +88,7 @@ public class RAGSettingsController {
                 .historyKeepTurns(memoryProperties.getHistoryKeepTurns())
                 .summaryEnabled(memoryProperties.getSummaryEnabled())
                 .summaryStartTurns(memoryProperties.getSummaryStartTurns())
+                .ttlMinutes(memoryProperties.getTtlMinutes())
                 .summaryMaxChars(memoryProperties.getSummaryMaxChars())
                 .titleMaxLength(memoryProperties.getTitleMaxLength())
                 .build();

@@ -14,9 +14,9 @@ import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkCr
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkPageRequest;
 import com.personalblog.ragbackend.knowledge.controller.request.KnowledgeChunkUpdateRequest;
 import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeChunkVO;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
@@ -25,7 +25,7 @@ import com.personalblog.ragbackend.knowledge.domain.enums.DocumentStatus;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeChunkService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefDO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,12 +75,12 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     public IPage<KnowledgeChunkVO> pageQuery(String docId, KnowledgeChunkPageRequest requestParam) {
         Long documentId = parseId(docId);
         requireDocument(documentId);
-        IPage<KnowledgeChunkEntity> page = knowledgeChunkMapper.selectPage(
+        IPage<KnowledgeChunkDO> page = knowledgeChunkMapper.selectPage(
                 new Page<>(requestParam.getCurrent(), requestParam.getSize()),
-                new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                        .eq(KnowledgeChunkEntity::getDocId, documentId)
-                        .eq(requestParam.getEnabled() != null, KnowledgeChunkEntity::getEnabled, requestParam.getEnabled())
-                        .orderByAsc(KnowledgeChunkEntity::getChunkIndex)
+                new LambdaQueryWrapper<KnowledgeChunkDO>()
+                        .eq(KnowledgeChunkDO::getDocId, documentId)
+                        .eq(requestParam.getEnabled() != null, KnowledgeChunkDO::getEnabled, requestParam.getEnabled())
+                        .orderByAsc(KnowledgeChunkDO::getChunkIndex)
         );
         return page.convert(this::toView);
     }
@@ -88,9 +88,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public KnowledgeChunkVO create(String docId, KnowledgeChunkCreateRequest requestParam) {
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
-        KnowledgeChunkEntity entity = persistChunk(document, kbDO, requestParam, resolveNextChunkIndex(docId), true);
+        KnowledgeDocumentDO document = requireActiveDocument(docId, true);
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeChunkDO entity = persistChunk(document, kbDO, requestParam, resolveNextChunkIndex(docId), true);
         return toView(entity);
     }
 
@@ -107,11 +107,11 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             return;
         }
 
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeDocumentDO document = requireActiveDocument(docId, true);
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
         boolean needAutoIndex = requestParams.stream().anyMatch(request -> request.getIndex() == null);
         int nextIndex = needAutoIndex ? resolveNextChunkIndex(docId) : 0;
-        List<KnowledgeChunkEntity> chunks = new ArrayList<>(requestParams.size());
+        List<KnowledgeChunkDO> chunks = new ArrayList<>(requestParams.size());
         for (KnowledgeChunkCreateRequest request : requestParams) {
             Integer index = request.getIndex() != null ? request.getIndex() : nextIndex++;
             chunks.add(persistChunk(document, kbDO, request, index, false));
@@ -124,14 +124,14 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void update(String docId, String chunkId, KnowledgeChunkUpdateRequest requestParam) {
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, false);
-        KnowledgeChunkEntity entity = requireChunk(parseId(docId), parseId(chunkId));
+        KnowledgeDocumentDO document = requireActiveDocument(docId, false);
+        KnowledgeChunkDO entity = requireChunk(parseId(docId), parseId(chunkId));
         String newContent = requireContent(requestParam.getContent());
         if (newContent.equals(entity.getContent())) {
             return;
         }
 
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
         entity.setContent(newContent);
         entity.setContentHash(sha256Hex(newContent));
         entity.setCharCount(newContent.length());
@@ -144,15 +144,15 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(String docId, String chunkId) {
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, false);
-        KnowledgeChunkEntity chunk = requireChunk(parseId(docId), parseId(chunkId));
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeDocumentDO document = requireActiveDocument(docId, false);
+        KnowledgeChunkDO chunk = requireChunk(parseId(docId), parseId(chunkId));
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
         knowledgeChunkMapper.deleteById(parseId(chunkId));
         knowledgeDocumentMapper.update(
                 null,
-                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KnowledgeDocumentEntity>()
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<KnowledgeDocumentDO>()
                         .setSql("chunk_count = CASE WHEN chunk_count > 0 THEN chunk_count - 1 ELSE 0 END")
-                        .eq(KnowledgeDocumentEntity::getId, parseId(docId))
+                        .eq(KnowledgeDocumentDO::getId, parseId(docId))
         );
         deleteVector(kbDO, String.valueOf(chunk.getId()));
     }
@@ -160,14 +160,14 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enableChunk(String docId, String chunkId, boolean enabled) {
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
-        KnowledgeChunkEntity entity = requireChunk(parseId(docId), parseId(chunkId));
+        KnowledgeDocumentDO document = requireActiveDocument(docId, true);
+        KnowledgeChunkDO entity = requireChunk(parseId(docId), parseId(chunkId));
         int enabledValue = enabled ? 1 : 0;
         if (entity.getEnabled() != null && entity.getEnabled() == enabledValue) {
             return;
         }
 
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
         entity.setEnabled(enabledValue);
         entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeChunkMapper.updateById(entity);
@@ -185,13 +185,13 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
             throw new IllegalArgumentException("chunk ids are required");
         }
 
-        KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
-        KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
+        KnowledgeDocumentDO document = requireActiveDocument(docId, true);
+        KnowledgeBaseDO kbDO = requireKnowledgeBase(document.getKbId());
         List<Long> chunkIds = requestParam.getChunkIds().stream().map(this::parseId).toList();
-        List<KnowledgeChunkEntity> chunks = knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                .eq(KnowledgeChunkEntity::getDocId, parseId(docId))
-                .in(KnowledgeChunkEntity::getId, chunkIds));
-        for (KnowledgeChunkEntity chunk : chunks) {
+        List<KnowledgeChunkDO> chunks = knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkDO>()
+                .eq(KnowledgeChunkDO::getDocId, parseId(docId))
+                .in(KnowledgeChunkDO::getId, chunkIds));
+        for (KnowledgeChunkDO chunk : chunks) {
             chunk.setEnabled(enabled ? 1 : 0);
             chunk.setUpdatedBy(parseUserId(UserContext.getUserId()));
             knowledgeChunkMapper.updateById(chunk);
@@ -201,9 +201,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         } else {
             List<String> vectorIds = chunks.stream().map(chunk -> String.valueOf(chunk.getId())).toList();
             vectorStoreService.deleteChunksByIds(kbDO.getCollectionName(), vectorIds);
-            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
-                    .eq(KnowledgeVectorRefEntity::getDocId, document.getId())
-                    .in(KnowledgeVectorRefEntity::getChunkId, chunks.stream().map(KnowledgeChunkEntity::getId).toList()));
+            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefDO>()
+                    .eq(KnowledgeVectorRefDO::getDocId, document.getId())
+                    .in(KnowledgeVectorRefDO::getChunkId, chunks.stream().map(KnowledgeChunkDO::getId).toList()));
         }
     }
 
@@ -214,10 +214,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         int enabledValue = enabled ? 1 : 0;
         knowledgeChunkMapper.update(
                 null,
-                new LambdaUpdateWrapper<KnowledgeChunkEntity>()
-                        .eq(KnowledgeChunkEntity::getDocId, documentId)
-                        .set(KnowledgeChunkEntity::getEnabled, enabledValue)
-                        .set(KnowledgeChunkEntity::getUpdatedBy, parseUserId(UserContext.getUserId()))
+                new LambdaUpdateWrapper<KnowledgeChunkDO>()
+                        .eq(KnowledgeChunkDO::getDocId, documentId)
+                        .set(KnowledgeChunkDO::getEnabled, enabledValue)
+                        .set(KnowledgeChunkDO::getUpdatedBy, parseUserId(UserContext.getUserId()))
         );
     }
 
@@ -225,9 +225,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     public List<KnowledgeChunkVO> listByDocId(String docId) {
         Long documentId = parseId(docId);
         requireDocument(documentId);
-        return knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                        .eq(KnowledgeChunkEntity::getDocId, documentId)
-                        .orderByAsc(KnowledgeChunkEntity::getChunkIndex))
+        return knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkDO>()
+                        .eq(KnowledgeChunkDO::getDocId, documentId)
+                        .orderByAsc(KnowledgeChunkDO::getChunkIndex))
                 .stream()
                 .map(this::toView)
                 .toList();
@@ -237,16 +237,16 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteByDocId(String docId) {
         Long documentId = parseId(docId);
-        knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                .eq(KnowledgeChunkEntity::getDocId, documentId));
+        knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkDO>()
+                .eq(KnowledgeChunkDO::getDocId, documentId));
     }
 
-    private KnowledgeChunkEntity persistChunk(KnowledgeDocumentEntity document,
-                                              KnowledgeBaseEntity kbDO,
+    private KnowledgeChunkDO persistChunk(KnowledgeDocumentDO document,
+                                              KnowledgeBaseDO kbDO,
                                               KnowledgeChunkCreateRequest requestParam,
                                               int chunkIndex,
                                               boolean writeVector) {
-        KnowledgeChunkEntity entity = new KnowledgeChunkEntity();
+        KnowledgeChunkDO entity = new KnowledgeChunkDO();
         Long explicitId = tryParseLong(requestParam.getChunkId());
         if (explicitId != null) {
             entity.setId(explicitId);
@@ -265,9 +265,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         knowledgeChunkMapper.insert(entity);
         knowledgeDocumentMapper.update(
                 null,
-                new LambdaUpdateWrapper<KnowledgeDocumentEntity>()
+                new LambdaUpdateWrapper<KnowledgeDocumentDO>()
                         .setSql("chunk_count = chunk_count + 1")
-                        .eq(KnowledgeDocumentEntity::getId, document.getId())
+                        .eq(KnowledgeDocumentDO::getId, document.getId())
         );
         if (writeVector) {
             syncChunkToVector(kbDO, document, entity);
@@ -275,19 +275,19 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return entity;
     }
 
-    private void syncChunksToVector(KnowledgeDocumentEntity document,
-                                    KnowledgeBaseEntity kbDO,
-                                    List<KnowledgeChunkEntity> chunks) {
+    private void syncChunksToVector(KnowledgeDocumentDO document,
+                                    KnowledgeBaseDO kbDO,
+                                    List<KnowledgeChunkDO> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
-        List<List<Float>> embeddings = embeddingService.embedBatch(chunks.stream().map(KnowledgeChunkEntity::getContent).toList());
+        List<List<Float>> embeddings = embeddingService.embedBatch(chunks.stream().map(KnowledgeChunkDO::getContent).toList());
         if (embeddings == null || embeddings.size() != chunks.size()) {
             throw new IllegalStateException("embedding result size mismatch");
         }
         List<VectorChunk> vectorChunks = new ArrayList<>(chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
-            KnowledgeChunkEntity chunk = chunks.get(i);
+            KnowledgeChunkDO chunk = chunks.get(i);
             vectorChunks.add(VectorChunk.builder()
                     .chunkId(String.valueOf(chunk.getId()))
                     .content(chunk.getContent())
@@ -297,14 +297,14 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
                     .build());
         }
         vectorStoreService.indexDocumentChunks(kbDO.getCollectionName(), String.valueOf(document.getId()), vectorChunks);
-        for (KnowledgeChunkEntity chunk : chunks) {
+        for (KnowledgeChunkDO chunk : chunks) {
             upsertVectorRef(document, kbDO, chunk);
         }
     }
 
-    private void syncChunkToVector(KnowledgeBaseEntity kbDO,
-                                   KnowledgeDocumentEntity document,
-                                   KnowledgeChunkEntity chunk) {
+    private void syncChunkToVector(KnowledgeBaseDO kbDO,
+                                   KnowledgeDocumentDO document,
+                                   KnowledgeChunkDO chunk) {
         VectorChunk vectorChunk = VectorChunk.builder()
                 .chunkId(String.valueOf(chunk.getId()))
                 .content(chunk.getContent())
@@ -316,23 +316,23 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         upsertVectorRef(document, kbDO, chunk);
     }
 
-    private void deleteVector(KnowledgeBaseEntity kbDO, String vectorId) {
+    private void deleteVector(KnowledgeBaseDO kbDO, String vectorId) {
         vectorStoreService.deleteChunkById(kbDO.getCollectionName(), vectorId);
         Long chunkId = tryParseLong(vectorId);
         if (chunkId != null) {
-            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
-                    .eq(KnowledgeVectorRefEntity::getChunkId, chunkId));
+            knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefDO>()
+                    .eq(KnowledgeVectorRefDO::getChunkId, chunkId));
         }
     }
 
-    private void upsertVectorRef(KnowledgeDocumentEntity document,
-                                 KnowledgeBaseEntity kbDO,
-                                 KnowledgeChunkEntity chunk) {
-        KnowledgeVectorRefEntity ref = knowledgeVectorRefMapper.selectOne(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
-                .eq(KnowledgeVectorRefEntity::getChunkId, chunk.getId())
+    private void upsertVectorRef(KnowledgeDocumentDO document,
+                                 KnowledgeBaseDO kbDO,
+                                 KnowledgeChunkDO chunk) {
+        KnowledgeVectorRefDO ref = knowledgeVectorRefMapper.selectOne(new LambdaQueryWrapper<KnowledgeVectorRefDO>()
+                .eq(KnowledgeVectorRefDO::getChunkId, chunk.getId())
                 .last("LIMIT 1"));
         if (ref == null) {
-            ref = new KnowledgeVectorRefEntity();
+            ref = new KnowledgeVectorRefDO();
             ref.setChunkId(chunk.getId());
             ref.setCreatedBy(parseUserId(UserContext.getUserId()));
             ref.setDeleted(0);
@@ -351,9 +351,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         }
     }
 
-    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentEntity document,
-                                                    KnowledgeBaseEntity kbDO,
-                                                    KnowledgeChunkEntity chunk) {
+    private Map<String, Object> buildVectorMetadata(KnowledgeDocumentDO document,
+                                                    KnowledgeBaseDO kbDO,
+                                                    KnowledgeChunkDO chunk) {
         Map<String, Object> metadata = new HashMap<>();
         String chunkId = String.valueOf(chunk.getId());
         String documentId = String.valueOf(document.getId());
@@ -394,8 +394,8 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return values;
     }
 
-    private KnowledgeDocumentEntity requireActiveDocument(String docId, boolean requireEnabled) {
-        KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(parseId(docId));
+    private KnowledgeDocumentDO requireActiveDocument(String docId, boolean requireEnabled) {
+        KnowledgeDocumentDO entity = knowledgeDocumentMapper.selectById(parseId(docId));
         if (entity == null) {
             throw new IllegalArgumentException("document not found");
         }
@@ -409,9 +409,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     }
 
     private Integer resolveNextChunkIndex(String docId) {
-        KnowledgeChunkEntity latest = knowledgeChunkMapper.selectOne(new LambdaQueryWrapper<KnowledgeChunkEntity>()
-                .eq(KnowledgeChunkEntity::getDocId, parseId(docId))
-                .orderByDesc(KnowledgeChunkEntity::getChunkIndex)
+        KnowledgeChunkDO latest = knowledgeChunkMapper.selectOne(new LambdaQueryWrapper<KnowledgeChunkDO>()
+                .eq(KnowledgeChunkDO::getDocId, parseId(docId))
+                .orderByDesc(KnowledgeChunkDO::getChunkIndex)
                 .last("LIMIT 1"));
         return latest == null || latest.getChunkIndex() == null ? 0 : latest.getChunkIndex() + 1;
     }
@@ -475,7 +475,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         }
     }
 
-    private KnowledgeChunkVO toView(KnowledgeChunkEntity chunk) {
+    private KnowledgeChunkVO toView(KnowledgeChunkDO chunk) {
         KnowledgeChunkVO vo = BeanUtil.toBean(chunk, KnowledgeChunkVO.class);
         vo.setId(String.valueOf(chunk.getId()));
         vo.setKbId(String.valueOf(chunk.getKbId()));
@@ -485,24 +485,24 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return vo;
     }
 
-    private KnowledgeChunkEntity requireChunk(Long documentId, Long chunkId) {
-        KnowledgeChunkEntity entity = knowledgeChunkMapper.selectById(chunkId);
+    private KnowledgeChunkDO requireChunk(Long documentId, Long chunkId) {
+        KnowledgeChunkDO entity = knowledgeChunkMapper.selectById(chunkId);
         if (entity == null || !Objects.equals(entity.getDocId(), documentId)) {
             throw new IllegalArgumentException("chunk not found");
         }
         return entity;
     }
 
-    private KnowledgeDocumentEntity requireDocument(Long documentId) {
-        KnowledgeDocumentEntity entity = knowledgeDocumentMapper.selectById(documentId);
+    private KnowledgeDocumentDO requireDocument(Long documentId) {
+        KnowledgeDocumentDO entity = knowledgeDocumentMapper.selectById(documentId);
         if (entity == null) {
             throw new IllegalArgumentException("document not found");
         }
         return entity;
     }
 
-    private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {
-        KnowledgeBaseEntity entity = knowledgeBaseMapper.selectById(kbId);
+    private KnowledgeBaseDO requireKnowledgeBase(Long kbId) {
+        KnowledgeBaseDO entity = knowledgeBaseMapper.selectById(kbId);
         if (entity == null) {
             throw new IllegalArgumentException("knowledge base not found");
         }
@@ -516,3 +516,4 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return Long.valueOf(value.trim());
     }
 }
+

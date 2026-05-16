@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.knowledge.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentDO;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleDO;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleExecDO;
 import com.personalblog.ragbackend.knowledge.domain.enums.SourceType;
@@ -32,12 +32,12 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
     }
 
     @Override
-    public void upsertSchedule(KnowledgeDocumentEntity documentDO) {
+    public void upsertSchedule(KnowledgeDocumentDO documentDO) {
         syncSchedule(documentDO, true);
     }
 
     @Override
-    public void syncScheduleIfExists(KnowledgeDocumentEntity documentDO) {
+    public void syncScheduleIfExists(KnowledgeDocumentDO documentDO) {
         syncSchedule(documentDO, false);
     }
 
@@ -53,7 +53,7 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
                 .eq(KnowledgeDocumentScheduleDO::getDocId, Long.valueOf(docId)));
     }
 
-    private void syncSchedule(KnowledgeDocumentEntity documentDO, boolean allowCreate) {
+    private void syncSchedule(KnowledgeDocumentDO documentDO, boolean allowCreate) {
         if (documentDO == null) {
             return;
         }
@@ -119,3 +119,4 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
         );
     }
 }
+

@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.knowledge.service.vector;
 
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -30,7 +30,7 @@ public class KnowledgeVectorSpaceResolver {
     }
 
     public KnowledgeVectorSpace resolve(String baseCode) {
-        KnowledgeBaseEntity knowledgeBase = findKnowledgeBase(baseCode);
+        KnowledgeBaseDO knowledgeBase = findKnowledgeBase(baseCode);
         if (knowledgeBase != null) {
             return new KnowledgeVectorSpace(
                     new KnowledgeVectorSpaceId(String.valueOf(knowledgeBase.getId()), resolveNamespace()),
@@ -71,7 +71,7 @@ public class KnowledgeVectorSpaceResolver {
         return "kb_" + normalizedBaseCode;
     }
 
-    private KnowledgeBaseEntity findKnowledgeBase(String baseCode) {
+    private KnowledgeBaseDO findKnowledgeBase(String baseCode) {
         KnowledgeBaseMapper mapper = knowledgeBaseMapperProvider == null ? null : knowledgeBaseMapperProvider.getIfAvailable();
         if (mapper == null || !StringUtils.hasText(baseCode)) {
             return null;
@@ -80,7 +80,7 @@ public class KnowledgeVectorSpaceResolver {
         String candidate = baseCode.trim();
         try {
             long id = Long.parseLong(candidate);
-            KnowledgeBaseEntity byId = mapper.selectById(id);
+            KnowledgeBaseDO byId = mapper.selectById(id);
             if (byId != null) {
                 return byId;
             }
@@ -93,7 +93,7 @@ public class KnowledgeVectorSpaceResolver {
                 .orElse(null);
     }
 
-    private boolean matchesKnowledgeBase(KnowledgeBaseEntity entity, String candidate) {
+    private boolean matchesKnowledgeBase(KnowledgeBaseDO entity, String candidate) {
         if (entity == null) {
             return false;
         }
@@ -124,3 +124,4 @@ public class KnowledgeVectorSpaceResolver {
         return "pg";
     }
 }
+

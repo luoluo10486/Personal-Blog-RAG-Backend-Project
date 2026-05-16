@@ -4,7 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
@@ -68,14 +68,14 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         double maxScore = allScores.stream().mapToDouble(NodeScore::score).max().orElse(0D);
         double confidenceThreshold = properties.getChannels().getVectorGlobal().getConfidenceThreshold();
         if (maxScore < confidenceThreshold) {
-            log.info("意图置信度低于阈值，启用全局检索：{}", maxScore);
+            log.info("鎰忓浘缃俊搴︿綆浜庨槇鍊硷紝鍚敤鍏ㄥ眬妫€绱細{}", maxScore);
             return true;
         }
 
         double supplementThreshold = properties.getChannels().getVectorGlobal().getSingleIntentSupplementThreshold();
         boolean shouldSupplement = allScores.size() == 1 && maxScore < supplementThreshold;
         if (shouldSupplement) {
-            log.info("单意图置信度低于补充阈值，启用全局检索：{}", maxScore);
+            log.info("鍗曟剰鍥剧疆淇″害浣庝簬琛ュ厖闃堝€硷紝鍚敤鍏ㄥ眬妫€绱細{}", maxScore);
         }
         return shouldSupplement;
     }
@@ -94,7 +94,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         try {
             List<String> collections = resolveCollections(context);
             if (collections.isEmpty()) {
-                log.info("未解析到可用知识库集合，跳过全局检索");
+                log.info("鏈В鏋愬埌鍙敤鐭ヨ瘑搴撻泦鍚堬紝璺宠繃鍏ㄥ眬妫€绱?");
                 return SearchChannelResult.builder()
                         .channelType(getType())
                         .channelName(getName())
@@ -114,7 +114,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
                     .metadata(java.util.Map.of("collectionCount", collections.size()))
                     .build();
         } catch (Exception exception) {
-            log.error("全局检索通道执行失败", exception);
+            log.error("鍏ㄥ眬妫€绱㈤€氶亾鎵ц澶辫触", exception);
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())
@@ -148,12 +148,12 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         }
 
         Set<String> collections = new HashSet<>();
-        List<KnowledgeBaseEntity> knowledgeBases = knowledgeBaseMapper.selectList(
-                Wrappers.lambdaQuery(KnowledgeBaseEntity.class)
-                        .select(KnowledgeBaseEntity::getCollectionName)
-                        .eq(KnowledgeBaseEntity::getDeleted, 0)
+        List<KnowledgeBaseDO> knowledgeBases = knowledgeBaseMapper.selectList(
+                Wrappers.lambdaQuery(KnowledgeBaseDO.class)
+                        .select(KnowledgeBaseDO::getCollectionName)
+                        .eq(KnowledgeBaseDO::getDeleted, 0)
         );
-        for (KnowledgeBaseEntity knowledgeBase : knowledgeBases) {
+        for (KnowledgeBaseDO knowledgeBase : knowledgeBases) {
             if (knowledgeBase != null && StrUtil.isNotBlank(knowledgeBase.getCollectionName())) {
                 collections.add(knowledgeBase.getCollectionName());
             }
@@ -170,3 +170,5 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         return "";
     }
 }
+
+
