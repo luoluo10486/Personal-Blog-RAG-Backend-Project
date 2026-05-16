@@ -18,12 +18,14 @@ import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.RateLimitS
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.UploadSettings;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -105,14 +107,14 @@ public class RAGSettingsController {
                 .selection(aiModelProperties.getSelection() == null
                         ? null
                         : AISettings.Selection.builder()
-                        .failureThreshold(aiModelProperties.getSelection().getFailureThreshold())
-                        .openDurationMs(aiModelProperties.getSelection().getOpenDurationMs())
-                        .build())
+                          .failureThreshold(aiModelProperties.getSelection().getFailureThreshold())
+                          .openDurationMs(aiModelProperties.getSelection().getOpenDurationMs())
+                          .build())
                 .stream(aiModelProperties.getStream() == null
                         ? null
                         : AISettings.Stream.builder()
-                        .messageChunkSize(aiModelProperties.getStream().getMessageChunkSize())
-                        .build())
+                          .messageChunkSize(aiModelProperties.getStream().getMessageChunkSize())
+                          .build())
                 .build();
     }
 
@@ -134,12 +136,12 @@ public class RAGSettingsController {
                                 .enabled(candidate.getEnabled())
                                 .supportsThinking(candidate.getSupportsThinking())
                                 .build())
-                        .toList())
+                        .collect(Collectors.toList()))
                 .build();
     }
 
     private String maskApiKey(String apiKey) {
-        if (apiKey == null || apiKey.isBlank()) {
+        if (!StringUtils.hasText(apiKey)) {
             return null;
         }
         String trimmed = apiKey.trim();

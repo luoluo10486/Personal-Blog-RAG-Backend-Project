@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.rag.core.mcp;
 
-import com.personalblog.ragbackend.rag.core.mcp.client.MCPClient;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema.Tool;
 
 /**
  * Compatibility layer keeping the old `RemoteMCPToolExecutor` type.
@@ -9,7 +10,7 @@ import com.personalblog.ragbackend.rag.core.mcp.client.MCPClient;
 @Deprecated
 public class RemoteMCPToolExecutor extends McpClientToolExecutor {
 
-    public RemoteMCPToolExecutor(MCPClient mcpClient, MCPTool toolDefinition) {
-        super(mcpClient, toolDefinition);
+    public RemoteMCPToolExecutor(McpSyncClient mcpClient, Tool toolDefinition, String serverUrl) {
+        super(mcpClient, toolDefinition, serverUrl);
     }
 }
