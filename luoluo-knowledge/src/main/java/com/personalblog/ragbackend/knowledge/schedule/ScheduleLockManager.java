@@ -2,7 +2,7 @@ package com.personalblog.ragbackend.knowledge.schedule;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeScheduleProperties;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentScheduleMapper;
 import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
@@ -30,13 +30,13 @@ public class ScheduleLockManager {
         }
         ScheduleLockLease lease = new ScheduleLockLease(scheduleId, nextLockToken());
         int updated = scheduleMapper.update(
-                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleEntity.class)
-                        .set(KnowledgeDocumentScheduleEntity::getLockOwner, lease.lockToken())
-                        .set(KnowledgeDocumentScheduleEntity::getLockUntil, computeLockUntilAsLocalDateTime())
-                        .eq(KnowledgeDocumentScheduleEntity::getId, Long.valueOf(scheduleId))
-                        .and(wrapper -> wrapper.isNull(KnowledgeDocumentScheduleEntity::getLockUntil)
+                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
+                        .set(KnowledgeDocumentScheduleDO::getLockOwner, lease.lockToken())
+                        .set(KnowledgeDocumentScheduleDO::getLockUntil, computeLockUntilAsLocalDateTime())
+                        .eq(KnowledgeDocumentScheduleDO::getId, Long.valueOf(scheduleId))
+                        .and(wrapper -> wrapper.isNull(KnowledgeDocumentScheduleDO::getLockUntil)
                                 .or()
-                                .lt(KnowledgeDocumentScheduleEntity::getLockUntil, now))
+                                .lt(KnowledgeDocumentScheduleDO::getLockUntil, now))
         );
         return updated > 0 ? lease : null;
     }
@@ -46,10 +46,10 @@ public class ScheduleLockManager {
             return false;
         }
         return scheduleMapper.update(
-                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleEntity.class)
-                        .set(KnowledgeDocumentScheduleEntity::getLockUntil, computeLockUntilAsLocalDateTime())
-                        .eq(KnowledgeDocumentScheduleEntity::getId, Long.valueOf(lease.scheduleId()))
-                        .eq(KnowledgeDocumentScheduleEntity::getLockOwner, lease.lockToken())
+                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
+                        .set(KnowledgeDocumentScheduleDO::getLockUntil, computeLockUntilAsLocalDateTime())
+                        .eq(KnowledgeDocumentScheduleDO::getId, Long.valueOf(lease.scheduleId()))
+                        .eq(KnowledgeDocumentScheduleDO::getLockOwner, lease.lockToken())
         ) > 0;
     }
 
@@ -58,11 +58,11 @@ public class ScheduleLockManager {
             return false;
         }
         return scheduleMapper.update(
-                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleEntity.class)
-                        .set(KnowledgeDocumentScheduleEntity::getLockOwner, null)
-                        .set(KnowledgeDocumentScheduleEntity::getLockUntil, null)
-                        .eq(KnowledgeDocumentScheduleEntity::getId, Long.valueOf(lease.scheduleId()))
-                        .eq(KnowledgeDocumentScheduleEntity::getLockOwner, lease.lockToken())
+                Wrappers.lambdaUpdate(KnowledgeDocumentScheduleDO.class)
+                        .set(KnowledgeDocumentScheduleDO::getLockOwner, null)
+                        .set(KnowledgeDocumentScheduleDO::getLockUntil, null)
+                        .eq(KnowledgeDocumentScheduleDO::getId, Long.valueOf(lease.scheduleId()))
+                        .eq(KnowledgeDocumentScheduleDO::getLockOwner, lease.lockToken())
         ) > 0;
     }
 

@@ -3,8 +3,8 @@ package com.personalblog.ragbackend.knowledge.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleEntity;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleExecEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleDO;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleExecDO;
 import com.personalblog.ragbackend.knowledge.domain.enums.SourceType;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentScheduleExecMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentScheduleMapper;
@@ -47,10 +47,10 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
         if (!StringUtils.hasText(docId)) {
             return;
         }
-        scheduleExecMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentScheduleExecEntity>()
-                .eq(KnowledgeDocumentScheduleExecEntity::getDocId, Long.valueOf(docId)));
-        scheduleMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentScheduleEntity>()
-                .eq(KnowledgeDocumentScheduleEntity::getDocId, Long.valueOf(docId)));
+        scheduleExecMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentScheduleExecDO>()
+                .eq(KnowledgeDocumentScheduleExecDO::getDocId, Long.valueOf(docId)));
+        scheduleMapper.delete(new LambdaQueryWrapper<KnowledgeDocumentScheduleDO>()
+                .eq(KnowledgeDocumentScheduleDO::getDocId, Long.valueOf(docId)));
     }
 
     private void syncSchedule(KnowledgeDocumentEntity documentDO, boolean allowCreate) {
@@ -90,16 +90,16 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
             }
         }
 
-        KnowledgeDocumentScheduleEntity existing = scheduleMapper.selectOne(
-                new LambdaQueryWrapper<KnowledgeDocumentScheduleEntity>()
-                        .eq(KnowledgeDocumentScheduleEntity::getDocId, documentDO.getId())
+        KnowledgeDocumentScheduleDO existing = scheduleMapper.selectOne(
+                new LambdaQueryWrapper<KnowledgeDocumentScheduleDO>()
+                        .eq(KnowledgeDocumentScheduleDO::getDocId, documentDO.getId())
                         .last("LIMIT 1")
         );
         if (existing == null) {
             if (!allowCreate) {
                 return;
             }
-            KnowledgeDocumentScheduleEntity entity = new KnowledgeDocumentScheduleEntity();
+            KnowledgeDocumentScheduleDO entity = new KnowledgeDocumentScheduleDO();
             entity.setDocId(documentDO.getId());
             entity.setKbId(documentDO.getKbId());
             entity.setCronExpr(cron);
@@ -111,11 +111,11 @@ public class KnowledgeDocumentScheduleServiceImpl implements KnowledgeDocumentSc
 
         scheduleMapper.update(
                 null,
-                new LambdaUpdateWrapper<KnowledgeDocumentScheduleEntity>()
-                        .eq(KnowledgeDocumentScheduleEntity::getId, existing.getId())
-                        .set(KnowledgeDocumentScheduleEntity::getCronExpr, cron)
-                        .set(KnowledgeDocumentScheduleEntity::getEnabled, enabled ? 1 : 0)
-                        .set(KnowledgeDocumentScheduleEntity::getNextRunTime, nextRunTime == null ? null : nextRunTime.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                new LambdaUpdateWrapper<KnowledgeDocumentScheduleDO>()
+                        .eq(KnowledgeDocumentScheduleDO::getId, existing.getId())
+                        .set(KnowledgeDocumentScheduleDO::getCronExpr, cron)
+                        .set(KnowledgeDocumentScheduleDO::getEnabled, enabled ? 1 : 0)
+                        .set(KnowledgeDocumentScheduleDO::getNextRunTime, nextRunTime == null ? null : nextRunTime.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
         );
     }
 }

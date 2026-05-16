@@ -1,7 +1,7 @@
 package com.personalblog.ragbackend.knowledge.schedule;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleEntity;
+import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentScheduleDO;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentScheduleMapper;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeDocumentService;
 import lombok.RequiredArgsConstructor;
@@ -20,13 +20,13 @@ public class ScheduleRefreshProcessor {
 
     @Transactional
     public void refresh() {
-        List<KnowledgeDocumentScheduleEntity> dueSchedules = scheduleMapper.selectList(
-                new LambdaQueryWrapper<KnowledgeDocumentScheduleEntity>()
-                        .eq(KnowledgeDocumentScheduleEntity::getEnabled, 1)
-                        .le(KnowledgeDocumentScheduleEntity::getNextRunTime, LocalDateTime.now())
-                        .orderByAsc(KnowledgeDocumentScheduleEntity::getNextRunTime)
+        List<KnowledgeDocumentScheduleDO> dueSchedules = scheduleMapper.selectList(
+                new LambdaQueryWrapper<KnowledgeDocumentScheduleDO>()
+                        .eq(KnowledgeDocumentScheduleDO::getEnabled, 1)
+                        .le(KnowledgeDocumentScheduleDO::getNextRunTime, LocalDateTime.now())
+                        .orderByAsc(KnowledgeDocumentScheduleDO::getNextRunTime)
         );
-        for (KnowledgeDocumentScheduleEntity schedule : dueSchedules) {
+        for (KnowledgeDocumentScheduleDO schedule : dueSchedules) {
             ScheduleLockLease lease = scheduleLockManager.tryAcquire(String.valueOf(schedule.getId()), new java.util.Date());
             if (lease == null) {
                 continue;
