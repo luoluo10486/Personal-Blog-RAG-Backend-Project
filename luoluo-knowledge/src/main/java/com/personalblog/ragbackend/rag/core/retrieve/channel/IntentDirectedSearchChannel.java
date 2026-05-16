@@ -6,7 +6,6 @@ import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.NodeScoreFilters;
-import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieverService;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.strategy.IntentParallelRetriever;
 import lombok.extern.slf4j.Slf4j;
@@ -77,15 +76,13 @@ public class IntentDirectedSearchChannel implements SearchChannel {
             }
 
             int topKMultiplier = Math.max(properties.getChannels().getIntentDirected().getTopKMultiplier(), 1);
-            List<IntentParallelRetriever.IntentTask> tasks = kbIntents.stream()
-                    .map(nodeScore -> new IntentParallelRetriever.IntentTask(
-                            nodeScore,
-                            resolveCollectionName(nodeScore),
-                            resolveTopK(nodeScore, Math.max(context.getTopK(), 1), topKMultiplier)
-                    ))
-                    .toList();
             String question = context.getMainQuestion();
-            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(question, tasks, Math.max(context.getTopK(), 1));
+            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(
+                    question,
+                    kbIntents,
+                    Math.max(context.getTopK(), 1),
+                    topKMultiplier
+            );
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())
@@ -119,21 +116,4 @@ public class IntentDirectedSearchChannel implements SearchChannel {
         return NodeScoreFilters.kb(allScores, properties.getChannels().getIntentDirected().getMinIntentScore());
     }
 
-    private String resolveCollectionName(NodeScore nodeScore) {
-        if (nodeScore == null || nodeScore.node() == null) {
-            return "";
-        }
-        RagIntentNode node = nodeScore.node();
-        if (StrUtil.isNotBlank(node.getCollectionName())) {
-            return node.getCollectionName().trim();
-        }
-        return "";
-    }
-
-    private int resolveTopK(NodeScore nodeScore, int fallbackTopK, int multiplier) {
-        if (nodeScore == null || nodeScore.node() == null || nodeScore.node().getTopK() == null || nodeScore.node().getTopK() <= 0) {
-            return fallbackTopK * multiplier;
-        }
-        return nodeScore.node().getTopK() * multiplier;
-    }
 }

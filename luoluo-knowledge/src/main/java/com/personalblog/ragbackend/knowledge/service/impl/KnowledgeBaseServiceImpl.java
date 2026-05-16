@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -13,14 +14,15 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeBaseService;
-import com.personalblog.ragbackend.knowledge.service.document.KnowledgeFileStorageService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceId;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreAdmin;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 
 import java.util.List;
 import java.util.Map;
@@ -30,17 +32,17 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
-    private final KnowledgeFileStorageService knowledgeFileStorageService;
-    private final ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider;
+    private final VectorStoreAdmin vectorStoreAdmin;
+    private final S3Client s3Client;
 
     public KnowledgeBaseServiceImpl(KnowledgeBaseMapper knowledgeBaseMapper,
                                     KnowledgeDocumentMapper knowledgeDocumentMapper,
-                                    KnowledgeFileStorageService knowledgeFileStorageService,
-                                    ObjectProvider<VectorStoreAdmin> vectorStoreAdminProvider) {
+                                    VectorStoreAdmin vectorStoreAdmin,
+                                    S3Client s3Client) {
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
-        this.knowledgeFileStorageService = knowledgeFileStorageService;
-        this.vectorStoreAdminProvider = vectorStoreAdminProvider;
+        this.vectorStoreAdmin = vectorStoreAdmin;
+        this.s3Client = s3Client;
     }
 
     @Override
@@ -58,7 +60,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         assertCollectionAvailable(collectionName, null);
 
         KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
-        entity.setName(name);
+        entity.setName(requestParam.getName());
         entity.setEmbeddingModel(StringUtils.hasText(requestParam.getEmbeddingModel())
                 ? requestParam.getEmbeddingModel().trim()
                 : "Qwen/Qwen3-Embedding-8B");
@@ -68,17 +70,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         entity.setDeleted(0);
         knowledgeBaseMapper.insert(entity);
-        knowledgeFileStorageService.ensureBucketExists(knowledgeFileStorageService.resolveBucketName(collectionName));
-        VectorStoreAdmin vectorStoreAdmin = vectorStoreAdminProvider.getIfAvailable();
-        if (vectorStoreAdmin != null) {
-            vectorStoreAdmin.ensureVectorSpace(new KnowledgeVectorSpace(
-                    new KnowledgeVectorSpaceId(collectionName, "public"),
-                    collectionName,
-                    "pg",
-                    entity.getEmbeddingModel(),
-                    1536
-            ));
+        try {
+            s3Client.createBucket(builder -> builder.bucket(collectionName));
+        } catch (BucketAlreadyOwnedByYouException | BucketAlreadyExistsException exception) {
+            throw new IllegalArgumentException("collection name already exists");
         }
+        vectorStoreAdmin.ensureVectorSpace(new KnowledgeVectorSpace(
+                new KnowledgeVectorSpaceId(collectionName, "public"),
+                collectionName,
+                "pg",
+                entity.getEmbeddingModel(),
+                1536
+        ));
         return String.valueOf(entity.getId());
     }
 
@@ -129,7 +132,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         if (nameCount > 0) {
             throw new IllegalArgumentException("knowledge base name already exists");
         }
-        entity.setName(requestParam.getName().trim());
+        entity.setName(requestParam.getName());
         entity.setUpdatedBy(parseUserId(UserContext.getUserId()));
         knowledgeBaseMapper.updateById(entity);
     }
@@ -150,17 +153,9 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     @Override
     public KnowledgeBaseVO queryById(String kbId) {
         KnowledgeBaseEntity entity = requireKnowledgeBase(parseId(kbId));
-        KnowledgeBaseVO vo = new KnowledgeBaseVO();
-        vo.setId(String.valueOf(entity.getId()));
-        vo.setName(entity.getName());
-        vo.setEmbeddingModel(entity.getEmbeddingModel());
-        vo.setCollectionName(entity.getCollectionName());
-        vo.setDocumentCount(knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
+        KnowledgeBaseVO vo = toView(entity, knowledgeDocumentMapper.selectCount(new LambdaQueryWrapper<KnowledgeDocumentEntity>()
                 .eq(KnowledgeDocumentEntity::getKbId, entity.getId())
                 .eq(KnowledgeDocumentEntity::getDeleted, 0)));
-        vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
-        vo.setCreateTime(entity.getCreatedAt() == null ? null : java.util.Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
-        vo.setUpdateTime(entity.getUpdatedAt() == null ? null : java.util.Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
         return vo;
     }
 
@@ -182,17 +177,18 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
                 .stream()
                 .collect(Collectors.groupingBy(KnowledgeDocumentEntity::getKbId, Collectors.counting()));
         return result.convert(entity -> {
-            KnowledgeBaseVO vo = new KnowledgeBaseVO();
-            vo.setId(String.valueOf(entity.getId()));
-            vo.setName(entity.getName());
-            vo.setEmbeddingModel(entity.getEmbeddingModel());
-            vo.setCollectionName(entity.getCollectionName());
-            vo.setDocumentCount(documentCountMap.getOrDefault(entity.getId(), 0L));
-            vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
-            vo.setCreateTime(entity.getCreatedAt() == null ? null : java.util.Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
-            vo.setUpdateTime(entity.getUpdatedAt() == null ? null : java.util.Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
-            return vo;
+            return toView(entity, documentCountMap.getOrDefault(entity.getId(), 0L));
         });
+    }
+
+    private KnowledgeBaseVO toView(KnowledgeBaseEntity entity, Long documentCount) {
+        KnowledgeBaseVO vo = BeanUtil.toBean(entity, KnowledgeBaseVO.class);
+        vo.setId(String.valueOf(entity.getId()));
+        vo.setDocumentCount(documentCount);
+        vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
+        vo.setCreateTime(entity.getCreatedAt() == null ? null : java.util.Date.from(entity.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
+        vo.setUpdateTime(entity.getUpdatedAt() == null ? null : java.util.Date.from(entity.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()));
+        return vo;
     }
 
     private KnowledgeBaseEntity requireKnowledgeBase(Long kbId) {

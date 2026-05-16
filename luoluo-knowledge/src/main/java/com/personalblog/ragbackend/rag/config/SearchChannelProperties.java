@@ -2,13 +2,14 @@ package com.personalblog.ragbackend.rag.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 @Data
-@Configuration
+@Component
 @ConfigurationProperties(prefix = "rag.search")
 public class SearchChannelProperties {
 
+    private int defaultTopK = 10;
     private Channels channels = new Channels();
 
     @Data

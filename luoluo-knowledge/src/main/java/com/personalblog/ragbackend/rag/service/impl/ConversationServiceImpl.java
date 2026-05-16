@@ -13,7 +13,7 @@ import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
 import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMapper;
 import com.personalblog.ragbackend.rag.dao.mapper.RagConversationMessageMapper;
 import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.rag.controller.request.ConversationUpdateRequest;
 import com.personalblog.ragbackend.rag.controller.vo.ConversationVO;

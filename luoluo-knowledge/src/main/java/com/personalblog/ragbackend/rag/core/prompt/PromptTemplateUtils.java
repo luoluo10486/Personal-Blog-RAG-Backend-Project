@@ -3,6 +3,7 @@ package com.personalblog.ragbackend.rag.core.prompt;
 import cn.hutool.core.util.StrUtil;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.regex.Pattern;
 
 public final class PromptTemplateUtils {
@@ -31,5 +32,33 @@ public final class PromptTemplateUtils {
             result = result.replace("{" + entry.getKey() + "}", value);
         }
         return result;
+    }
+
+    public static Map<String, String> parseSections(String template) {
+        Map<String, String> sections = new LinkedHashMap<>();
+        if (StrUtil.isBlank(template)) {
+            return sections;
+        }
+
+        String currentSection = null;
+        StringBuilder buffer = new StringBuilder();
+        for (String line : template.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("--- section:")) {
+                if (currentSection != null) {
+                    sections.put(currentSection, buffer.toString().trim());
+                    buffer.setLength(0);
+                }
+                currentSection = trimmed.substring("--- section:".length()).replace("---", "").trim();
+                continue;
+            }
+            if (currentSection != null) {
+                buffer.append(line).append('\n');
+            }
+        }
+        if (currentSection != null) {
+            sections.put(currentSection, buffer.toString().trim());
+        }
+        return sections;
     }
 }

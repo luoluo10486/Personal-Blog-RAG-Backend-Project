@@ -20,20 +20,20 @@ public class IntentTreeCacheManager {
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
-    public List<RagIntentNode> getIntentTreeFromCache() {
+    public List<IntentNode> getIntentTreeFromCache() {
         try {
             String cacheJson = stringRedisTemplate.opsForValue().get(INTENT_TREE_CACHE_KEY);
             if (cacheJson == null) {
                 return null;
             }
-            return objectMapper.readValue(cacheJson, new TypeReference<List<RagIntentNode>>() {});
+            return objectMapper.readValue(cacheJson, new TypeReference<List<IntentNode>>() {});
         } catch (Exception e) {
             log.warn("Failed to read intent tree cache", e);
             return null;
         }
     }
 
-    public void saveIntentTreeToCache(List<RagIntentNode> roots) {
+    public void saveIntentTreeToCache(List<IntentNode> roots) {
         try {
             stringRedisTemplate.opsForValue().set(
                     INTENT_TREE_CACHE_KEY,

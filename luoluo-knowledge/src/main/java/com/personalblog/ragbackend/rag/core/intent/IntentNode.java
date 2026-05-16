@@ -37,6 +37,98 @@ public class IntentNode {
     public String parentId;
     public List<IntentNode> children = new ArrayList<>();
 
+    public static IntentNodeBuilder builder() {
+        return new IntentNodeBuilder();
+    }
+
+    public static class IntentNodeBuilder {
+        private final IntentNode node = new IntentNode();
+
+        public IntentNodeBuilder id(String id) {
+            node.setId(id);
+            return this;
+        }
+
+        public IntentNodeBuilder kbId(String kbId) {
+            node.setKbId(kbId);
+            return this;
+        }
+
+        public IntentNodeBuilder name(String name) {
+            node.setName(name);
+            return this;
+        }
+
+        public IntentNodeBuilder description(String description) {
+            node.setDescription(description);
+            return this;
+        }
+
+        public IntentNodeBuilder level(IntentLevel level) {
+            node.setLevel(level);
+            return this;
+        }
+
+        public IntentNodeBuilder parentId(String parentId) {
+            node.setParentId(parentId);
+            return this;
+        }
+
+        public IntentNodeBuilder examples(List<String> examples) {
+            node.setExamples(examples);
+            return this;
+        }
+
+        public IntentNodeBuilder children(List<IntentNode> children) {
+            node.setChildren(children);
+            return this;
+        }
+
+        public IntentNodeBuilder fullPath(String fullPath) {
+            node.setFullPath(fullPath);
+            return this;
+        }
+
+        public IntentNodeBuilder kind(IntentKind kind) {
+            node.setKind(kind);
+            return this;
+        }
+
+        public IntentNodeBuilder collectionName(String collectionName) {
+            node.setCollectionName(collectionName);
+            return this;
+        }
+
+        public IntentNodeBuilder mcpToolId(String mcpToolId) {
+            node.setMcpToolId(mcpToolId);
+            return this;
+        }
+
+        public IntentNodeBuilder topK(Integer topK) {
+            node.setTopK(topK);
+            return this;
+        }
+
+        public IntentNodeBuilder promptSnippet(String promptSnippet) {
+            node.setPromptSnippet(promptSnippet);
+            return this;
+        }
+
+        public IntentNodeBuilder promptTemplate(String promptTemplate) {
+            node.setPromptTemplate(promptTemplate);
+            return this;
+        }
+
+        public IntentNodeBuilder paramPromptTemplate(String paramPromptTemplate) {
+            node.setParamPromptTemplate(paramPromptTemplate);
+            return this;
+        }
+
+        public IntentNode build() {
+            return node;
+        }
+    }
+
     public String getId() {
         return intentCode;
     }
@@ -219,8 +311,16 @@ public class IntentNode {
         return kind == null || kind == IntentKind.KB.getCode();
     }
 
+    public boolean isKb() {
+        return isKB();
+    }
+
     public boolean isMCP() {
         return kind != null && kind == IntentKind.MCP.getCode();
+    }
+
+    public boolean isMcp() {
+        return isMCP();
     }
 
     public boolean isSystem() {

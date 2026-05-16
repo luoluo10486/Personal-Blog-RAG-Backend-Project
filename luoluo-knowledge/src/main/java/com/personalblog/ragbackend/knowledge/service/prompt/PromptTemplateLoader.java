@@ -2,15 +2,12 @@ package com.personalblog.ragbackend.knowledge.service.prompt;
 
 import cn.hutool.core.util.StrUtil;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Service;
-
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Service
 public class PromptTemplateLoader {
     public String load(String classpathLocation) {
         try {

@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.Date;
 
+/**
+ * Knowledge base view object.
+ */
 @Data
 public class KnowledgeBaseVO {
     private String id;

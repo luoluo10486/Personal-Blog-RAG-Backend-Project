@@ -9,7 +9,7 @@ import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
 import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
 import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.service.ConversationGroupService;
 import com.personalblog.ragbackend.rag.service.ConversationMessageService;
 import com.personalblog.ragbackend.rag.service.bo.ConversationSummaryBO;

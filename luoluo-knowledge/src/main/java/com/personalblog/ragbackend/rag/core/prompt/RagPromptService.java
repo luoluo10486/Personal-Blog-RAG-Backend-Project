@@ -3,9 +3,8 @@ package com.personalblog.ragbackend.rag.core.prompt;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
-import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.core.intent.IntentNode;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
@@ -15,12 +14,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public class RAGPromptService {
-    private static final String MCP_CONTEXT_HEADER = "## 动态数据片段";
-    private static final String KB_CONTEXT_HEADER = "## 知识库内容";
-
     private final PromptTemplateLoader promptTemplateLoader;
 
     public RAGPromptService(PromptTemplateLoader promptTemplateLoader) {
@@ -28,20 +26,10 @@ public class RAGPromptService {
     }
 
     public String buildSystemPrompt(PromptContext context) {
-        PromptPlan plan = planPrompt(context == null ? List.of() : context.getKbIntents(),
-                context == null ? Map.of() : context.getIntentChunks());
-        String template;
-        if (context == null) {
-            template = "";
-        } else if (context.hasMcp() && !context.hasKb()) {
-            template = resolveMcpOnlyTemplate(context);
-        } else if (!context.hasMcp() && context.hasKb()) {
-            template = plan.getBaseTemplate() != null ? plan.getBaseTemplate() : defaultTemplate(PromptScene.KB_ONLY);
-        } else if (context.hasMcp() && context.hasKb()) {
-            template = defaultTemplate(PromptScene.MIXED);
-        } else {
-            template = "";
-        }
+        PromptBuildPlan plan = plan(context);
+        String template = StrUtil.isNotBlank(plan.getBaseTemplate())
+                ? plan.getBaseTemplate()
+                : defaultTemplate(plan.getScene());
         return StrUtil.isBlank(template) ? "" : PromptTemplateUtils.cleanupPrompt(template);
     }
 
@@ -54,31 +42,22 @@ public class RAGPromptService {
         if (StrUtil.isNotBlank(systemPrompt)) {
             messages.add(ChatMessage.system(systemPrompt));
         }
-        if (StrUtil.isNotBlank(context.getMcpContext())) {
-            messages.add(ChatMessage.system(formatEvidence(MCP_CONTEXT_HEADER, context.getMcpContext())));
-        }
-        if (StrUtil.isNotBlank(context.getKbContext())) {
-            messages.add(ChatMessage.user(formatEvidence(KB_CONTEXT_HEADER, context.getKbContext())));
-        }
         if (CollUtil.isNotEmpty(history)) {
             messages.addAll(history);
         }
-        if (CollUtil.isNotEmpty(subQuestions) && subQuestions.size() > 1) {
-            StringBuilder userMessage = new StringBuilder();
-            userMessage.append("请基于上述文档内容，回答以下问题：\n\n");
-            for (int i = 0; i < subQuestions.size(); i++) {
-                userMessage.append(i + 1).append(". ").append(subQuestions.get(i)).append("\n");
-            }
-            messages.add(ChatMessage.user(userMessage.toString().trim()));
-        } else if (StrUtil.isNotBlank(question)) {
-            messages.add(ChatMessage.user(question));
+
+        String evidenceBody = buildEvidenceBody(context);
+        String userQuestion = buildUserQuestion(question, subQuestions);
+        String mergedUserContent = mergeEvidenceAndQuestion(evidenceBody, userQuestion);
+        if (StrUtil.isNotBlank(mergedUserContent)) {
+            messages.add(ChatMessage.user(mergedUserContent));
         }
         return messages;
     }
 
     private PromptBuildPlan plan(PromptContext context) {
         if (context == null) {
-            return PromptBuildPlan.builder().scene(PromptScene.EMPTY).build();
+            throw new IllegalStateException("PromptContext requires MCP or KB context.");
         }
         if (context.hasMcp() && !context.hasKb()) {
             return planMcpOnly(context);
@@ -89,7 +68,7 @@ public class RAGPromptService {
         if (context.hasMcp() && context.hasKb()) {
             return planMixed(context);
         }
-        return PromptBuildPlan.builder().scene(PromptScene.EMPTY).build();
+        throw new IllegalStateException("PromptContext requires MCP or KB context.");
     }
 
     private PromptBuildPlan planKbOnly(PromptContext context) {
@@ -130,17 +109,6 @@ public class RAGPromptService {
                 .build();
     }
 
-    private String resolveMcpOnlyTemplate(PromptContext context) {
-        List<NodeScore> intents = context.getMcpIntents();
-        if (CollUtil.isNotEmpty(intents) && intents.size() == 1) {
-            IntentNode node = intents.get(0).node();
-            if (node != null && StrUtil.isNotBlank(node.getPromptTemplate())) {
-                return node.getPromptTemplate();
-            }
-        }
-        return defaultTemplate(PromptScene.MCP_ONLY);
-    }
-
     private PromptPlan planPrompt(List<NodeScore> intents, Map<String, List<RetrievedChunk>> intentChunks) {
         List<NodeScore> safeIntents = intents == null ? Collections.emptyList() : intents;
         List<NodeScore> retained = safeIntents.stream()
@@ -161,7 +129,6 @@ public class RAGPromptService {
             if (StrUtil.isNotBlank(tpl)) {
                 return new PromptPlan(retained, tpl);
             }
-            return new PromptPlan(retained, null);
         }
         return new PromptPlan(retained, null);
     }
@@ -175,8 +142,48 @@ public class RAGPromptService {
         };
     }
 
-    private String formatEvidence(String header, String body) {
-        return header + "\n" + StrUtil.blankToDefault(body, "").trim();
+    private String buildEvidenceBody(PromptContext context) {
+        if (context == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        if (StrUtil.isNotBlank(context.getMcpContext())) {
+            sb.append(renderSection("mcp-evidence", Map.of("body", context.getMcpContext().trim())));
+        }
+        if (StrUtil.isNotBlank(context.getKbContext())) {
+            if (!sb.isEmpty()) {
+                sb.append("\n\n");
+            }
+            sb.append(renderSection("kb-evidence", Map.of("body", context.getKbContext().trim())));
+        }
+        return sb.toString().trim();
+    }
+
+    private String buildUserQuestion(String question, List<String> subQuestions) {
+        if (CollUtil.isNotEmpty(subQuestions) && subQuestions.size() > 1) {
+            String numbered = IntStream.range(0, subQuestions.size())
+                    .mapToObj(i -> (i + 1) + ". " + subQuestions.get(i))
+                    .collect(Collectors.joining("\n"));
+            return renderSection("multi-questions", Map.of("questions", numbered));
+        }
+        if (StrUtil.isBlank(question)) {
+            return "";
+        }
+        return renderSection("single-question", Map.of("question", question));
+    }
+
+    private String mergeEvidenceAndQuestion(String evidenceBody, String question) {
+        if (StrUtil.isBlank(evidenceBody)) {
+            return question;
+        }
+        if (StrUtil.isBlank(question)) {
+            return evidenceBody;
+        }
+        return evidenceBody + "\n\n" + question;
+    }
+
+    private String renderSection(String section, Map<String, String> slots) {
+        return promptTemplateLoader.renderSection(RAGConstant.CONTEXT_FORMAT_PATH, section, slots);
     }
 
     private String nodeKey(IntentNode node) {

@@ -24,6 +24,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+/**
+ * Ingestion task 管理控制器。
+ */
 @RestController
 @RequiredArgsConstructor
 @Validated
@@ -31,12 +34,12 @@ public class IngestionTaskController {
 
     private final IngestionTaskService taskService;
 
+    @SneakyThrows
     @PostMapping("/ingestion/tasks")
     public Result<IngestionResult> create(@RequestBody IngestionTaskCreateRequest request) {
         return Results.success(taskService.execute(request));
     }
 
-    @SneakyThrows
     @PostMapping(value = "/ingestion/tasks/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<IngestionResult> upload(@RequestParam(value = "pipelineId") String pipelineId,
                                           @RequestPart("file") MultipartFile file) {

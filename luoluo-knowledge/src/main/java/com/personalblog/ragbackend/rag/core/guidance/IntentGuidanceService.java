@@ -9,7 +9,7 @@ import com.personalblog.ragbackend.rag.core.intent.IntentNodeRegistry;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.NodeScoreFilters;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -47,11 +47,9 @@ public class IntentGuidanceService {
         if (group == null || CollUtil.isEmpty(group.ranked())) {
             return GuidanceDecision.none();
         }
-
         if (shouldSkipGuidance(question, group.ranked())) {
             return GuidanceDecision.none();
         }
-
         return GuidanceDecision.prompt(buildPrompt(group.topicName(), group.ranked()));
     }
 
@@ -185,7 +183,8 @@ public class IntentGuidanceService {
         IntentNode current = node;
         IntentNode parent = fetchParent(current);
         for (; ; ) {
-            if (current.isSystem()) {
+            if (current.getLevel() == com.personalblog.ragbackend.rag.enums.IntentLevel.CATEGORY
+                    && (parent == null || parent.getLevel() == com.personalblog.ragbackend.rag.enums.IntentLevel.DOMAIN)) {
                 return current.getId();
             }
             if (parent == null) {

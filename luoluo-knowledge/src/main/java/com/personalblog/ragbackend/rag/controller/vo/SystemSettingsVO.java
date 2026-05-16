@@ -1,12 +1,17 @@
 package com.personalblog.ragbackend.rag.controller.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * System settings view object.
+ */
 @Setter
 @Getter
 public class SystemSettingsVO {
@@ -50,15 +55,15 @@ public class SystemSettingsVO {
         }
     }
 
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     public static class UploadSettings {
         private Long maxFileSize;
         private Long maxRequestSize;
     }
 
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     public static class AISettings {
         private Map<String, ProviderConfig> providers;
         private ModelGroup chat;
@@ -67,24 +72,24 @@ public class SystemSettingsVO {
         private Selection selection;
         private Stream stream;
 
-        @lombok.Data
-        @lombok.Builder
+        @Data
+        @Builder
         public static class ProviderConfig {
             private String url;
             private String apiKey;
             private Map<String, String> endpoints;
         }
 
-        @lombok.Data
-        @lombok.Builder
+        @Data
+        @Builder
         public static class ModelGroup {
             private String defaultModel;
             private String deepThinkingModel;
             private List<ModelCandidate> candidates;
         }
 
-        @lombok.Data
-        @lombok.Builder
+        @Data
+        @Builder
         public static class ModelCandidate {
             private String id;
             private String provider;
@@ -96,30 +101,30 @@ public class SystemSettingsVO {
             private Boolean supportsThinking;
         }
 
-        @lombok.Data
-        @lombok.Builder
+        @Data
+        @Builder
         public static class Selection {
             private Integer failureThreshold;
             private Long openDurationMs;
         }
 
-        @lombok.Data
-        @lombok.Builder
+        @Data
+        @Builder
         public static class Stream {
             private Integer messageChunkSize;
         }
     }
 
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     public static class DefaultSettings {
         private String collectionName;
         private Integer dimension;
         private String metricType;
     }
 
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     public static class MemorySettings {
         private Integer historyKeepTurns;
         private Boolean summaryEnabled;

@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * Knowledge document view object.
+ */
 @Data
 public class KnowledgeDocumentVO {
     private String id;
@@ -24,7 +27,6 @@ public class KnowledgeDocumentVO {
     private String pipelineId;
     private String status;
     private String createdBy;
-    private String updatedBy;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -60,7 +61,6 @@ import org.apache.rocketmq.common.message.MessageConst;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
@@ -108,8 +108,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private final KnowledgeFileStorageService knowledgeFileStorageService;
     private final KnowledgeDocumentScheduleService knowledgeDocumentScheduleService;
     private final KnowledgeChunkService knowledgeChunkService;
-    private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
-    private final ObjectProvider<EmbeddingService> embeddingServiceProvider;
+    private final VectorStoreService vectorStoreService;
+    private final EmbeddingService embeddingService;
     private final TokenCounterService tokenCounterService;
     private final TransactionOperations transactionOperations;
     private final ObjectMapper objectMapper;
@@ -131,8 +131,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                                         KnowledgeFileStorageService knowledgeFileStorageService,
                                         KnowledgeDocumentScheduleService knowledgeDocumentScheduleService,
                                         KnowledgeChunkService knowledgeChunkService,
-                                        ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
-                                        ObjectProvider<EmbeddingService> embeddingServiceProvider,
+                                        VectorStoreService vectorStoreService,
+                                        EmbeddingService embeddingService,
                                         TokenCounterService tokenCounterService,
                                         TransactionOperations transactionOperations,
                                         ObjectMapper objectMapper,
@@ -153,8 +153,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         this.knowledgeFileStorageService = knowledgeFileStorageService;
         this.knowledgeDocumentScheduleService = knowledgeDocumentScheduleService;
         this.knowledgeChunkService = knowledgeChunkService;
-        this.vectorStoreServiceProvider = vectorStoreServiceProvider;
-        this.embeddingServiceProvider = embeddingServiceProvider;
+        this.vectorStoreService = vectorStoreService;
+        this.embeddingService = embeddingService;
         this.tokenCounterService = tokenCounterService;
         this.transactionOperations = transactionOperations;
         this.objectMapper = objectMapper;
@@ -332,7 +332,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             throw new IllegalStateException(chunkResponse == null ? "document chunking failed" : chunkResponse.errorMessage());
         }
 
-        EmbeddingService embeddingService = resolveEmbeddingService();
         long embedStart = System.currentTimeMillis();
         List<List<Float>> embeddings = embeddingService.embedBatch(
                 chunkResponse.chunks().stream().map(DocumentChunk::content).toList()
@@ -584,10 +583,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 log.warn("enable document skipped because no chunk found, docId={}", docId);
                 return;
             }
-            EmbeddingService embeddingService = embeddingServiceProvider.getIfAvailable();
-            if (embeddingService == null) {
-                throw new IllegalStateException("embedding service is unavailable");
-            }
             List<String> contents = chunks.stream()
                     .map(KnowledgeChunkVO::getContent)
                     .toList();
@@ -608,10 +603,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             }
         }
 
-        VectorStoreService vectorStoreService = vectorStoreServiceProvider.getIfAvailable();
-        if (vectorStoreService == null) {
-            throw new IllegalStateException("vector store service is unavailable");
-        }
         List<VectorChunk> finalVectorDocuments = vectorDocuments;
         document.setEnabled(enabled ? 1 : 0);
         knowledgeDocumentMapper.updateById(document);
@@ -649,10 +640,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                 .stream()
                 .collect(Collectors.toMap(KnowledgeBaseEntity::getId, KnowledgeBaseEntity::getName, (left, right) -> left));
         return result.getRecords().stream().map(entity -> {
-            KnowledgeDocumentSearchVO vo = new KnowledgeDocumentSearchVO();
+            KnowledgeDocumentSearchVO vo = BeanUtil.toBean(entity, KnowledgeDocumentSearchVO.class);
             vo.setId(String.valueOf(entity.getId()));
             vo.setKbId(String.valueOf(entity.getKbId()));
-            vo.setDocName(entity.getDocName());
             vo.setKbName(kbNameMap.get(entity.getKbId()));
             return vo;
         }).toList();
@@ -684,21 +674,13 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
         Page<KnowledgeDocumentChunkLogVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         voPage.setRecords(records.stream().map(each -> {
-            KnowledgeDocumentChunkLogVO vo = new KnowledgeDocumentChunkLogVO();
+            KnowledgeDocumentChunkLogVO vo = BeanUtil.toBean(each, KnowledgeDocumentChunkLogVO.class);
             vo.setId(String.valueOf(each.getId()));
             vo.setDocId(String.valueOf(each.getDocId()));
-            vo.setStatus(each.getStatus());
-            vo.setProcessMode(each.getProcessMode());
-            vo.setChunkStrategy(each.getChunkStrategy());
             vo.setPipelineId(each.getPipelineId() == null ? null : String.valueOf(each.getPipelineId()));
             if (each.getPipelineId() != null) {
                 vo.setPipelineName(pipelineNameMap.get(each.getPipelineId()));
             }
-            vo.setExtractDuration(each.getExtractDuration());
-            vo.setChunkDuration(each.getChunkDuration());
-            vo.setEmbedDuration(each.getEmbedDuration());
-            vo.setPersistDuration(each.getPersistDuration());
-            vo.setTotalDuration(each.getTotalDuration());
             if (each.getTotalDuration() != null) {
                 long otherDuration = "pipeline".equalsIgnoreCase(each.getProcessMode())
                         ? each.getTotalDuration() - (each.getChunkDuration() == null ? 0 : each.getChunkDuration()) - (each.getPersistDuration() == null ? 0 : each.getPersistDuration())
@@ -709,37 +691,18 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                         - (each.getPersistDuration() == null ? 0 : each.getPersistDuration());
                 vo.setOtherDuration(Math.max(0, otherDuration));
             }
-            vo.setChunkCount(each.getChunkCount());
-            vo.setErrorMessage(each.getErrorMessage());
-            vo.setStartTime(toDate(each.getStartedAt()));
-            vo.setEndTime(toDate(each.getEndedAt()));
-            vo.setCreateTime(toDate(each.getCreatedAt()));
             return vo;
         }).toList());
         return voPage;
     }
 
     private KnowledgeDocumentVO toView(KnowledgeDocumentEntity entity) {
-        KnowledgeDocumentVO vo = new KnowledgeDocumentVO();
+        KnowledgeDocumentVO vo = BeanUtil.toBean(entity, KnowledgeDocumentVO.class);
         vo.setId(String.valueOf(entity.getId()));
         vo.setKbId(String.valueOf(entity.getKbId()));
-        vo.setDocName(entity.getDocName());
-        vo.setSourceType(entity.getSourceType());
-        vo.setSourceLocation(entity.getSourceLocation());
-        vo.setScheduleEnabled(entity.getScheduleEnabled());
-        vo.setScheduleCron(entity.getScheduleCron());
-        vo.setEnabled(entity.getEnabled() != null && entity.getEnabled() == 1);
-        vo.setChunkCount(entity.getChunkCount());
-        vo.setFileUrl(entity.getFileUrl());
-        vo.setFileType(entity.getFileType());
-        vo.setFileSize(entity.getFileSize());
-        vo.setChunkStrategy(entity.getChunkStrategy());
-        vo.setProcessMode(entity.getProcessMode());
-        vo.setChunkConfig(entity.getChunkConfig());
         vo.setPipelineId(entity.getPipelineId() == null ? null : String.valueOf(entity.getPipelineId()));
-        vo.setStatus(entity.getStatus());
         vo.setCreatedBy(entity.getCreatedBy() == null ? null : String.valueOf(entity.getCreatedBy()));
-        vo.setUpdatedBy(entity.getUpdatedBy() == null ? null : String.valueOf(entity.getUpdatedBy()));
+        vo.setEnabled(entity.getEnabled() != null && entity.getEnabled() == 1);
         vo.setCreateTime(entity.getCreatedAt());
         vo.setUpdateTime(entity.getUpdatedAt());
         return vo;
@@ -751,11 +714,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     private void deleteDocumentVectors(KnowledgeDocumentEntity document) {
-        VectorStoreService vectorStoreService = vectorStoreServiceProvider.getIfAvailable();
-        if (vectorStoreService != null) {
-            KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
-            vectorStoreService.deleteDocumentVectors(knowledgeBase.getCollectionName(), String.valueOf(document.getId()));
-        }
+        KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
+        vectorStoreService.deleteDocumentVectors(knowledgeBase.getCollectionName(), String.valueOf(document.getId()));
         knowledgeVectorRefMapper.delete(new LambdaQueryWrapper<KnowledgeVectorRefEntity>()
                 .eq(KnowledgeVectorRefEntity::getDocId, document.getId()));
     }
@@ -795,22 +755,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         int overlapChars = intValue(chunkConfig, "overlapChars", 0);
         int maxChars = intValue(chunkConfig, "maxChars", 1800);
         return new TextChunkingOptions(targetChars, Math.max(targetChars, maxChars), overlapChars, 1000);
-    }
-
-    private EmbeddingService resolveEmbeddingService() {
-        EmbeddingService embeddingService = embeddingServiceProvider.getIfAvailable();
-        if (embeddingService == null) {
-            throw new IllegalStateException("embedding service is unavailable");
-        }
-        return embeddingService;
-    }
-
-    private VectorStoreService resolveVectorStoreService() {
-        VectorStoreService vectorStoreService = vectorStoreServiceProvider.getIfAvailable();
-        if (vectorStoreService == null) {
-            throw new IllegalStateException("vector store service is unavailable");
-        }
-        return vectorStoreService;
     }
 
     private void markChunkFailed(Long docId) {
@@ -901,7 +845,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private int persistChunksAndVectorsAtomically(KnowledgeDocumentEntity document,
                                                   List<VectorChunk> chunkResults) {
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
-        VectorStoreService vectorStoreService = resolveVectorStoreService();
         List<VectorChunk> safeChunks = chunkResults == null ? List.of() : chunkResults;
         transactionOperations.executeWithoutResult(status -> {
             knowledgeChunkMapper.delete(new LambdaQueryWrapper<KnowledgeChunkEntity>()
@@ -1192,10 +1135,6 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         } catch (Exception ignored) {
             // best effort cleanup
         }
-    }
-
-    private Date toDate(java.time.LocalDateTime value) {
-        return value == null ? null : Date.from(value.atZone(java.time.ZoneId.systemDefault()).toInstant());
     }
 
     private float[] toArray(List<Float> embedding) {

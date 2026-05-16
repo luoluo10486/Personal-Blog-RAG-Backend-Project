@@ -44,11 +44,11 @@ public class MultiChannelRetrievalEngine {
     @RagTraceNode(name = "multi-channel-retrieval", type = "RETRIEVE_CHANNEL")
     public List<RetrievedChunk> retrieveKnowledgeChannels(SearchContext context) {
         SearchContext searchContext = normalizeContext(context);
-        List<SearchChannelResult> results = executeSearchChannels(searchContext);
-        if (CollUtil.isEmpty(results)) {
+        List<SearchChannelResult> channelResults = executeSearchChannels(searchContext);
+        if (CollUtil.isEmpty(channelResults)) {
             return List.of();
         }
-        return executePostProcessors(results, searchContext);
+        return executePostProcessors(channelResults, searchContext);
     }
 
     private List<SearchChannelResult> executeSearchChannels(SearchContext context) {
@@ -93,6 +93,7 @@ public class MultiChannelRetrievalEngine {
                 .collect(Collectors.toCollection(ArrayList::new));
 
         if (enabledProcessors.isEmpty()) {
+            log.warn("娌℃湁鍚敤鐨勫悗缃鐞嗗櫒锛岀洿鎺ヨ繑鍥炲師濮嬪閫氶亾缁撴灉");
             return chunks;
         }
 

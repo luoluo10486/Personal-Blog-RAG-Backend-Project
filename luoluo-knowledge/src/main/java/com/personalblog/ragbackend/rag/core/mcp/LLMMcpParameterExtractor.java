@@ -8,7 +8,7 @@ import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.infra.util.LLMResponseCleaner;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

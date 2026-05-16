@@ -27,6 +27,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * RAG settings controller.
+ */
 @RestController
 @RequiredArgsConstructor
 public class RAGSettingsController {

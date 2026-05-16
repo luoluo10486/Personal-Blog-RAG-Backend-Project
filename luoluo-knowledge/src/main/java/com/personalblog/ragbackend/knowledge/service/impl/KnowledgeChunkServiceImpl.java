@@ -1,5 +1,6 @@
 package com.personalblog.ragbackend.knowledge.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -25,7 +26,6 @@ import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -44,9 +44,9 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     private final KnowledgeDocumentMapper knowledgeDocumentMapper;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeVectorSpaceResolver vectorSpaceResolver;
-    private final ObjectProvider<VectorStoreService> vectorStoreServiceProvider;
-    private final ObjectProvider<EmbeddingService> embeddingServiceProvider;
-    private final ObjectProvider<TokenCounterService> tokenCounterServiceProvider;
+    private final VectorStoreService vectorStoreService;
+    private final EmbeddingService embeddingService;
+    private final TokenCounterService tokenCounterService;
     private final KnowledgeVectorRefMapper knowledgeVectorRefMapper;
     private final ObjectMapper objectMapper;
 
@@ -54,18 +54,18 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
                                      KnowledgeDocumentMapper knowledgeDocumentMapper,
                                      KnowledgeBaseMapper knowledgeBaseMapper,
                                      KnowledgeVectorSpaceResolver vectorSpaceResolver,
-                                     ObjectProvider<VectorStoreService> vectorStoreServiceProvider,
-                                     ObjectProvider<EmbeddingService> embeddingServiceProvider,
-                                     ObjectProvider<TokenCounterService> tokenCounterServiceProvider,
+                                     VectorStoreService vectorStoreService,
+                                     EmbeddingService embeddingService,
+                                     TokenCounterService tokenCounterService,
                                      KnowledgeVectorRefMapper knowledgeVectorRefMapper,
                                      ObjectMapper objectMapper) {
         this.knowledgeChunkMapper = knowledgeChunkMapper;
         this.knowledgeDocumentMapper = knowledgeDocumentMapper;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.vectorSpaceResolver = vectorSpaceResolver;
-        this.vectorStoreServiceProvider = vectorStoreServiceProvider;
-        this.embeddingServiceProvider = embeddingServiceProvider;
-        this.tokenCounterServiceProvider = tokenCounterServiceProvider;
+        this.vectorStoreService = vectorStoreService;
+        this.embeddingService = embeddingService;
+        this.tokenCounterService = tokenCounterService;
         this.knowledgeVectorRefMapper = knowledgeVectorRefMapper;
         this.objectMapper = objectMapper;
     }
@@ -186,7 +186,6 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
         KnowledgeDocumentEntity document = requireActiveDocument(docId, true);
         KnowledgeBaseEntity kbDO = requireKnowledgeBase(document.getKbId());
-        VectorStoreService vectorStoreService = resolveVectorStoreService();
         List<Long> chunkIds = requestParam.getChunkIds().stream().map(this::parseId).toList();
         List<KnowledgeChunkEntity> chunks = knowledgeChunkMapper.selectList(new LambdaQueryWrapper<KnowledgeChunkEntity>()
                 .eq(KnowledgeChunkEntity::getDocId, parseId(docId))
@@ -281,8 +280,6 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         if (chunks == null || chunks.isEmpty()) {
             return;
         }
-        EmbeddingService embeddingService = resolveEmbeddingService();
-        VectorStoreService vectorStoreService = resolveVectorStoreService();
         List<List<Float>> embeddings = embeddingService.embedBatch(chunks.stream().map(KnowledgeChunkEntity::getContent).toList());
         if (embeddings == null || embeddings.size() != chunks.size()) {
             throw new IllegalStateException("embedding result size mismatch");
@@ -307,8 +304,6 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     private void syncChunkToVector(KnowledgeBaseEntity kbDO,
                                    KnowledgeDocumentEntity document,
                                    KnowledgeChunkEntity chunk) {
-        EmbeddingService embeddingService = resolveEmbeddingService();
-        VectorStoreService vectorStoreService = resolveVectorStoreService();
         VectorChunk vectorChunk = VectorChunk.builder()
                 .chunkId(String.valueOf(chunk.getId()))
                 .content(chunk.getContent())
@@ -321,7 +316,6 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     }
 
     private void deleteVector(KnowledgeBaseEntity kbDO, String vectorId) {
-        VectorStoreService vectorStoreService = resolveVectorStoreService();
         vectorStoreService.deleteChunkById(kbDO.getCollectionName(), vectorId);
         Long chunkId = tryParseLong(vectorId);
         if (chunkId != null) {
@@ -383,27 +377,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         return metadata;
     }
 
-    private EmbeddingService resolveEmbeddingService() {
-        EmbeddingService embeddingService = embeddingServiceProvider.getIfAvailable();
-        if (embeddingService == null) {
-            throw new IllegalStateException("embedding service is unavailable");
-        }
-        return embeddingService;
-    }
-
-    private VectorStoreService resolveVectorStoreService() {
-        VectorStoreService vectorStoreService = vectorStoreServiceProvider.getIfAvailable();
-        if (vectorStoreService == null) {
-            throw new IllegalStateException("vector store service is unavailable");
-        }
-        return vectorStoreService;
-    }
-
     private Integer resolveTokenCount(String content) {
-        TokenCounterService tokenCounterService = tokenCounterServiceProvider.getIfAvailable();
-        if (tokenCounterService == null) {
-            return content == null ? 0 : content.length();
-        }
         Integer tokenCount = tokenCounterService.countTokens(content);
         return tokenCount == null ? 0 : tokenCount;
     }
@@ -501,16 +475,10 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
     }
 
     private KnowledgeChunkVO toView(KnowledgeChunkEntity chunk) {
-        KnowledgeChunkVO vo = new KnowledgeChunkVO();
+        KnowledgeChunkVO vo = BeanUtil.toBean(chunk, KnowledgeChunkVO.class);
         vo.setId(String.valueOf(chunk.getId()));
         vo.setKbId(String.valueOf(chunk.getKbId()));
         vo.setDocId(String.valueOf(chunk.getDocId()));
-        vo.setChunkIndex(chunk.getChunkIndex());
-        vo.setContent(chunk.getContent());
-        vo.setContentHash(chunk.getContentHash());
-        vo.setCharCount(chunk.getCharCount());
-        vo.setTokenCount(chunk.getTokenCount());
-        vo.setEnabled(chunk.getEnabled());
         vo.setCreateTime(chunk.getCreatedAt());
         vo.setUpdateTime(chunk.getUpdatedAt());
         return vo;

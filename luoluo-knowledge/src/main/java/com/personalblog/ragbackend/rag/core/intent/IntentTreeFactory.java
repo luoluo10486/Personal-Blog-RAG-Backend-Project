@@ -6,6 +6,10 @@ import com.personalblog.ragbackend.rag.enums.IntentLevel;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.personalblog.ragbackend.rag.enums.IntentLevel.CATEGORY;
+import static com.personalblog.ragbackend.rag.enums.IntentLevel.DOMAIN;
+import static com.personalblog.ragbackend.rag.enums.IntentLevel.TOPIC;
+
 public class IntentTreeFactory {
     private static final String KB_ID_GROUP = "1997855927072321537";
     private static final String KB_ID_BIZ = "1997857139737882625";
@@ -13,80 +17,213 @@ public class IntentTreeFactory {
     public static List<IntentNode> buildIntentTree() {
         List<IntentNode> roots = new ArrayList<>();
 
-        IntentNode group = node("group", "集团信息化", IntentLevel.DOMAIN, null, KB_ID_GROUP, IntentKind.KB);
-        IntentNode hr = node("group-hr", "人事", IntentLevel.CATEGORY, group.getId(), KB_ID_GROUP, IntentKind.KB);
-        hr.description = "招聘、入职、转正、离职、绩效、薪资、考勤、请假等人力资源相关问题";
-        hr.setExamples(List.of("请假流程是怎样的？", "试用期多久转正？", "迟到会有什么处罚？"));
+        IntentNode group = IntentNode.builder()
+                .id("group")
+                .kbId(KB_ID_GROUP)
+                .name("闆嗗洟淇℃伅鍖?")
+                .level(DOMAIN)
+                .kind(IntentKind.KB)
+                .build();
 
-        IntentNode it = node("group-it", "IT支持", IntentLevel.CATEGORY, group.getId(), KB_ID_GROUP, IntentKind.KB);
-        it.description = "VPN、邮箱、打印机、网络、电脑账号密码、办公软件等 IT 支持相关问题";
-        it.setExamples(List.of("电脑打印机怎么连？", "公司 VPN 连不上怎么办？", "邮箱密码忘了怎么重置？"));
+        IntentNode hr = IntentNode.builder()
+                .id("group-hr")
+                .kbId(KB_ID_GROUP)
+                .name("浜轰簨")
+                .level(CATEGORY)
+                .parentId(group.getId())
+                .kind(IntentKind.KB)
+                .description("鎷涜仒銆佸叆鑱屻€佽浆姝ｃ€佺鑱屻€佺哗鏁堛€佽柂璧勩€佽€冨嫟銆佽鍋囩瓑浜哄姏璧勬簮鐩稿叧闂")
+                .examples(List.of(
+                        "璇峰亣娴佺▼鏄€庢牱鐨勶紵",
+                        "璇曠敤鏈熷涔呰浆姝ｏ紵",
+                        "杩熷埌浼氭湁浠€涔堝缃氾紵"
+                ))
+                .build();
 
-        IntentNode finance = node("group-finance", "财务", IntentLevel.CATEGORY, group.getId(), KB_ID_GROUP, IntentKind.KB);
-        finance.description = "报销、付款、成本中心、预算等财务相关问题";
-        finance.setExamples(List.of("差旅报销需要哪些材料？"));
+        IntentNode it = IntentNode.builder()
+                .id("group-it")
+                .kbId(KB_ID_GROUP)
+                .name("IT鏀寔")
+                .level(CATEGORY)
+                .parentId(group.getId())
+                .kind(IntentKind.KB)
+                .description("VPN銆侀偖绠便€佹墦鍗版満銆佺綉缁溿€佺數鑴戣处鍙峰瘑鐮併€佸姙鍏蒋浠剁瓑 IT 鏀寔鐩稿叧闂")
+                .examples(List.of(
+                        "鐢佃剳鎵撳嵃鏈烘€庝箞杩烇紵",
+                        "鍏徃 VPN 杩炰笉涓婃€庝箞鍔烇紵",
+                        "閭瀵嗙爜蹇樹簡鎬庝箞閲嶇疆锛?"
+                ))
+                .build();
 
-        IntentNode financeInvoice = node("group-finance-invoice", "发票相关", IntentLevel.TOPIC, finance.getId(), KB_ID_GROUP, IntentKind.KB);
-        financeInvoice.description = "获取公司发票抬头相关信息";
-        financeInvoice.setExamples(List.of("发票抬头有哪些？"));
-        financeInvoice.promptTemplate = FINANCE_INVOICE_PROMPT_TEMPLATE;
+        IntentNode finance = IntentNode.builder()
+                .id("group-finance")
+                .kbId(KB_ID_GROUP)
+                .name("璐㈠姟")
+                .level(CATEGORY)
+                .parentId(group.getId())
+                .kind(IntentKind.KB)
+                .description("鎶ラ攢銆佷粯娆俱€佹垚鏈腑蹇冦€侀绠楃瓑璐㈠姟鐩稿叧闂")
+                .examples(List.of("宸梾鎶ラ攢闇€瑕佸摢浜涙潗鏂欙紵"))
+                .build();
+
+        IntentNode financeInvoice = IntentNode.builder()
+                .id("group-finance-invoice")
+                .kbId(KB_ID_GROUP)
+                .name("鍙戠エ鐩稿叧")
+                .level(TOPIC)
+                .parentId(finance.getId())
+                .kind(IntentKind.KB)
+                .description("鑾峰彇鍏徃鍙戠エ鎶ご鐩稿叧淇℃伅")
+                .examples(List.of("鍙戠エ鎶ご鏈夊摢浜涳紵"))
+                .promptTemplate(FINANCE_INVOICE_PROMPT_TEMPLATE)
+                .build();
         finance.setChildren(List.of(financeInvoice));
 
         group.setChildren(List.of(hr, it, finance));
         roots.add(group);
 
-        IntentNode biz = node("biz", "业务系统", IntentLevel.DOMAIN, null, KB_ID_BIZ, IntentKind.KB);
-        IntentNode oa = node("biz-oa", "OA系统", IntentLevel.CATEGORY, biz.getId(), KB_ID_BIZ, IntentKind.KB);
-        oa.description = "OA 系统相关，例如流程审批、待办、公告、文档中心等";
-        oa.setExamples(List.of("OA系统主要提供哪些功能？", "请假审批在哪个菜单？"));
+        IntentNode biz = IntentNode.builder()
+                .id("biz")
+                .kbId(KB_ID_BIZ)
+                .name("涓氬姟绯荤粺")
+                .level(DOMAIN)
+                .kind(IntentKind.KB)
+                .build();
 
-        IntentNode oaIntro = node("biz-oa-intro", "系统介绍", IntentLevel.TOPIC, oa.getId(), KB_ID_BIZ, IntentKind.KB);
-        oaIntro.description = "OA 系统整体功能说明、主要模块、典型使用场景";
-        oaIntro.setExamples(List.of("OA系统是做什么的？"));
+        IntentNode oa = IntentNode.builder()
+                .id("biz-oa")
+                .kbId(KB_ID_BIZ)
+                .name("OA绯荤粺")
+                .level(CATEGORY)
+                .parentId(biz.getId())
+                .kind(IntentKind.KB)
+                .description("OA 绯荤粺鐩稿叧锛屼緥濡傛祦绋嬪鎵广€佸緟鍔炪€佸叕鍛娿€佹枃妗ｄ腑蹇冪瓑")
+                .examples(List.of(
+                        "OA绯荤粺涓昏鎻愪緵鍝簺鍔熻兘锛?",
+                        "璇峰亣瀹℃壒鍦ㄥ摢涓彍鍗曪紵"
+                ))
+                .build();
 
-        IntentNode oaSecurity = node("biz-oa-security", "数据安全", IntentLevel.TOPIC, oa.getId(), KB_ID_BIZ, IntentKind.KB);
-        oaSecurity.description = "OA 系统的数据权限、访问控制、安全审计等相关说明";
-        oaSecurity.setExamples(List.of("OA系统如何控制不同角色的权限？"));
+        IntentNode oaIntro = IntentNode.builder()
+                .id("biz-oa-intro")
+                .kbId(KB_ID_BIZ)
+                .name("绯荤粺浠嬬粛")
+                .level(TOPIC)
+                .parentId(oa.getId())
+                .kind(IntentKind.KB)
+                .description("OA 绯荤粺鏁翠綋鍔熻兘璇存槑銆佷富瑕佹ā鍧椼€佸吀鍨嬩娇鐢ㄥ満鏅?")
+                .examples(List.of("OA绯荤粺鏄仛浠€涔堢殑锛?"))
+                .build();
+
+        IntentNode oaSecurity = IntentNode.builder()
+                .id("biz-oa-security")
+                .kbId(KB_ID_BIZ)
+                .name("鏁版嵁瀹夊叏")
+                .level(TOPIC)
+                .parentId(oa.getId())
+                .kind(IntentKind.KB)
+                .description("OA 绯荤粺鐨勬暟鎹潈闄愩€佽闂帶鍒躲€佸畨鍏ㄥ璁＄瓑鐩稿叧璇存槑")
+                .examples(List.of("OA绯荤粺濡備綍鎺у埗涓嶅悓瑙掕壊鐨勬潈闄愶紵"))
+                .build();
         oa.setChildren(List.of(oaIntro, oaSecurity));
 
-        IntentNode ins = node("biz-ins", "保险系统", IntentLevel.CATEGORY, biz.getId(), KB_ID_BIZ, IntentKind.KB);
-        ins.description = "保险相关业务系统，例如投保、核保、理赔等的功能与架构说明";
-        ins.setExamples(List.of("保险系统整体架构是怎样的？"));
+        IntentNode ins = IntentNode.builder()
+                .id("biz-ins")
+                .kbId(KB_ID_BIZ)
+                .name("淇濋櫓绯荤粺")
+                .level(CATEGORY)
+                .parentId(biz.getId())
+                .kind(IntentKind.KB)
+                .description("淇濋櫓鐩稿叧涓氬姟绯荤粺锛屽鎶曚繚銆佹牳淇濄€佺悊璧旂瓑鐨勫姛鑳戒笌鏋舵瀯璇存槑")
+                .examples(List.of("淇濋櫓绯荤粺鏁翠綋鏋舵瀯鏄€庢牱鐨勶紵"))
+                .build();
 
-        IntentNode insIntro = node("biz-ins-intro", "系统介绍", IntentLevel.TOPIC, ins.getId(), KB_ID_BIZ, IntentKind.KB);
-        insIntro.description = "保险系统业务模块说明与主要流程介绍";
-        insIntro.setExamples(List.of("保险系统都包含哪些子系统？"));
+        IntentNode insIntro = IntentNode.builder()
+                .id("biz-ins-intro")
+                .kbId(KB_ID_BIZ)
+                .name("绯荤粺浠嬬粛")
+                .level(TOPIC)
+                .parentId(ins.getId())
+                .kind(IntentKind.KB)
+                .description("淇濋櫓绯荤粺涓氬姟妯″潡璇存槑涓庝富瑕佹祦绋嬩粙缁?")
+                .examples(List.of("淇濋櫓绯荤粺閮藉寘鍚摢浜涘瓙绯荤粺锛?"))
+                .build();
 
-        IntentNode insArch = node("biz-ins-arch", "架构设计", IntentLevel.TOPIC, ins.getId(), KB_ID_BIZ, IntentKind.KB);
-        insArch.description = "保险系统的技术架构、服务拆分、数据库设计等";
-        insArch.setExamples(List.of("保险系统是如何做服务拆分的？"));
+        IntentNode insArch = IntentNode.builder()
+                .id("biz-ins-arch")
+                .kbId(KB_ID_BIZ)
+                .name("鏋舵瀯璁捐")
+                .level(TOPIC)
+                .parentId(ins.getId())
+                .kind(IntentKind.KB)
+                .description("淇濋櫓绯荤粺鐨勬妧鏈灦鏋勩€佹湇鍔℃媶鍒嗐€佹暟鎹簱璁捐绛?")
+                .examples(List.of("淇濋櫓绯荤粺鏄浣曞仛鏈嶅姟鎷嗗垎鐨勶紵"))
+                .build();
 
-        IntentNode insSecurity = node("biz-ins-security", "数据安全", IntentLevel.TOPIC, ins.getId(), KB_ID_BIZ, IntentKind.KB);
-        insSecurity.description = "保险系统的数据脱敏、权限控制、审计与合规等";
-        insSecurity.setExamples(List.of("保险系统的敏感信息如何保护？"));
+        IntentNode insSecurity = IntentNode.builder()
+                .id("biz-ins-security")
+                .kbId(KB_ID_BIZ)
+                .name("鏁版嵁瀹夊叏")
+                .level(TOPIC)
+                .parentId(ins.getId())
+                .kind(IntentKind.KB)
+                .description("淇濋櫓绯荤粺鐨勬暟鎹劚鏁忋€佹潈闄愭帶鍒躲€佸璁′笌鍚堣绛?")
+                .examples(List.of("淇濋櫓绯荤粺鐨勬晱鎰熶俊鎭浣曚繚鎶わ紵"))
+                .build();
         ins.setChildren(List.of(insIntro, insArch, insSecurity));
 
         biz.setChildren(List.of(oa, ins));
         roots.add(biz);
 
-        IntentNode sales = node("sales", "销售汇总数据统计", IntentLevel.DOMAIN, null, null, IntentKind.MCP);
-        IntentNode salesData = node("sales-data", "销售数据统计", IntentLevel.CATEGORY, sales.getId(), null, IntentKind.MCP);
-        salesData.mcpToolId = "sales_query";
-        salesData.description = "销售数据统计，例如销售总额、销量、销售占比、销售趋势、销售预测等";
-        salesData.setExamples(List.of("销售总额是多少？", "销量是多少？"));
-        salesData.promptTemplate = MCP_SALES_DATA_PROMPT_TEMPLATE;
-        salesData.paramPromptTemplate = MCP_SALES_DATA_PARAMETER_EXTRACT_PROMPT;
+        IntentNode sales = IntentNode.builder()
+                .id("sales")
+                .name("閿€鍞眹鎬绘暟鎹粺璁?")
+                .level(DOMAIN)
+                .kind(IntentKind.MCP)
+                .build();
+
+        IntentNode salesData = IntentNode.builder()
+                .id("sales-data")
+                .name("閿€鍞暟鎹粺璁?")
+                .level(CATEGORY)
+                .parentId(sales.getId())
+                .mcpToolId("sales_query")
+                .kind(IntentKind.MCP)
+                .promptTemplate(MCP_SALES_DATA_PROMPT_TEMPLATE)
+                .paramPromptTemplate(MCP_SALES_DATA_PARAMETER_EXTRACT_PROMPT)
+                .description("閿€鍞暟鎹粺璁★紝濡傦細閿€鍞€婚銆侀攢鍞噺銆侀攢鍞崰姣斻€侀攢鍞秼鍔裤€侀攢鍞娴嬬瓑")
+                .examples(List.of("閿€鍞€婚鏄灏戯紵", "閿€鍞噺鏄灏戯紵"))
+                .build();
         sales.setChildren(List.of(salesData));
         roots.add(sales);
 
-        IntentNode sys = node("sys", "系统交互", IntentLevel.DOMAIN, null, null, IntentKind.SYSTEM);
-        IntentNode welcome = node("sys-welcome", "欢迎与问候", IntentLevel.CATEGORY, sys.getId(), null, IntentKind.SYSTEM);
-        welcome.description = "用户与助手打招呼，例如：你好、早上好、hi、在吗等";
-        welcome.setExamples(List.of("你好", "hello", "早上好", "在吗", "嗨"));
+        IntentNode sys = IntentNode.builder()
+                .id("sys")
+                .name("绯荤粺浜や簰")
+                .level(DOMAIN)
+                .kind(IntentKind.SYSTEM)
+                .build();
 
-        IntentNode aboutBot = node("sys-about-bot", "关于助手", IntentLevel.CATEGORY, sys.getId(), null, IntentKind.SYSTEM);
-        aboutBot.description = "询问助手是做什么的、是谁、能做什么等";
-        aboutBot.setExamples(List.of("你是谁？", "你是做什么的", "你能帮我做什么？", "你是什么AI"));
+        IntentNode welcome = IntentNode.builder()
+                .id("sys-welcome")
+                .name("娆㈣繋涓庨棶鍊?")
+                .level(CATEGORY)
+                .parentId(sys.getId())
+                .description("鐢ㄦ埛涓庡姪鎵嬫墦鎷涘懠锛屽锛氫綘濂姐€佹棭涓婂ソ銆乭i銆佸湪鍚?绛?")
+                .examples(List.of("浣犲ソ", "hello", "鏃╀笂濂?", "鍦ㄥ悧", "鍡?"))
+                .kind(IntentKind.SYSTEM)
+                .build();
+
+        IntentNode aboutBot = IntentNode.builder()
+                .id("sys-about-bot")
+                .name("鍏充簬鍔╂墜")
+                .level(CATEGORY)
+                .parentId(sys.getId())
+                .description("璇㈤棶鍔╂墜鏄仛浠€涔堢殑銆佹槸璋併€佽兘鍋氫粈涔堢瓑")
+                .examples(List.of("浣犳槸璋?", "浣犳槸鍋氫粈涔堢殑", "浣犺兘甯垜鍋氫粈涔?", "浣犳槸浠€涔圓I"))
+                .kind(IntentKind.SYSTEM)
+                .build();
+
         sys.setChildren(List.of(welcome, aboutBot));
         roots.add(sys);
 
@@ -94,50 +231,34 @@ public class IntentTreeFactory {
         return roots;
     }
 
-    private static IntentNode node(String id, String name, IntentLevel level, String parentId, String kbId, IntentKind kind) {
-        IntentNode node = new IntentNode();
-        node.setId(id);
-        node.name = name;
-        node.setLevel(level);
-        node.setParentId(parentId);
-        node.kbId = kbId;
-        node.setKind(kind);
-        node.children = new ArrayList<>();
-        return node;
-    }
-
     private static void fillFullPath(List<IntentNode> nodes, IntentNode parent) {
         for (IntentNode node : nodes) {
-            node.fullPath = parent == null ? node.name : parent.fullPath + " > " + node.name;
-            if (node.children != null && !node.children.isEmpty()) {
-                fillFullPath(node.children, node);
+            node.setFullPath(parent == null ? node.getName() : parent.getFullPath() + " > " + node.getName());
+            if (node.getChildren() != null && !node.getChildren().isEmpty()) {
+                fillFullPath(node.getChildren(), node);
             }
         }
     }
 
     private static final String FINANCE_INVOICE_PROMPT_TEMPLATE = """
-            你是专业的企业发票信息查询助手，现在根据《文档内容》回答用户关于开票信息的问题，并抽取、整理标准化的发票信息。
-
-            请严格遵守以下规则：
-            1. 文档中的发票相关字段名不一定与标准字段完全一致，请根据语义进行统一映射。
-            2. 当文档中字段名与标准字段语义相近时，请将其内容归一到对应的标准字段中；不要新增其他字段名。
-            3. 回答必须严格基于《文档内容》，不得虚构任何信息。
-            4. 查到至少一条发票信息时，必须先输出一段引导语，再输出具体内容。
-            5. 如查询结果有多条，请输出“发票信息列表”。
-            6. 每条发票信息请按统一格式输出。
-
-            《文档内容》
+            浣犳槸涓撲笟鐨勪紒涓氬彂绁ㄤ俊鎭煡璇㈠姪鎵嬶紝鐜板湪鏍规嵁銆愭枃妗ｅ唴瀹广€嬪洖绛旂敤鎴峰叧浜庡紑绁ㄤ俊鎭殑闂锛屽苟鎶藉彇銆佹暣鐞嗘爣鍑嗗寲鐨勫彂绁ㄤ俊鎭€?
+            璇蜂弗鏍奸伒瀹堜互涓嬭鍒欙細
+            1. 鏂囨。涓殑鍙戠エ鐩稿叧瀛楁鍚嶄笉涓€瀹氫笌鏍囧噯瀛楁瀹屽叏涓€鑷达紝璇锋牴鎹涔夎繘琛岀粺涓€鏄犲皠銆?
+            2. 褰撴枃妗ｄ腑瀛楁鍚嶄笌鏍囧噯瀛楁璇箟鐩歌繎鏃讹紝璇峰皢鍏跺唴瀹瑰綊涓€鍒板搴旂殑鏍囧噯瀛楁涓紱涓嶈鏂板鍏朵粬瀛楁鍚嶃€?
+            3. 鍥炵瓟蹇呴』涓ユ牸鍩轰簬銆愭枃妗ｅ唴瀹广€嬶紝涓嶅緱铏氭瀯浠讳綍淇℃伅銆?
+            4. 鏌ュ埌鑷冲皯涓€鏉″彂绁ㄤ俊鎭椂锛屽繀椤诲厛杈撳嚭涓€娈靛紩瀵艰锛屽啀杈撳嚭鍏蜂綋鍐呭銆?
+            5. 濡傛煡璇㈢粨鏋滄湁澶氭潯锛岃杈撳嚭鈥滃彂绁ㄤ俊鎭垪琛ㄢ€濄€?
+            6. 姣忔潯鍙戠エ淇℃伅璇锋寜缁熶竴鏍煎紡杈撳嚭銆?
+            銆愭枃妗ｅ唴瀹广€?
             %s
 
-            《用户问题》
+            銆愮敤鎴烽棶棰樸€?
             %s
             """;
 
-    private static final String MCP_SALES_DATA_PARAMETER_EXTRACT_PROMPT = """
-            Hello，你是一个高度专业且严谨的【工具参数提取器】。
-
-            你的唯一任务是：严格按照提供的【工具定义】和【参数列表】的约束，从【用户问题】中提取所有必要的参数，并以 JSON 格式输出。
-
+    public static final String MCP_SALES_DATA_PARAMETER_EXTRACT_PROMPT = """
+            Hello锛屼綘鏄竴涓珮搴︿笓涓氫笖涓ヨ皑鐨勩€愬伐鍏峰弬鏁版彁鍙栧櫒銆戙€?
+            浣犵殑鍞竴浠诲姟鏄細涓ユ牸鎸夌収鎻愪緵鐨勩€愬伐鍏峰畾涔夈€戝拰銆愬弬鏁板垪琛ㄣ€戠殑绾︽潫锛屼粠銆愮敤鎴烽棶棰樸€戜腑鎻愬彇鎵€鏈夊繀瑕佺殑鍙傛暟锛屽苟浠?JSON 鏍煎紡杈撳嚭銆?
             <tool_definition>
             %s
             </tool_definition>
@@ -148,15 +269,14 @@ public class IntentTreeFactory {
             """;
 
     private static final String MCP_SALES_DATA_PROMPT_TEMPLATE = """
-            Hello，你是专业的企业智能数据助手。系统已调用内部工具获得了最新的【动态数据】。
-            你的任务是将这些结构化数据转化为**业务化、易读的自然语言**回答。
-
+            Hello锛屼綘鏄笓涓氱殑浼佷笟鏅鸿兘鏁版嵁鍔╂墜銆傜郴缁熷凡璋冪敤鍐呴儴宸ュ叿鑾峰緱浜嗘渶鏂扮殑銆愬姩鎬佹暟鎹€戙€?
+            浣犵殑浠诲姟鏄皢杩欎簺缁撴瀯鍖栨暟鎹浆鍖栦负**涓氬姟鍖栥€佹槗璇荤殑鑷劧璇█**鍥炵瓟銆?
             {{INTENT_RULES}}
 
-            【动态数据】
+            銆愬姩鎬佹暟鎹€?
             %s
 
-            【用户问题】
+            銆愮敤鎴烽棶棰樸€?
             %s
             """;
 }

@@ -73,6 +73,7 @@ rag:
     enabled: true
     max-error-length: 1000
   search:
+    default-top-k: 5
     channels:
       vector-global:
         enabled: true

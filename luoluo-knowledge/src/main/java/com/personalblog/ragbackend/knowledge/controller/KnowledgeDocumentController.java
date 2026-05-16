@@ -29,6 +29,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+/**
+ * Knowledge document controller.
+ */
 @RestController
 @Validated
 @RequiredArgsConstructor

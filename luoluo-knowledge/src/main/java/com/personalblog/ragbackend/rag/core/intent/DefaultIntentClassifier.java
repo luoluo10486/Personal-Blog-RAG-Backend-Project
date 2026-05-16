@@ -1,17 +1,21 @@
 package com.personalblog.ragbackend.rag.core.intent;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
+import com.personalblog.ragbackend.infra.util.LLMResponseCleaner;
+import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.dao.entity.IntentNodeEntity;
 import com.personalblog.ragbackend.rag.dao.mapper.IntentNodeMapper;
-import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.enums.IntentKind;
+import com.personalblog.ragbackend.rag.enums.IntentLevel;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayDeque;
@@ -29,20 +33,20 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
 
     private final LLMService llmService;
     private final IntentNodeMapper intentNodeMapper;
+    private final PromptTemplateLoader promptTemplateLoader;
     private final IntentTreeCacheManager intentTreeCacheManager;
     private final ObjectMapper objectMapper;
-    private final PromptTemplateLoader promptTemplateLoader;
 
     public DefaultIntentClassifier(LLMService llmService,
                                    IntentNodeMapper intentNodeMapper,
+                                   PromptTemplateLoader promptTemplateLoader,
                                    IntentTreeCacheManager intentTreeCacheManager,
-                                   ObjectMapper objectMapper,
-                                   PromptTemplateLoader promptTemplateLoader) {
+                                   ObjectMapper objectMapper) {
         this.llmService = llmService;
         this.intentNodeMapper = intentNodeMapper;
+        this.promptTemplateLoader = promptTemplateLoader;
         this.intentTreeCacheManager = intentTreeCacheManager;
         this.objectMapper = objectMapper;
-        this.promptTemplateLoader = promptTemplateLoader;
     }
 
     @Override
@@ -78,23 +82,20 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         if (StrUtil.isBlank(id)) {
             return null;
         }
-        RagIntentNode node = loadIntentTreeData().id2Node().get(id);
-        if (node == null) {
-            return null;
-        }
-        return toIntentNode(node);
+        return loadIntentTreeData().id2Node().get(id);
     }
 
-    private List<NodeScore> parseScores(String raw, List<RagIntentNode> leafNodes) throws Exception {
+    private List<NodeScore> parseScores(String raw, List<IntentNode> leafNodes) throws Exception {
         if (StrUtil.isBlank(raw)) {
             return List.of();
         }
-        String normalized = stripCodeFence(raw);
+        String normalized = LLMResponseCleaner.stripMarkdownCodeFence(raw);
         JsonNode root = objectMapper.readTree(normalized);
         JsonNode arrayNode = root.isArray() ? root : root.has("results") ? root.get("results") : null;
         if (arrayNode == null || !arrayNode.isArray()) {
             return List.of();
         }
+
         List<NodeScore> scores = new ArrayList<>();
         for (JsonNode item : arrayNode) {
             if (item == null || !item.hasNonNull("id") || !item.hasNonNull("score")) {
@@ -105,15 +106,17 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             if (score < MIN_SCORE) {
                 continue;
             }
-            RagIntentNode node = leafNodes.stream()
+            IntentNode node = leafNodes.stream()
                     .filter(each -> id.equals(each.getIntentCode()))
                     .findFirst()
                     .orElse(null);
             if (node == null) {
                 continue;
             }
-            String reason = item.hasNonNull("reason") ? item.get("reason").asText() : null;
-            scores.add(new NodeScore(node, score, reason));
+            scores.add(NodeScore.builder()
+                    .node(node)
+                    .score(score)
+                    .build());
         }
         return scores;
     }
@@ -125,9 +128,9 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
                 .toList();
     }
 
-    private String buildPrompt(List<RagIntentNode> leafNodes) {
+    private String buildPrompt(List<IntentNode> leafNodes) {
         StringBuilder builder = new StringBuilder();
-        for (RagIntentNode node : leafNodes) {
+        for (IntentNode node : leafNodes) {
             builder.append("- id=").append(node.getIntentCode()).append("\n");
             builder.append("  path=").append(StrUtil.blankToDefault(node.getFullPath(), node.getName())).append("\n");
             builder.append("  description=").append(StrUtil.blankToDefault(node.getDescription(), "")).append("\n");
@@ -149,39 +152,8 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         );
     }
 
-    private String stripCodeFence(String raw) {
-        String trimmed = raw.trim();
-        if (!trimmed.startsWith("```")) {
-            return trimmed;
-        }
-        String withoutStart = trimmed.replaceFirst("^```[a-zA-Z]*\\s*", "");
-        return withoutStart.replaceFirst("\\s*```$", "").trim();
-    }
-
-    private IntentNode toIntentNode(RagIntentNode source) {
-        IntentNode target = new IntentNode();
-        target.setId(source.getIntentCode());
-        target.setName(source.getName());
-        target.setLevel(source.getLevel());
-        target.setParentId(source.getParentCode());
-        target.setDescription(source.getDescription());
-        target.setExamples(source.getExamples());
-        target.setCollectionName(source.getCollectionName());
-        target.setTopK(source.getTopK());
-        target.setMcpToolId(source.getMcpToolId());
-        target.setKind(source.getKind());
-        target.setPromptSnippet(source.getPromptSnippet());
-        target.setPromptTemplate(source.getPromptTemplate());
-        target.setParamPromptTemplate(source.getParamPromptTemplate());
-        target.setSortOrder(source.getSortOrder());
-        target.setFullPath(source.getFullPath());
-        target.setKbId(source.getKbId());
-        target.setChildren(source.getChildren());
-        return target;
-    }
-
     private IntentTreeData loadIntentTreeData() {
-        List<RagIntentNode> roots = intentTreeCacheManager.getIntentTreeFromCache();
+        List<IntentNode> roots = intentTreeCacheManager.getIntentTreeFromCache();
         if (CollUtil.isEmpty(roots)) {
             roots = loadIntentTreeFromDB();
             if (CollUtil.isNotEmpty(roots)) {
@@ -192,42 +164,59 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
             return new IntentTreeData(List.of(), List.of(), Map.of());
         }
 
-        List<RagIntentNode> allNodes = flatten(roots);
-        List<RagIntentNode> leafNodes = allNodes.stream()
-                .filter(RagIntentNode::isLeaf)
+        List<IntentNode> allNodes = flatten(roots);
+        List<IntentNode> leafNodes = allNodes.stream()
+                .filter(IntentNode::isLeaf)
                 .toList();
-        Map<String, RagIntentNode> id2Node = allNodes.stream()
-                .filter(node -> StrUtil.isNotBlank(node.intentCode))
-                .collect(java.util.stream.Collectors.toMap(node -> node.intentCode, node -> node, (left, right) -> left, LinkedHashMap::new));
+        Map<String, IntentNode> id2Node = allNodes.stream()
+                .filter(node -> StrUtil.isNotBlank(node.getIntentCode()))
+                .collect(java.util.stream.Collectors.toMap(IntentNode::getIntentCode, node -> node, (left, right) -> left, LinkedHashMap::new));
         return new IntentTreeData(allNodes, leafNodes, id2Node);
     }
 
-    private List<RagIntentNode> loadIntentTreeFromDB() {
+    private List<IntentNode> loadIntentTreeFromDB() {
         List<IntentNodeEntity> entities = intentNodeMapper.selectList(
-                new QueryWrapper<IntentNodeEntity>()
-                        .eq("deleted", 0)
-                        .eq("enabled", 1)
-                        .orderByAsc("sort_order")
-                        .orderByAsc("id")
+                Wrappers.lambdaQuery(IntentNodeEntity.class)
+                        .eq(IntentNodeEntity::getDeleted, 0)
+                        .eq(IntentNodeEntity::getEnabled, 1)
+                        .orderByAsc(IntentNodeEntity::getSortOrder)
+                        .orderByAsc(IntentNodeEntity::getId)
         );
         if (CollUtil.isEmpty(entities)) {
             return List.of();
         }
 
-        Map<String, RagIntentNode> id2Node = new LinkedHashMap<>();
+        Map<String, IntentNode> id2Node = new LinkedHashMap<>();
         for (IntentNodeEntity entity : entities) {
-            RagIntentNode node = toNode(entity);
+            IntentNode node = BeanUtil.toBean(entity, IntentNode.class);
+            node.setId(entity.getIntentCode());
+            node.setParentId(entity.getParentCode());
+            node.setCollectionName(entity.getCollectionName());
+            node.setTopK(entity.getTopK());
+            node.setMcpToolId(entity.getMcpToolId());
+            node.setKindCode(entity.getKind());
+            node.setParamPromptTemplate(entity.getParamPromptTemplate());
+            node.setPromptTemplate(entity.getPromptTemplate());
+            node.setPromptSnippet(entity.getPromptSnippet());
+            node.setSortOrder(entity.getSortOrder());
+            node.setKbId(entity.getKbId());
             node.setChildren(new ArrayList<>());
+            if (entity.getLevel() != null) {
+                node.setLevel(IntentLevel.fromCode(entity.getLevel()));
+            }
+            if (entity.getKind() != null) {
+                node.setKind(IntentKind.fromCode(entity.getKind()));
+            }
             id2Node.put(node.getId(), node);
         }
 
-        List<RagIntentNode> roots = new ArrayList<>();
-        for (RagIntentNode node : id2Node.values()) {
-            if (StrUtil.isBlank(node.parentCode) || !id2Node.containsKey(node.parentCode)) {
+        List<IntentNode> roots = new ArrayList<>();
+        for (IntentNode node : id2Node.values()) {
+            if (StrUtil.isBlank(node.getParentId()) || !id2Node.containsKey(node.getParentId())) {
                 roots.add(node);
                 continue;
             }
-            RagIntentNode parent = id2Node.get(node.parentCode);
+            IntentNode parent = id2Node.get(node.getParentId());
             parent.getChildren().add(node);
         }
 
@@ -235,17 +224,15 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         return roots;
     }
 
-    private List<RagIntentNode> flatten(List<RagIntentNode> roots) {
-        List<RagIntentNode> result = new ArrayList<>();
+    private List<IntentNode> flatten(List<IntentNode> roots) {
+        List<IntentNode> result = new ArrayList<>();
         if (CollUtil.isEmpty(roots)) {
             return result;
         }
         Deque<IntentNode> stack = new ArrayDeque<>(roots);
         while (!stack.isEmpty()) {
             IntentNode current = stack.pop();
-            if (current instanceof RagIntentNode node) {
-                result.add(node);
-            }
+            result.add(current);
             if (CollUtil.isNotEmpty(current.getChildren())) {
                 List<IntentNode> children = current.getChildren();
                 for (int index = children.size() - 1; index >= 0; index--) {
@@ -256,47 +243,18 @@ public class DefaultIntentClassifier implements IntentClassifier, IntentNodeRegi
         return result;
     }
 
-    private void fillFullPath(List<RagIntentNode> nodes, RagIntentNode parent) {
+    private void fillFullPath(List<IntentNode> nodes, IntentNode parent) {
         if (CollUtil.isEmpty(nodes)) {
             return;
         }
-        for (RagIntentNode node : nodes) {
-            node.fullPath = parent == null ? node.name : parent.fullPath + " > " + node.name;
-            fillFullPath(castNodes(node.getChildren()), node);
+        for (IntentNode node : nodes) {
+            node.setFullPath(parent == null ? node.getName() : parent.getFullPath() + " > " + node.getName());
+            fillFullPath(node.getChildren(), node);
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private List<RagIntentNode> castNodes(List<IntentNode> nodes) {
-        if (CollUtil.isEmpty(nodes)) {
-            return List.of();
-        }
-        return (List<RagIntentNode>) (List<?>) nodes;
-    }
-
-    private RagIntentNode toNode(IntentNodeEntity entity) {
-        RagIntentNode node = new RagIntentNode();
-        node.id = entity.id;
-        node.intentCode = entity.intentCode;
-        node.name = entity.name;
-        node.level = entity.level;
-        node.parentCode = entity.parentCode;
-        node.description = entity.description;
-        node.examples = entity.examples;
-        node.collectionName = entity.collectionName;
-        node.topK = entity.topK;
-        node.mcpToolId = entity.mcpToolId;
-        node.kind = entity.kind;
-        node.promptSnippet = entity.promptSnippet;
-        node.promptTemplate = entity.promptTemplate;
-        node.paramPromptTemplate = entity.paramPromptTemplate;
-        node.sortOrder = entity.sortOrder;
-        node.kbId = entity.kbId;
-        return node;
-    }
-
-    private record IntentTreeData(List<RagIntentNode> allNodes,
-                                  List<RagIntentNode> leafNodes,
-                                  Map<String, RagIntentNode> id2Node) {
+    private record IntentTreeData(List<IntentNode> allNodes,
+                                  List<IntentNode> leafNodes,
+                                  Map<String, IntentNode> id2Node) {
     }
 }
