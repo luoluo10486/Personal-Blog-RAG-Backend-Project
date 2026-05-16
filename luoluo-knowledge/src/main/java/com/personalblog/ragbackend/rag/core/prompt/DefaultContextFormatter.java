@@ -3,6 +3,8 @@ package com.personalblog.ragbackend.rag.core.prompt;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.core.intent.IntentNode;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.mcp.MCPResponse;
@@ -12,10 +14,17 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 
 @Service
 public class DefaultContextFormatter implements ContextFormatter {
+    private final PromptTemplateLoader promptTemplateLoader;
+
+    public DefaultContextFormatter(PromptTemplateLoader promptTemplateLoader) {
+        this.promptTemplateLoader = promptTemplateLoader;
+    }
+
     @Override
     public String formatKbContext(List<NodeScore> kbIntents, Map<String, List<RetrievedChunk>> rerankedByIntent, int topK) {
         if (rerankedByIntent == null || rerankedByIntent.isEmpty()) {
@@ -50,7 +59,7 @@ public class DefaultContextFormatter implements ContextFormatter {
 
         Map<String, List<MCPResponse>> grouped = responses.stream()
                 .filter(MCPResponse::isSuccess)
-                .filter(r -> StrUtil.isNotBlank(r.getToolId()))
+                .filter(response -> StrUtil.isNotBlank(response.getToolId()))
                 .collect(Collectors.groupingBy(MCPResponse::getToolId, LinkedHashMap::new, Collectors.toList()));
 
         return toolToIntent.entrySet().stream()
@@ -65,12 +74,8 @@ public class DefaultContextFormatter implements ContextFormatter {
                     if (StrUtil.isBlank(body)) {
                         return "";
                     }
-                    StringBuilder block = new StringBuilder();
-                    if (StrUtil.isNotBlank(snippet)) {
-                        block.append("#### 意图规则\n").append(snippet).append("\n");
-                    }
-                    block.append("#### 动态数据片段\n").append(body);
-                    return block.toString();
+                    String snippetSection = renderSnippetRules(snippet);
+                    return renderMcpSection(snippetSection, body);
                 })
                 .filter(StrUtil::isNotBlank)
                 .collect(Collectors.joining("\n\n"));
@@ -87,22 +92,13 @@ public class DefaultContextFormatter implements ContextFormatter {
             return "";
         }
         String snippet = StrUtil.emptyIfNull(nodeScore.node().getPromptSnippet()).trim();
-        String body = chunks.stream()
-                .limit(topK)
-                .map(RetrievedChunk::getText)
-                .collect(Collectors.joining("\n"));
-        StringBuilder block = new StringBuilder();
-        if (StrUtil.isNotBlank(snippet)) {
-            block.append("#### 意图规则\n").append(snippet).append("\n\n");
-        }
-        block.append("#### 知识库片段\n````text\n").append(body).append("\n````");
-        return block.toString();
+        String body = joinChunkTexts(chunks, topK);
+        return renderKbSection(renderSnippetRules(snippet), body);
     }
 
     private String formatMultiIntentContext(List<NodeScore> kbIntents,
                                             Map<String, List<RetrievedChunk>> rerankedByIntent,
                                             int topK) {
-        StringBuilder result = new StringBuilder();
         List<String> snippets = kbIntents.stream()
                 .map(NodeScore::node)
                 .filter(node -> node != null && StrUtil.isNotBlank(node.getPromptSnippet()))
@@ -111,12 +107,12 @@ public class DefaultContextFormatter implements ContextFormatter {
                 .distinct()
                 .toList();
 
+        String snippetSection = "";
         if (!snippets.isEmpty()) {
-            result.append("#### 意图规则\n");
-            for (int i = 0; i < snippets.size(); i++) {
-                result.append(i + 1).append(". ").append(snippets.get(i)).append("\n");
-            }
-            result.append("\n");
+            String numberedRules = IntStream.range(0, snippets.size())
+                    .mapToObj(index -> (index + 1) + ". " + snippets.get(index))
+                    .collect(Collectors.joining("\n"));
+            snippetSection = renderSnippetRules(numberedRules);
         }
 
         List<RetrievedChunk> allChunks = rerankedByIntent.values().stream()
@@ -125,13 +121,11 @@ public class DefaultContextFormatter implements ContextFormatter {
                 .distinct()
                 .limit(topK)
                 .toList();
-        if (!allChunks.isEmpty()) {
-            String body = allChunks.stream()
-                    .map(RetrievedChunk::getText)
-                    .collect(Collectors.joining("\n"));
-            result.append("#### 知识库片段\n````text\n").append(body).append("\n````");
+        if (allChunks.isEmpty()) {
+            return snippetSection;
         }
-        return result.toString();
+
+        return renderKbSection(snippetSection, joinChunkTexts(allChunks, topK));
     }
 
     private String formatChunksWithoutIntent(Map<String, List<RetrievedChunk>> rerankedByIntent, int topK) {
@@ -154,17 +148,40 @@ public class DefaultContextFormatter implements ContextFormatter {
         if (chunks.isEmpty()) {
             return "";
         }
-        String body = chunks.stream()
+        return renderKbSection("", joinChunkTexts(chunks, topK));
+    }
+
+    private String renderKbSection(String snippetSection, String chunksBody) {
+        return promptTemplateLoader.renderSection(RAGConstant.CONTEXT_FORMAT_PATH, "kb-section", Map.of(
+                "snippet_section", StrUtil.blankToDefault(snippetSection, ""),
+                "chunks_body", StrUtil.blankToDefault(chunksBody, "")
+        ));
+    }
+
+    private String renderSnippetRules(String rules) {
+        if (StrUtil.isBlank(rules)) {
+            return "";
+        }
+        return promptTemplateLoader.renderSection(RAGConstant.CONTEXT_FORMAT_PATH, "snippet-rules", Map.of(
+                "rules", rules
+        ));
+    }
+
+    private String renderMcpSection(String snippetSection, String body) {
+        return promptTemplateLoader.renderSection(RAGConstant.CONTEXT_FORMAT_PATH, "mcp-section", Map.of(
+                "snippet_section", StrUtil.blankToDefault(snippetSection, ""),
+                "body", StrUtil.blankToDefault(body, "")
+        ));
+    }
+
+    private String joinChunkTexts(List<RetrievedChunk> chunks, int topK) {
+        return chunks.stream()
+                .limit(topK)
                 .map(RetrievedChunk::getText)
                 .collect(Collectors.joining("\n"));
-        return "#### 知识库片段\n````text\n" + body + "\n````";
     }
 
     private String mergeResponsesToText(List<MCPResponse> responses) {
-        if (responses == null || responses.isEmpty()) {
-            return "";
-        }
-
         List<String> successResults = new ArrayList<>();
         List<String> errorResults = new ArrayList<>();
 
@@ -184,10 +201,10 @@ public class DefaultContextFormatter implements ContextFormatter {
             }
         }
         if (!errorResults.isEmpty()) {
-            sb.append("【部分查询失败】\n");
-            for (String error : errorResults) {
-                sb.append("- ").append(error).append("\n");
-            }
+            String errorList = String.join("\n", errorResults.stream().map(item -> "- " + item).toList());
+            sb.append(promptTemplateLoader.renderSection(RAGConstant.CONTEXT_FORMAT_PATH, "mcp-error", Map.of(
+                    "error_list", errorList
+            )));
         }
         return sb.toString().trim();
     }

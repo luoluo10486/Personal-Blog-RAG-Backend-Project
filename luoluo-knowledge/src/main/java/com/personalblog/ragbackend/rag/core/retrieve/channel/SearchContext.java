@@ -1,6 +1,7 @@
 package com.personalblog.ragbackend.rag.core.retrieve.channel;
 
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
+import cn.hutool.core.util.StrUtil;
 import lombok.Builder;
 import lombok.Data;
 
@@ -20,6 +21,6 @@ public class SearchContext {
     private Map<String, Object> metadata = new HashMap<>();
 
     public String getMainQuestion() {
-        return rewrittenQuestion != null ? rewrittenQuestion : originalQuestion;
+        return StrUtil.isNotBlank(rewrittenQuestion) ? rewrittenQuestion : originalQuestion;
     }
 }

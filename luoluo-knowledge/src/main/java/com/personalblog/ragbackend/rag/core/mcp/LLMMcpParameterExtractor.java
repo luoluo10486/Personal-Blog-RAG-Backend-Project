@@ -5,9 +5,11 @@ import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.chat.LLMService;
-import com.personalblog.ragbackend.infra.util.LLMResponseCleaner;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
+import com.personalblog.ragbackend.infra.util.LLMResponseCleaner;
+import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,12 +25,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LLMMcpParameterExtractor implements McpParameterExtractor {
 
-    private static final String DEFAULT_SYSTEM_PROMPT = """
-            你是一个 MCP 参数提取器。请根据用户问题和工具定义，提取出工具调用所需的 JSON 参数。
-            只返回 JSON 对象，不要输出多余解释。
-            """;
-
     private final LLMService llmService;
+    private final PromptTemplateLoader promptTemplateLoader;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -43,7 +41,10 @@ public class LLMMcpParameterExtractor implements McpParameterExtractor {
         }
 
         List<ChatMessage> messages = List.of(
-                ChatMessage.system(StrUtil.blankToDefault(customPromptTemplate, DEFAULT_SYSTEM_PROMPT)),
+                ChatMessage.system(StrUtil.blankToDefault(
+                        customPromptTemplate,
+                        promptTemplateLoader.load(RAGConstant.MCP_PARAMETER_EXTRACT_PROMPT_PATH)
+                )),
                 ChatMessage.user(buildUserPrompt(userQuestion, tool))
         );
 
@@ -62,7 +63,10 @@ public class LLMMcpParameterExtractor implements McpParameterExtractor {
     }
 
     private String buildUserPrompt(String userQuestion, MCPTool tool) {
-        return "工具定义:\n" + buildToolDefinition(tool) + "\n\n用户问题:\n" + StrUtil.blankToDefault(userQuestion, "");
+        return promptTemplateLoader.render(RAGConstant.MCP_PARAMETER_EXTRACT_USER_PROMPT_PATH, Map.of(
+                "tool_definition", buildToolDefinition(tool),
+                "user_question", StrUtil.blankToDefault(userQuestion, "")
+        ));
     }
 
     private Map<String, Object> parseJsonResponse(String raw, MCPTool tool) throws Exception {
@@ -70,7 +74,8 @@ public class LLMMcpParameterExtractor implements McpParameterExtractor {
             return new HashMap<>();
         }
         String cleaned = LLMResponseCleaner.stripMarkdownCodeFence(raw);
-        Map<String, Object> parsed = objectMapper.readValue(cleaned, new TypeReference<LinkedHashMap<String, Object>>() {});
+        Map<String, Object> parsed = objectMapper.readValue(cleaned, new TypeReference<LinkedHashMap<String, Object>>() {
+        });
         Map<String, Object> result = new HashMap<>();
         for (String key : tool.getParameters().keySet()) {
             if (parsed.containsKey(key) && parsed.get(key) != null) {

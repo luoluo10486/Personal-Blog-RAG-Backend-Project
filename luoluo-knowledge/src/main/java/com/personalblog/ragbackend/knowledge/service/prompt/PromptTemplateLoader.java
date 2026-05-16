@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -23,6 +25,50 @@ public class PromptTemplateLoader {
 
     public String render(String classpathLocation, Map<String, String> values) {
         String template = load(classpathLocation);
+        if (values == null || values.isEmpty()) {
+            return template;
+        }
+        String rendered = template;
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            rendered = rendered.replace("{" + entry.getKey() + "}", StrUtil.blankToDefault(entry.getValue(), ""));
+        }
+        return rendered;
+    }
+
+    public String renderSection(String classpathLocation, String sectionName, Map<String, String> values) {
+        String template = load(classpathLocation);
+        if (StrUtil.isBlank(template) || StrUtil.isBlank(sectionName)) {
+            return "";
+        }
+        List<String> sectionLines = extractSectionLines(template, sectionName);
+        if (sectionLines.isEmpty()) {
+            return "";
+        }
+        return renderInline(String.join("\n", sectionLines), values);
+    }
+
+    private List<String> extractSectionLines(String template, String sectionName) {
+        String targetHeader = "--- section: " + sectionName;
+        String[] lines = template.split("\\R");
+        List<String> sectionLines = new ArrayList<>();
+        boolean inSection = false;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("--- section:")) {
+                if (inSection) {
+                    break;
+                }
+                inSection = trimmed.equals(targetHeader);
+                continue;
+            }
+            if (inSection) {
+                sectionLines.add(line);
+            }
+        }
+        return sectionLines;
+    }
+
+    private String renderInline(String template, Map<String, String> values) {
         if (values == null || values.isEmpty()) {
             return template;
         }

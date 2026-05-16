@@ -8,6 +8,7 @@ import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannel;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import com.personalblog.ragbackend.rag.core.retrieve.postprocessor.SearchResultPostProcessor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -19,12 +20,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+@Slf4j
 @Service
 public class MultiChannelRetrievalEngine {
-    private static final Logger log = LoggerFactory.getLogger(MultiChannelRetrievalEngine.class);
 
     private final List<SearchChannel> searchChannels;
     private final List<SearchResultPostProcessor> postProcessors;
@@ -62,6 +60,8 @@ public class MultiChannelRetrievalEngine {
             return List.of();
         }
 
+        log.info("启用的检索通道：{}", enabledChannels.stream().map(SearchChannel::getName).toList());
+
         List<CompletableFuture<SearchChannelResult>> futures = enabledChannels.stream()
                 .map(channel -> CompletableFuture.supplyAsync(() -> {
                     try {
@@ -91,6 +91,7 @@ public class MultiChannelRetrievalEngine {
                 .flatMap(result -> result.getChunks() == null ? List.<RetrievedChunk>of().stream() : result.getChunks().stream())
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(ArrayList::new));
+
         if (enabledProcessors.isEmpty()) {
             return chunks;
         }
@@ -101,7 +102,9 @@ public class MultiChannelRetrievalEngine {
                 if (processed != null) {
                     chunks = new ArrayList<>(processed);
                 }
-            } catch (Exception ignored) {
+                log.info("后置处理器 {} 完成，输出 Chunk 数：{}", processor.getName(), chunks.size());
+            } catch (Exception exception) {
+                log.error("后置处理器 {} 执行失败，跳过该处理器", processor.getName(), exception);
             }
         }
         return chunks;
@@ -125,6 +128,7 @@ public class MultiChannelRetrievalEngine {
                     .findFirst()
                     .orElse("");
         }
+
         return SearchContext.builder()
                 .originalQuestion(question)
                 .rewrittenQuestion(question)
@@ -137,6 +141,7 @@ public class MultiChannelRetrievalEngine {
                                 .toList())
                 .intents(subIntents)
                 .topK(Math.max(topK, 1))
+                .metadata(new java.util.HashMap<>())
                 .build();
     }
 
@@ -146,12 +151,19 @@ public class MultiChannelRetrievalEngine {
                     .originalQuestion("")
                     .rewrittenQuestion("")
                     .subQuestions(List.of())
+                    .intents(List.of())
                     .topK(1)
+                    .metadata(new java.util.HashMap<>())
                     .build();
         }
-        if (context.getTopK() <= 0) {
-            context.setTopK(1);
-        }
-        return context;
+
+        return SearchContext.builder()
+                .originalQuestion(context.getOriginalQuestion())
+                .rewrittenQuestion(context.getRewrittenQuestion())
+                .subQuestions(context.getSubQuestions() == null ? List.of() : List.copyOf(context.getSubQuestions()))
+                .intents(context.getIntents() == null ? List.of() : List.copyOf(context.getIntents()))
+                .topK(context.getTopK() <= 0 ? 1 : context.getTopK())
+                .metadata(context.getMetadata() == null ? new java.util.HashMap<>() : new java.util.HashMap<>(context.getMetadata()))
+                .build();
     }
 }

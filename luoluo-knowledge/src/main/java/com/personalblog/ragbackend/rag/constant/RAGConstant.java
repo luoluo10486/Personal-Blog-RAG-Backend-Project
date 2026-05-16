@@ -14,6 +14,9 @@ public class RAGConstant {
     public static final String GUIDANCE_AMBIGUITY_CHECK_PROMPT_PATH = "prompt/guidance-ambiguity-check.st";
     public static final String QUERY_REWRITE_AND_SPLIT_PROMPT_PATH = "prompt/user-question-rewrite.st";
     public static final String INTENT_CLASSIFIER_PROMPT_PATH = "prompt/intent-classifier.st";
+    public static final String CONTEXT_FORMAT_PATH = "prompt/context-format.st";
+    public static final String MCP_PARAMETER_EXTRACT_PROMPT_PATH = "prompt/mcp-parameter-extract.st";
+    public static final String MCP_PARAMETER_EXTRACT_USER_PROMPT_PATH = "prompt/mcp-parameter-extract-user.st";
 
     private RAGConstant() {
     }
