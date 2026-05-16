@@ -5,7 +5,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.personalblog.ragbackend.common.context.UserContext;
 import com.personalblog.ragbackend.common.web.sse.SseEmitterSender;
-import com.personalblog.ragbackend.rag.config.RagRateLimitProperties;
+import com.personalblog.ragbackend.rag.config.RAGRateLimitProperties;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.knowledge.dto.stream.CompletionPayload;
 import com.personalblog.ragbackend.knowledge.dto.stream.MessageDelta;
@@ -55,7 +55,7 @@ public class ChatQueueLimiter {
     private static final String CLAIM_LUA_PATH = "lua/queue_claim_atomic.lua";
 
     private final RedissonClient redissonClient;
-    private final RagRateLimitProperties rateLimitProperties;
+    private final RAGRateLimitProperties rateLimitProperties;
     private final RagConversationService ragConversationService;
     private final RAGDefaultProperties ragDefaultProperties;
     @Qualifier("chatEntryExecutor")

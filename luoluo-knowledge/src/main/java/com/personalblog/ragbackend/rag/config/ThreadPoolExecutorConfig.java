@@ -43,16 +43,18 @@ public class ThreadPoolExecutorConfig {
     }
 
     @Bean
-    public Executor chatEntryExecutor() {
+    public Executor chatEntryExecutor(RAGRateLimitProperties rateLimitProperties) {
+        int size = Math.max(1, rateLimitProperties.getGlobalMaxConcurrent());
         ThreadPoolExecutor executor = new ThreadPoolExecutor(
-                Math.max(2, CPU_COUNT >> 1),
-                Math.max(4, CPU_COUNT),
+                size,
+                size,
                 60,
                 TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(200),
+                new java.util.concurrent.SynchronousQueue<>(),
                 ThreadFactoryBuilder.create().setNamePrefix("chat_entry_executor_").build(),
                 new ThreadPoolExecutor.AbortPolicy()
         );
+        executor.allowCoreThreadTimeOut(true);
         return TtlExecutors.getTtlExecutor(executor);
     }
 

@@ -6,7 +6,7 @@ import com.personalblog.ragbackend.infra.config.AIModelProperties;
 import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
-import com.personalblog.ragbackend.rag.config.RagRateLimitProperties;
+import com.personalblog.ragbackend.rag.config.RAGRateLimitProperties;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.AISettings;
 import com.personalblog.ragbackend.rag.controller.vo.SystemSettingsVO.DefaultSettings;
@@ -30,7 +30,7 @@ import java.util.Map;
 public class RAGSettingsController {
     private final RAGDefaultProperties ragDefaultProperties;
     private final RAGConfigProperties ragConfigProperties;
-    private final RagRateLimitProperties ragRateLimitProperties;
+    private final RAGRateLimitProperties ragRateLimitProperties;
     private final MemoryProperties memoryProperties;
     private final AIModelProperties aiModelProperties;
 

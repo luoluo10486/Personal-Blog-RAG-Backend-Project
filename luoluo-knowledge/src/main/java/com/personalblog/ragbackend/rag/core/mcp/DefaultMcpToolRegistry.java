@@ -15,25 +15,26 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DefaultMCPToolRegistry implements MCPToolRegistry {
+public class DefaultMcpToolRegistry implements McpToolRegistry {
 
-    private final Map<String, MCPToolExecutor> executorMap = new ConcurrentHashMap<>();
-    private final List<MCPToolExecutor> autoDiscoveredExecutors;
+    private final Map<String, McpToolExecutor> executorMap = new ConcurrentHashMap<>();
+    private final List<McpToolExecutor> autoDiscoveredExecutors;
 
     @PostConstruct
     public void init() {
         if (CollectionUtils.isEmpty(autoDiscoveredExecutors)) {
             log.info("MCP tool registry skipped, no executors discovered");
+            return;
         }
 
-        for (MCPToolExecutor executor : autoDiscoveredExecutors) {
+        for (McpToolExecutor executor : autoDiscoveredExecutors) {
             register(executor);
         }
         log.info("MCP tool registry initialized, registered {} tools", autoDiscoveredExecutors.size());
     }
 
     @Override
-    public void register(MCPToolExecutor executor) {
+    public void register(McpToolExecutor executor) {
         if (executor == null || executor.getToolDefinition() == null) {
             log.warn("Ignore empty MCP executor");
             return;
@@ -45,7 +46,7 @@ public class DefaultMCPToolRegistry implements MCPToolRegistry {
             return;
         }
 
-        MCPToolExecutor existing = executorMap.put(toolId, executor);
+        McpToolExecutor existing = executorMap.put(toolId, executor);
         if (existing != null) {
             log.warn("MCP tool already exists, replaced toolId={}", toolId);
         }
@@ -53,26 +54,26 @@ public class DefaultMCPToolRegistry implements MCPToolRegistry {
 
     @Override
     public void unregister(String toolId) {
-        MCPToolExecutor removed = executorMap.remove(toolId);
+        McpToolExecutor removed = executorMap.remove(toolId);
         if (removed != null) {
             log.info("MCP tool unregistered, toolId={}", toolId);
         }
     }
 
     @Override
-    public Optional<MCPToolExecutor> getExecutor(String toolId) {
+    public Optional<McpToolExecutor> getExecutor(String toolId) {
         return Optional.ofNullable(executorMap.get(toolId));
     }
 
     @Override
     public List<MCPTool> listAllTools() {
         return executorMap.values().stream()
-                .map(MCPToolExecutor::getToolDefinition)
+                .map(McpToolExecutor::getToolDefinition)
                 .toList();
     }
 
     @Override
-    public List<MCPToolExecutor> listAllExecutors() {
+    public List<McpToolExecutor> listAllExecutors() {
         return new ArrayList<>(executorMap.values());
     }
 

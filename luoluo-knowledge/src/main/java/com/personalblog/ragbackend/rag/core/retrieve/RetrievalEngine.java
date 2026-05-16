@@ -6,12 +6,12 @@ import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
-import com.personalblog.ragbackend.rag.core.mcp.MCPParameterExtractor;
+import com.personalblog.ragbackend.rag.core.mcp.McpParameterExtractor;
 import com.personalblog.ragbackend.rag.core.mcp.MCPRequest;
 import com.personalblog.ragbackend.rag.core.mcp.MCPResponse;
 import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
-import com.personalblog.ragbackend.rag.core.mcp.MCPToolExecutor;
-import com.personalblog.ragbackend.rag.core.mcp.MCPToolRegistry;
+import com.personalblog.ragbackend.rag.core.mcp.McpToolExecutor;
+import com.personalblog.ragbackend.rag.core.mcp.McpToolRegistry;
 import com.personalblog.ragbackend.rag.core.prompt.ContextFormatter;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,15 +29,15 @@ import java.util.concurrent.Executor;
 public class RetrievalEngine {
     private final MultiChannelRetrievalEngine multiChannelRetrievalEngine;
     private final ContextFormatter contextFormatter;
-    private final MCPParameterExtractor mcpParameterExtractor;
-    private final MCPToolRegistry mcpToolRegistry;
+    private final McpParameterExtractor mcpParameterExtractor;
+    private final McpToolRegistry mcpToolRegistry;
     private final Executor ragContextExecutor;
     private final Executor mcpBatchExecutor;
 
     public RetrievalEngine(MultiChannelRetrievalEngine multiChannelRetrievalEngine,
                            ContextFormatter contextFormatter,
-                           MCPParameterExtractor mcpParameterExtractor,
-                           MCPToolRegistry mcpToolRegistry,
+                           McpParameterExtractor mcpParameterExtractor,
+                           McpToolRegistry mcpToolRegistry,
                            @Qualifier("ragContextThreadPoolExecutor") Executor ragContextExecutor,
                            @Qualifier("mcpBatchThreadPoolExecutor") Executor mcpBatchExecutor) {
         this.multiChannelRetrievalEngine = multiChannelRetrievalEngine;
@@ -57,7 +57,18 @@ public class RetrievalEngine {
         int finalTopK = topK > 0 ? topK : 5;
         List<CompletableFuture<SubQuestionContext>> tasks = subIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
-                        () -> buildSubQuestionContext(intent, finalTopK, null, null),
+                        () -> {
+                            try {
+                                return buildSubQuestionContext(intent, finalTopK, null, null);
+                            } catch (Exception exception) {
+                                return new SubQuestionContext(
+                                        intent == null ? "" : intent.subQuestion(),
+                                        "",
+                                        "",
+                                        Map.of()
+                                );
+                            }
+                        },
                         ragContextExecutor
                 ))
                 .toList();
@@ -145,7 +156,16 @@ public class RetrievalEngine {
                                               String userId) {
         List<CompletableFuture<MCPResponse>> futures = mcpIntents.stream()
                 .map(intent -> CompletableFuture.supplyAsync(
-                        () -> executeSingleMcpTool(question, intent, conversationId, userId),
+                        () -> {
+                            try {
+                                return executeSingleMcpTool(question, intent, conversationId, userId);
+                            } catch (Exception exception) {
+                                RagIntentNode node = intent == null ? null : intent.node();
+                                String toolId = node == null ? "" : StrUtil.blankToDefault(node.mcpToolId, "");
+                                String reason = exception.getMessage() != null ? exception.getMessage() : exception.getClass().getSimpleName();
+                                return MCPResponse.error(toolId, "TOOL_EXECUTION_ERROR", reason);
+                            }
+                        },
                         mcpBatchExecutor
                 ))
                 .toList();
@@ -164,11 +184,11 @@ public class RetrievalEngine {
             return MCPResponse.error("", "MISSING_TOOL", "Missing MCP tool id");
         }
         String toolId = node.mcpToolId.trim();
-        Optional<MCPToolExecutor> executorOpt = mcpToolRegistry.getExecutor(toolId);
+        Optional<McpToolExecutor> executorOpt = mcpToolRegistry.getExecutor(toolId);
         if (executorOpt.isEmpty()) {
             return MCPResponse.error(toolId, "TOOL_NOT_FOUND", "MCP tool not found: " + toolId);
         }
-        MCPToolExecutor executor = executorOpt.get();
+        McpToolExecutor executor = executorOpt.get();
         Map<String, Object> params = mcpParameterExtractor.extractParameters(
                 question,
                 executor.getToolDefinition(),
