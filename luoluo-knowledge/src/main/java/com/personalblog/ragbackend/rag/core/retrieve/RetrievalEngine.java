@@ -13,6 +13,8 @@ import com.personalblog.ragbackend.rag.core.mcp.MCPTool;
 import com.personalblog.ragbackend.rag.core.mcp.McpToolExecutor;
 import com.personalblog.ragbackend.rag.core.mcp.McpToolRegistry;
 import com.personalblog.ragbackend.rag.core.prompt.ContextFormatter;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
+import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -121,15 +123,24 @@ public class RetrievalEngine {
     private KbResult retrieveKnowledge(String question,
                                        List<NodeScore> kbIntents,
                                        int topK) {
-        List<SubQuestionIntent> subIntents = List.of(new SubQuestionIntent(question, List.of()));
-        List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(subIntents, topK);
+        SearchContext searchContext = SearchContext.builder()
+                .originalQuestion(question)
+                .rewrittenQuestion(question)
+                .subQuestions(List.of(question))
+                .intents(CollUtil.isEmpty(kbIntents)
+                        ? List.of(new SubQuestionIntent(question, List.of()))
+                        : List.of(new SubQuestionIntent(question, kbIntents)))
+                .topK(topK)
+                .metadata(new java.util.HashMap<>())
+                .build();
+        List<RetrievedChunk> chunks = multiChannelRetrievalEngine.retrieveKnowledgeChannels(searchContext);
         if (CollUtil.isEmpty(chunks)) {
             return KbResult.empty();
         }
 
         Map<String, List<RetrievedChunk>> intentChunks = new LinkedHashMap<>();
         if (CollUtil.isEmpty(kbIntents)) {
-            intentChunks.put("multi_channel", chunks);
+            intentChunks.put(RAGConstant.MULTI_CHANNEL_KEY, chunks);
         } else {
             for (NodeScore intent : kbIntents) {
                 String key = nodeKey(intent.node());

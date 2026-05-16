@@ -9,12 +9,14 @@ import com.personalblog.ragbackend.rag.core.intent.NodeScoreFilters;
 import com.personalblog.ragbackend.rag.core.intent.RagIntentNode;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieverService;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.strategy.IntentParallelRetriever;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.Executor;
 
+@Slf4j
 @Component
 public class IntentDirectedSearchChannel implements SearchChannel {
     private final SearchChannelProperties properties;
@@ -65,6 +67,7 @@ public class IntentDirectedSearchChannel implements SearchChannel {
         try {
             List<NodeScore> kbIntents = extractKbIntents(context);
             if (CollUtil.isEmpty(kbIntents)) {
+                log.info("意图定向检索通道未命中 KB 意图，跳过");
                 return SearchChannelResult.builder()
                         .channelType(getType())
                         .channelName(getName())
@@ -78,10 +81,11 @@ public class IntentDirectedSearchChannel implements SearchChannel {
                     .map(nodeScore -> new IntentParallelRetriever.IntentTask(
                             nodeScore,
                             resolveCollectionName(nodeScore),
-                            resolveTopK(nodeScore, context.getTopK(), topKMultiplier)
+                            resolveTopK(nodeScore, Math.max(context.getTopK(), 1), topKMultiplier)
                     ))
                     .toList();
-            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(context.getMainQuestion(), tasks, context.getTopK());
+            String question = context.getMainQuestion();
+            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(question, tasks, Math.max(context.getTopK(), 1));
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())
@@ -90,6 +94,7 @@ public class IntentDirectedSearchChannel implements SearchChannel {
                     .metadata(java.util.Map.of("intentCount", kbIntents.size()))
                     .build();
         } catch (Exception exception) {
+            log.error("意图定向检索通道执行失败", exception);
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())

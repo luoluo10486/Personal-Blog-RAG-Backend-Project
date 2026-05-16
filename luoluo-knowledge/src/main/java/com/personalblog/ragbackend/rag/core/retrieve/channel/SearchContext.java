@@ -21,6 +21,6 @@ public class SearchContext {
     private Map<String, Object> metadata = new HashMap<>();
 
     public String getMainQuestion() {
-        return StrUtil.isNotBlank(rewrittenQuestion) ? rewrittenQuestion : originalQuestion;
+        return StrUtil.blankToDefault(rewrittenQuestion, StrUtil.blankToDefault(originalQuestion, ""));
     }
 }

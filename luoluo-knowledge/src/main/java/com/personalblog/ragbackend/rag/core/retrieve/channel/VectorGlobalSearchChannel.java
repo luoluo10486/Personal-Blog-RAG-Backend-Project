@@ -11,6 +11,7 @@ import com.personalblog.ragbackend.rag.config.SearchChannelProperties;
 import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieverService;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.strategy.CollectionParallelRetriever;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+@Slf4j
 @Component
 public class VectorGlobalSearchChannel implements SearchChannel {
     private final SearchChannelProperties properties;
@@ -66,11 +68,16 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         double maxScore = allScores.stream().mapToDouble(NodeScore::score).max().orElse(0D);
         double confidenceThreshold = properties.getChannels().getVectorGlobal().getConfidenceThreshold();
         if (maxScore < confidenceThreshold) {
+            log.info("意图置信度低于阈值，启用全局检索：{}", maxScore);
             return true;
         }
 
         double supplementThreshold = properties.getChannels().getVectorGlobal().getSingleIntentSupplementThreshold();
-        return allScores.size() == 1 && maxScore < supplementThreshold;
+        boolean shouldSupplement = allScores.size() == 1 && maxScore < supplementThreshold;
+        if (shouldSupplement) {
+            log.info("单意图置信度低于补充阈值，启用全局检索：{}", maxScore);
+        }
+        return shouldSupplement;
     }
 
     @Override
@@ -87,6 +94,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
         try {
             List<String> collections = resolveCollections(context);
             if (collections.isEmpty()) {
+                log.info("未解析到可用知识库集合，跳过全局检索");
                 return SearchChannelResult.builder()
                         .channelType(getType())
                         .channelName(getName())
@@ -96,7 +104,8 @@ public class VectorGlobalSearchChannel implements SearchChannel {
             }
 
             int topK = Math.max(context.getTopK(), 1) * Math.max(properties.getChannels().getVectorGlobal().getTopKMultiplier(), 1);
-            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(context.getMainQuestion(), collections, topK);
+            String question = context.getMainQuestion();
+            List<RetrievedChunk> chunks = parallelRetriever.executeParallelRetrieval(question, collections, topK);
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())
@@ -105,6 +114,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
                     .metadata(java.util.Map.of("collectionCount", collections.size()))
                     .build();
         } catch (Exception exception) {
+            log.error("全局检索通道执行失败", exception);
             return SearchChannelResult.builder()
                     .channelType(getType())
                     .channelName(getName())

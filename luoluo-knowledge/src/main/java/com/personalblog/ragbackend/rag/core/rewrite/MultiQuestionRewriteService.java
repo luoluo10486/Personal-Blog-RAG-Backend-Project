@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
+import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
 import com.personalblog.ragbackend.knowledge.service.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Service;
@@ -22,13 +23,16 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     private static final String REWRITE_PROMPT_PATH = "prompt/user-question-rewrite.st";
 
     private final LLMService llmService;
+    private final RAGConfigProperties ragConfigProperties;
     private final PromptTemplateLoader promptTemplateLoader;
     private final ObjectMapper objectMapper;
 
     public MultiQuestionRewriteService(LLMService llmService,
+                                       RAGConfigProperties ragConfigProperties,
                                        PromptTemplateLoader promptTemplateLoader,
                                        ObjectMapper objectMapper) {
         this.llmService = llmService;
+        this.ragConfigProperties = ragConfigProperties;
         this.promptTemplateLoader = promptTemplateLoader;
         this.objectMapper = objectMapper;
     }
@@ -47,10 +51,18 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     @Override
     @RagTraceNode(name = "query-rewrite-and-split", type = "REWRITE")
     public RewriteResult rewriteWithSplit(String userQuestion, List<ChatMessage> history) {
+        if (!Boolean.TRUE.equals(ragConfigProperties.getQueryRewriteEnabled())) {
+            String normalized = normalize(userQuestion);
+            return new RewriteResult(normalized, ruleBasedSplit(normalized));
+        }
         return callLLMRewriteAndSplit(normalize(userQuestion), userQuestion, history);
     }
 
     private RewriteResult rewriteAndSplit(String userQuestion) {
+        if (!Boolean.TRUE.equals(ragConfigProperties.getQueryRewriteEnabled())) {
+            String normalized = normalize(userQuestion);
+            return new RewriteResult(normalized, ruleBasedSplit(normalized));
+        }
         return callLLMRewriteAndSplit(normalize(userQuestion), userQuestion, List.of());
     }
 
@@ -80,7 +92,9 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
         if (CollUtil.isNotEmpty(history)) {
             List<ChatMessage> recentHistory = history.stream()
                     .filter(msg -> msg.getRole() == ChatMessage.Role.USER || msg.getRole() == ChatMessage.Role.ASSISTANT)
-                    .skip(Math.max(0, history.size() - 4))
+                    .skip(Math.max(0, history.stream()
+                            .filter(msg -> msg.getRole() == ChatMessage.Role.USER || msg.getRole() == ChatMessage.Role.ASSISTANT)
+                            .count() - 4))
                     .toList();
             messages.addAll(recentHistory);
         }
@@ -100,6 +114,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
                 return null;
             }
             String rewrite = root.path("rewrite").asText("").trim();
+            boolean shouldSplit = root.path("should_split").asBoolean(false);
             List<String> subs = new ArrayList<>();
             JsonNode arr = root.path("sub_questions");
             if (arr.isArray()) {
@@ -113,13 +128,28 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
             if (StrUtil.isBlank(rewrite)) {
                 return null;
             }
-            if (CollUtil.isEmpty(subs)) {
+            if (!shouldSplit) {
+                subs = List.of(rewrite);
+            } else if (CollUtil.isEmpty(subs)) {
                 subs = List.of(rewrite);
             }
             return new RewriteResult(rewrite, subs);
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private List<String> ruleBasedSplit(String question) {
+        List<String> parts = Arrays.stream(question.split("[?？。；;\\n]+"))
+                .map(String::trim)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.toList());
+        if (CollUtil.isEmpty(parts)) {
+            return List.of(question);
+        }
+        return parts.stream()
+                .map(item -> item.endsWith("。") || item.endsWith("?") || item.endsWith("？") ? item : item + "。")
+                .toList();
     }
 
     private String normalize(String text) {

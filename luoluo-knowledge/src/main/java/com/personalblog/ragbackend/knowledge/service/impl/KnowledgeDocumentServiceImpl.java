@@ -21,7 +21,7 @@ import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeBaseEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentChunkLogEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeDocumentEntity;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeChunkEntity;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineEntity;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineDO;
 import com.personalblog.ragbackend.knowledge.dao.entity.KnowledgeVectorRefEntity;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunk;
 import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
@@ -675,8 +675,8 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
                     .filter(java.util.Objects::nonNull)
                     .collect(Collectors.toCollection(HashSet::new));
             if (!pipelineIds.isEmpty()) {
-                List<IngestionPipelineEntity> pipelines = ingestionPipelineMapper.selectByIds(pipelineIds);
-                for (IngestionPipelineEntity pipeline : pipelines) {
+                List<IngestionPipelineDO> pipelines = ingestionPipelineMapper.selectByIds(pipelineIds);
+                for (IngestionPipelineDO pipeline : pipelines) {
                     pipelineNameMap.put(pipeline.id, pipeline.name);
                 }
             }

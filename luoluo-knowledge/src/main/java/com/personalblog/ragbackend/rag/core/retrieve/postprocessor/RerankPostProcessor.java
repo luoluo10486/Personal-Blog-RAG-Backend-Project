@@ -4,10 +4,12 @@ import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.rerank.RerankService;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchChannelResult;
 import com.personalblog.ragbackend.rag.core.retrieve.channel.SearchContext;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Slf4j
 @Component
 public class RerankPostProcessor implements SearchResultPostProcessor {
     private final RerankService rerankService;
@@ -34,12 +36,13 @@ public class RerankPostProcessor implements SearchResultPostProcessor {
     @Override
     public List<RetrievedChunk> process(List<RetrievedChunk> chunks, List<SearchChannelResult> results, SearchContext context) {
         if (chunks == null || chunks.isEmpty()) {
-            return chunks;
+            return List.of();
         }
         try {
             String question = context == null ? "" : context.getMainQuestion();
             return rerankService.rerank(question, chunks, resolveTopK(context));
         } catch (RuntimeException ex) {
+            log.warn("Rerank 后置处理失败，回退到截断结果", ex);
             return chunks.stream().limit(resolveTopK(context)).toList();
         }
     }

@@ -11,8 +11,8 @@ import com.personalblog.ragbackend.framework.exception.ClientException;
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionTaskCreateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionTaskVO;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskEntity;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskNodeEntity;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskDO;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionTaskNodeDO;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskMapper;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionTaskNodeMapper;
 import com.personalblog.ragbackend.ingestion.domain.context.DocumentSource;
@@ -99,15 +99,15 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
 
     @Override
     public IngestionTaskVO get(String taskId) {
-        IngestionTaskEntity task = requireTask(parseTaskId(taskId));
+        IngestionTaskDO task = requireTask(parseTaskId(taskId));
         return toView(task, readTaskLogs(task.logsJson));
     }
 
     @Override
     public IPage<IngestionTaskVO> page(Page<IngestionTaskVO> page, String status) {
-        Page<IngestionTaskEntity> result = taskMapper.selectPage(
+        Page<IngestionTaskDO> result = taskMapper.selectPage(
                 new Page<>(page.getCurrent(), page.getSize()),
-                new QueryWrapper<IngestionTaskEntity>()
+                new QueryWrapper<IngestionTaskDO>()
                         .eq("deleted", 0)
                         .eq(StringUtils.hasText(status), "status", normalizeTaskStatus(status))
                         .orderByDesc("create_time")
@@ -120,7 +120,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
     @Override
     public List<IngestionTaskNodeVO> listNodes(String taskId) {
         Long parsedTaskId = parseTaskId(taskId);
-        return taskNodeMapper.selectList(new QueryWrapper<IngestionTaskNodeEntity>()
+        return taskNodeMapper.selectList(new QueryWrapper<IngestionTaskNodeDO>()
                         .eq("task_id", parsedTaskId)
                         .eq("deleted", 0)
                         .orderByAsc("node_order")
@@ -138,7 +138,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         String resolvedPipelineId = resolvePipelineId(pipelineId);
         PipelineDefinition pipeline = ingestionPipelineService.getDefinition(resolvedPipelineId);
 
-        IngestionTaskEntity task = new IngestionTaskEntity();
+        IngestionTaskDO task = new IngestionTaskDO();
         task.pipelineId = parsePipelineId(resolvedPipelineId);
         task.sourceType = source == null || source.getType() == null ? null : source.getType().getValue();
         task.sourceLocation = source == null ? null : source.getLocation();
@@ -176,7 +176,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
                 .build();
     }
 
-    private void updateTaskFromContext(IngestionTaskEntity task,
+    private void updateTaskFromContext(IngestionTaskDO task,
                                        IngestionContext context) {
         task.status = context.getStatus() == null
                 ? IngestionStatus.FAILED.getValue()
@@ -191,13 +191,13 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         taskMapper.updateById(task);
     }
 
-    private void saveNodeLogsWithOrder(IngestionTaskEntity task, PipelineDefinition pipeline, List<NodeLog> nodeLogs) {
+    private void saveNodeLogsWithOrder(IngestionTaskDO task, PipelineDefinition pipeline, List<NodeLog> nodeLogs) {
         if (nodeLogs == null || nodeLogs.isEmpty()) {
             return;
         }
         Map<String, Integer> nodeOrderMap = buildNodeOrderMap(pipeline);
         for (NodeLog log : nodeLogs) {
-            IngestionTaskNodeEntity entity = new IngestionTaskNodeEntity();
+            IngestionTaskNodeDO entity = new IngestionTaskNodeDO();
             entity.taskId = task.id;
             entity.pipelineId = task.pipelineId;
             entity.nodeId = log.getNodeId();
@@ -333,7 +333,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         return source;
     }
 
-    private IngestionTaskVO toView(IngestionTaskEntity task, List<NodeLog> logs) {
+    private IngestionTaskVO toView(IngestionTaskDO task, List<NodeLog> logs) {
         IngestionTaskVO vo = new IngestionTaskVO();
         vo.setId(stringify(task.id));
         vo.setPipelineId(stringify(task.pipelineId));
@@ -364,7 +364,7 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
-    private IngestionTaskNodeVO toNodeView(IngestionTaskNodeEntity entity) {
+    private IngestionTaskNodeVO toNodeView(IngestionTaskNodeDO entity) {
         IngestionTaskNodeVO vo = new IngestionTaskNodeVO();
         vo.setId(stringify(entity.id));
         vo.setTaskId(stringify(entity.taskId));
@@ -393,11 +393,11 @@ public class IngestionTaskServiceImpl implements IngestionTaskService {
         }
     }
 
-    private IngestionTaskEntity requireTask(Long id) {
+    private IngestionTaskDO requireTask(Long id) {
         if (id == null) {
             throw new ClientException("task id must not be blank");
         }
-        IngestionTaskEntity entity = taskMapper.selectById(id);
+        IngestionTaskDO entity = taskMapper.selectById(id);
         if (entity == null || entity.deleted != null && entity.deleted != 0) {
             throw new ClientException("task not found");
         }

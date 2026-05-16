@@ -13,8 +13,8 @@ import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelin
 import com.personalblog.ragbackend.ingestion.controller.request.IngestionPipelineUpdateRequest;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineNodeVO;
 import com.personalblog.ragbackend.ingestion.controller.vo.IngestionPipelineVO;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineEntity;
-import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineNodeEntity;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineDO;
+import com.personalblog.ragbackend.ingestion.dao.entity.IngestionPipelineNodeDO;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionPipelineMapper;
 import com.personalblog.ragbackend.ingestion.dao.mapper.IngestionPipelineNodeMapper;
 import com.personalblog.ragbackend.ingestion.domain.enums.IngestionNodeType;
@@ -52,7 +52,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
     public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
         Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         String name = normalizeName(request.getName());
-        IngestionPipelineEntity entity = new IngestionPipelineEntity();
+        IngestionPipelineDO entity = new IngestionPipelineDO();
         entity.name = name;
         entity.description = blankToNull(request.getDescription());
         entity.createdBy = currentUserId();
@@ -73,7 +73,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
     public IngestionPipelineVO update(String id, IngestionPipelineUpdateRequest request) {
         Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
         Long pipelineId = parsePipelineId(id);
-        IngestionPipelineEntity entity = requirePipeline(pipelineId);
+        IngestionPipelineDO entity = requirePipeline(pipelineId);
         if (StringUtils.hasText(request.getName())) {
             entity.name = normalizeName(request.getName());
         }
@@ -92,14 +92,14 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
     @Override
     public IngestionPipelineVO get(String id) {
         Long pipelineId = parsePipelineId(id);
-        IngestionPipelineEntity entity = requirePipeline(pipelineId);
+        IngestionPipelineDO entity = requirePipeline(pipelineId);
         return toView(entity, listNodes(pipelineId));
     }
 
     public IPage<IngestionPipelineVO> page(long current, long size, String keyword) {
-        Page<IngestionPipelineEntity> page = pipelineMapper.selectPage(
+        Page<IngestionPipelineDO> page = pipelineMapper.selectPage(
                 new Page<>(Math.max(current, 1), Math.max(size, 1)),
-                new QueryWrapper<IngestionPipelineEntity>()
+                new QueryWrapper<IngestionPipelineDO>()
                         .eq("deleted", 0)
                         .like(StringUtils.hasText(keyword), "name", keyword)
                         .orderByDesc("update_time")
@@ -112,15 +112,15 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
     @Override
     public void delete(String id) {
         Long pipelineId = parsePipelineId(id);
-        IngestionPipelineEntity entity = requirePipeline(pipelineId);
+        IngestionPipelineDO entity = requirePipeline(pipelineId);
         entity.deleted = 1;
         entity.updatedBy = currentUserId();
         pipelineMapper.deleteById(pipelineId);
-        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
+        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeDO>().eq("pipeline_id", pipelineId));
     }
 
     public List<IngestionPipelineNodeVO> listNodes(Long pipelineId) {
-        return nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
+        return nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeDO>()
                         .eq("pipeline_id", pipelineId)
                         .eq("deleted", 0)
                         .orderByAsc("id"))
@@ -130,8 +130,8 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
     }
 
     public PipelineDefinition getDefinition(Long id) {
-        IngestionPipelineEntity entity = requirePipeline(id);
-        List<NodeConfig> nodes = nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeEntity>()
+        IngestionPipelineDO entity = requirePipeline(id);
+        List<NodeConfig> nodes = nodeMapper.selectList(new QueryWrapper<IngestionPipelineNodeDO>()
                         .eq("pipeline_id", id)
                         .eq("deleted", 0)
                         .orderByAsc("id"))
@@ -160,7 +160,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         if (requests == null) {
             return;
         }
-        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeEntity>().eq("pipeline_id", pipelineId));
+        nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeDO>().eq("pipeline_id", pipelineId));
         if (requests.isEmpty()) {
             return;
         }
@@ -168,7 +168,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
             if (request == null) {
                 continue;
             }
-            IngestionPipelineNodeEntity entity = new IngestionPipelineNodeEntity();
+            IngestionPipelineNodeDO entity = new IngestionPipelineNodeDO();
             entity.pipelineId = pipelineId;
             entity.nodeId = normalizeNodeId(request.getNodeId());
             entity.nodeType = normalizeNodeType(request.getNodeType());
@@ -184,22 +184,22 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         }
     }
 
-    private IngestionPipelineEntity requirePipeline(Long id) {
+    private IngestionPipelineDO requirePipeline(Long id) {
         if (id == null) {
             throw new ClientException("pipeline id must not be blank");
         }
-        IngestionPipelineEntity entity = pipelineMapper.selectById(id);
+        IngestionPipelineDO entity = pipelineMapper.selectById(id);
         if (entity == null || entity.deleted != null && entity.deleted != 0) {
             throw new ClientException("pipeline not found");
         }
         return entity;
     }
 
-    private IngestionPipelineVO toViewWithFreshNodes(IngestionPipelineEntity entity) {
+    private IngestionPipelineVO toViewWithFreshNodes(IngestionPipelineDO entity) {
         return toView(entity, listNodes(entity.id));
     }
 
-    private IngestionPipelineVO toView(IngestionPipelineEntity entity, List<IngestionPipelineNodeVO> nodes) {
+    private IngestionPipelineVO toView(IngestionPipelineDO entity, List<IngestionPipelineNodeVO> nodes) {
         IngestionPipelineVO vo = new IngestionPipelineVO();
         vo.setId(String.valueOf(entity.id));
         vo.setName(entity.name);
@@ -211,7 +211,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return vo;
     }
 
-    private IngestionPipelineNodeVO toNodeView(IngestionPipelineNodeEntity entity) {
+    private IngestionPipelineNodeVO toNodeView(IngestionPipelineNodeDO entity) {
         IngestionPipelineNodeVO vo = new IngestionPipelineNodeVO();
         vo.setId(String.valueOf(entity.id));
         vo.setNodeId(entity.nodeId);
@@ -222,7 +222,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return vo;
     }
 
-    private NodeConfig toNodeConfig(IngestionPipelineNodeEntity entity) {
+    private NodeConfig toNodeConfig(IngestionPipelineNodeDO entity) {
         return NodeConfig.builder()
                 .nodeId(entity.nodeId)
                 .nodeType(normalizeNodeType(entity.nodeType))
