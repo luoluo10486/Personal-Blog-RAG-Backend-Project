@@ -27,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -50,10 +52,9 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
 
     @Override
     public IngestionPipelineVO create(IngestionPipelineCreateRequest request) {
-        Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
-        String name = normalizeName(request.getName());
+        Assert.notNull(request, () -> new ClientException("request must not be blank"));
         IngestionPipelineDO entity = new IngestionPipelineDO();
-        entity.name = name;
+        entity.name = normalizeName(request.getName());
         entity.description = blankToNull(request.getDescription());
         entity.createdBy = currentUserId();
         entity.updatedBy = currentUserId();
@@ -66,12 +67,12 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
             throw new ClientException("pipeline name already exists");
         }
         replaceNodes(entity.id, request.getNodes());
-        return get(String.valueOf(entity.id));
+        return toView(entity, listNodes(entity.id));
     }
 
     @Override
     public IngestionPipelineVO update(String id, IngestionPipelineUpdateRequest request) {
-        Assert.notNull(request, () -> new ClientException("璇锋眰涓嶈兘涓虹┖"));
+        Assert.notNull(request, () -> new ClientException("request must not be blank"));
         Long pipelineId = parsePipelineId(id);
         IngestionPipelineDO entity = requirePipeline(pipelineId);
         if (StringUtils.hasText(request.getName())) {
@@ -96,17 +97,22 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return toView(entity, listNodes(pipelineId));
     }
 
+    @Override
+    public IPage<IngestionPipelineVO> page(Page<IngestionPipelineVO> page, String keyword) {
+        return page(page.getCurrent(), page.getSize(), keyword);
+    }
+
     public IPage<IngestionPipelineVO> page(long current, long size, String keyword) {
-        Page<IngestionPipelineDO> page = pipelineMapper.selectPage(
+        Page<IngestionPipelineDO> result = pipelineMapper.selectPage(
                 new Page<>(Math.max(current, 1), Math.max(size, 1)),
                 new QueryWrapper<IngestionPipelineDO>()
                         .eq("deleted", 0)
                         .like(StringUtils.hasText(keyword), "name", keyword)
                         .orderByDesc("update_time")
         );
-        Page<IngestionPipelineVO> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
-        result.setRecords(page.getRecords().stream().map(this::toViewWithFreshNodes).toList());
-        return result;
+        Page<IngestionPipelineVO> voPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        voPage.setRecords(result.getRecords().stream().map(entity -> toView(entity, listNodes(entity.id))).toList());
+        return voPage;
     }
 
     @Override
@@ -115,7 +121,7 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         IngestionPipelineDO entity = requirePipeline(pipelineId);
         entity.deleted = 1;
         entity.updatedBy = currentUserId();
-        pipelineMapper.deleteById(pipelineId);
+        pipelineMapper.deleteById(entity);
         nodeMapper.delete(new QueryWrapper<IngestionPipelineNodeDO>().eq("pipeline_id", pipelineId));
     }
 
@@ -127,6 +133,11 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
                 .stream()
                 .map(this::toNodeView)
                 .toList();
+    }
+
+    @Override
+    public PipelineDefinition getDefinition(String pipelineId) {
+        return getDefinition(parsePipelineId(pipelineId));
     }
 
     public PipelineDefinition getDefinition(Long id) {
@@ -144,16 +155,6 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
                 .description(entity.description)
                 .nodes(nodes)
                 .build();
-    }
-
-    @Override
-    public PipelineDefinition getDefinition(String pipelineId) {
-        return getDefinition(parsePipelineId(pipelineId));
-    }
-
-    @Override
-    public IPage<IngestionPipelineVO> page(Page<IngestionPipelineVO> page, String keyword) {
-        return page(page.getCurrent(), page.getSize(), keyword);
     }
 
     private void replaceNodes(Long pipelineId, List<IngestionPipelineNodeRequest> requests) {
@@ -195,10 +196,6 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         return entity;
     }
 
-    private IngestionPipelineVO toViewWithFreshNodes(IngestionPipelineDO entity) {
-        return toView(entity, listNodes(entity.id));
-    }
-
     private IngestionPipelineVO toView(IngestionPipelineDO entity, List<IngestionPipelineNodeVO> nodes) {
         IngestionPipelineVO vo = new IngestionPipelineVO();
         vo.setId(String.valueOf(entity.id));
@@ -206,8 +203,8 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         vo.setDescription(entity.description);
         vo.setCreatedBy(stringify(entity.createdBy));
         vo.setNodes(nodes);
-        vo.setCreateTime(java.sql.Timestamp.valueOf(entity.createdAt));
-        vo.setUpdateTime(java.sql.Timestamp.valueOf(entity.updatedAt));
+        vo.setCreateTime(toDate(entity.createdAt));
+        vo.setUpdateTime(toDate(entity.updatedAt));
         return vo;
     }
 
@@ -303,6 +300,10 @@ public class IngestionPipelineServiceImpl implements IngestionPipelineService {
         } catch (NumberFormatException exception) {
             throw new ClientException("pipeline not found");
         }
+    }
+
+    private Date toDate(LocalDateTime time) {
+        return time == null ? null : Date.from(time.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     private String stringify(Long value) {

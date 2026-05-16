@@ -2,18 +2,19 @@ package com.personalblog.ragbackend.rag.core.memory;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
 import com.personalblog.ragbackend.rag.config.MemoryProperties;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.dao.entity.RagConversationSummaryEntity;
-import com.personalblog.ragbackend.rag.dao.mapper.RagConversationSummaryMapper;
 import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity;
 import com.personalblog.ragbackend.rag.service.ConversationGroupService;
 import com.personalblog.ragbackend.rag.service.ConversationMessageService;
 import com.personalblog.ragbackend.rag.service.bo.ConversationSummaryBO;
 import jakarta.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -30,9 +31,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class JdbcConversationMemorySummaryService implements ConversationMemorySummaryService {
-    private static final String SUMMARY_PREFIX = "对话摘要：";
     private static final String SUMMARY_LOCK_PREFIX = "ragent:memory:summary:lock:";
     private static final String SUMMARY_PROMPT_PATH = "prompt/conversation-summary.st";
     private final ConcurrentMap<String, RLock> locks = new ConcurrentHashMap<>();
@@ -43,8 +44,6 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
     private final LLMService llmService;
     private final PromptTemplateLoader promptTemplateLoader;
     private final RedissonClient redissonClient;
-
-    @Qualifier("memorySummaryThreadPoolExecutor")
     private final Executor memorySummaryExecutor;
 
     public JdbcConversationMemorySummaryService(ConversationGroupService conversationGroupService,
@@ -72,7 +71,11 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             return;
         }
         CompletableFuture.runAsync(() -> doCompressIfNeeded(conversationId, userId), memorySummaryExecutor)
-                .exceptionally(ex -> null);
+                .exceptionally(exception -> {
+                    log.error("conversation memory summary async task failed, conversationId={}, userId={}",
+                            conversationId, userId, exception);
+                    return null;
+                });
     }
 
     @Override
@@ -89,11 +92,12 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         if (summary == null || StrUtil.isBlank(summary.getContent())) {
             return summary;
         }
-        String content = summary.getContent().trim();
-        if (content.startsWith(SUMMARY_PREFIX) || content.startsWith("摘要：")) {
-            return summary;
-        }
-        return ChatMessage.system(SUMMARY_PREFIX + content);
+        String wrapped = promptTemplateLoader.renderSection(
+                RAGConstant.CONTEXT_FORMAT_PATH,
+                "summary-wrapper",
+                Map.of("content", summary.getContent().trim())
+        );
+        return ChatMessage.system(wrapped);
     }
 
     private void doCompressIfNeeded(String conversationId, Long userId) {
@@ -113,12 +117,11 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
             }
 
             RagConversationSummaryEntity latestSummary = conversationGroupService.findLatestSummary(conversationId, String.valueOf(userId));
-            List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> latestUserTurns =
-                    conversationGroupService.listLatestUserOnlyMessages(
-                            conversationId,
-                            String.valueOf(userId),
-                            memoryProperties.getHistoryKeepTurns()
-                    );
+            List<RagConversationMessageEntity> latestUserTurns = conversationGroupService.listLatestUserOnlyMessages(
+                    conversationId,
+                    String.valueOf(userId),
+                    memoryProperties.getHistoryKeepTurns()
+            );
             if (CollUtil.isEmpty(latestUserTurns)) {
                 return;
             }
@@ -133,13 +136,12 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                 return;
             }
 
-            List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> toSummarize =
-                    conversationGroupService.listMessagesBetweenIds(
-                            conversationId,
-                            String.valueOf(userId),
-                            afterId,
-                            cutoffId
-                    );
+            List<RagConversationMessageEntity> toSummarize = conversationGroupService.listMessagesBetweenIds(
+                    conversationId,
+                    String.valueOf(userId),
+                    afterId,
+                    cutoffId
+            );
             if (CollUtil.isEmpty(toSummarize)) {
                 return;
             }
@@ -169,8 +171,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         }
     }
 
-    private String summarizeMessages(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> messages,
-                                     String existingSummary) {
+    private String summarizeMessages(List<RagConversationMessageEntity> messages, String existingSummary) {
         List<ChatMessage> histories = toHistoryMessages(messages);
         if (CollUtil.isEmpty(histories)) {
             return existingSummary;
@@ -186,12 +187,13 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
 
         if (StrUtil.isNotBlank(existingSummary)) {
             summaryMessages.add(ChatMessage.assistant(
-                    "鍘嗗彶鎽樿锛堜粎鐢ㄤ簬鍚堝苟鍘婚噸锛屼笉寰椾綔涓轰簨瀹炴潵婧愶紱濡備笌鏈疆瀵硅瘽鍐茬獊锛屼互鏈疆瀵硅瘽涓哄噯锛夛細\n"
+                    "历史摘要（仅用于合并去重，不得作为新事实来源；若与本轮对话冲突，以本轮对话为准）：\n"
                             + existingSummary.trim()
             ));
         }
         summaryMessages.addAll(histories);
-        summaryMessages.add(ChatMessage.user("合并以上对话与历史摘要，去重后输出更新摘要。要求：严格不超过 " + summaryMaxChars + " 字符；仅一行。"));
+        summaryMessages.add(ChatMessage.user("合并以上对话与历史摘要，去重后输出更新摘要。要求：严格不超过 "
+                + summaryMaxChars + " 个字符；仅一行。"));
 
         try {
             ChatRequest request = ChatRequest.builder()
@@ -201,12 +203,13 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                     .thinking(false)
                     .build();
             return llmService.chat(request);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            log.error("conversation summary generation failed, messages={}", messages.size(), exception);
             return existingSummary;
         }
     }
 
-    private List<ChatMessage> toHistoryMessages(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> messages) {
+    private List<ChatMessage> toHistoryMessages(List<RagConversationMessageEntity> messages) {
         if (CollUtil.isEmpty(messages)) {
             return List.of();
         }
@@ -250,21 +253,20 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         if (after == null) {
             return null;
         }
-        String afterId = conversationGroupService.findMaxMessageIdAtOrBefore(conversationId, String.valueOf(userId), after);
-        return afterId;
+        return conversationGroupService.findMaxMessageIdAtOrBefore(conversationId, String.valueOf(userId), after);
     }
 
-    private String resolveCutoffId(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> latestUserTurns) {
+    private String resolveCutoffId(List<RagConversationMessageEntity> latestUserTurns) {
         if (CollUtil.isEmpty(latestUserTurns)) {
             return null;
         }
-        com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity oldest = latestUserTurns.get(latestUserTurns.size() - 1);
+        RagConversationMessageEntity oldest = latestUserTurns.get(latestUserTurns.size() - 1);
         return oldest == null || oldest.getId() == null ? null : String.valueOf(oldest.getId());
     }
 
-    private String resolveLastMessageId(List<com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity> toSummarize) {
+    private String resolveLastMessageId(List<RagConversationMessageEntity> toSummarize) {
         for (int i = toSummarize.size() - 1; i >= 0; i--) {
-            com.personalblog.ragbackend.rag.dao.entity.RagConversationMessageEntity item = toSummarize.get(i);
+            RagConversationMessageEntity item = toSummarize.get(i);
             if (item != null && item.getId() != null) {
                 return String.valueOf(item.getId());
             }
@@ -272,5 +274,3 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
         return null;
     }
 }
-
-

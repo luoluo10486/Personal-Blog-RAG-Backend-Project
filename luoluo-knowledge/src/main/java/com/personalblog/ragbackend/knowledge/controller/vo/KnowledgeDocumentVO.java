@@ -27,6 +27,7 @@ public class KnowledgeDocumentVO {
     private String pipelineId;
     private String status;
     private String createdBy;
+    private String updatedBy;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

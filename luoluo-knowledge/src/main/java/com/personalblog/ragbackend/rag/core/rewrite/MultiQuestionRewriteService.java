@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.chat.LLMService;
 import com.personalblog.ragbackend.infra.convention.ChatMessage;
 import com.personalblog.ragbackend.infra.convention.ChatRequest;
+import com.personalblog.ragbackend.infra.util.LLMResponseCleaner;
 import com.personalblog.ragbackend.rag.config.RAGConfigProperties;
+import com.personalblog.ragbackend.rag.constant.RAGConstant;
 import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
 import com.personalblog.ragbackend.knowledge.trace.RagTraceNode;
 import org.springframework.stereotype.Service;
@@ -20,8 +22,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class MultiQuestionRewriteService implements QueryRewriteService {
-    private static final String REWRITE_PROMPT_PATH = "prompt/user-question-rewrite.st";
-
     private final LLMService llmService;
     private final RAGConfigProperties ragConfigProperties;
     private final PromptTemplateLoader promptTemplateLoader;
@@ -69,7 +69,7 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
     private RewriteResult callLLMRewriteAndSplit(String normalizedQuestion,
                                                  String originalQuestion,
                                                  List<ChatMessage> history) {
-        String systemPrompt = promptTemplateLoader.load(REWRITE_PROMPT_PATH);
+        String systemPrompt = promptTemplateLoader.load(RAGConstant.QUERY_REWRITE_AND_SPLIT_PROMPT_PATH);
         ChatRequest req = buildRewriteRequest(systemPrompt, normalizedQuestion, history);
         try {
             String raw = llmService.chat(req);
@@ -109,32 +109,30 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
 
     private RewriteResult parseRewriteAndSplit(String raw) {
         try {
-            JsonNode root = objectMapper.readTree(stripCodeFence(raw));
+            JsonNode root = objectMapper.readTree(LLMResponseCleaner.stripMarkdownCodeFence(raw));
             if (!root.isObject()) {
                 return null;
             }
             String rewrite = root.path("rewrite").asText("").trim();
             boolean shouldSplit = root.path("should_split").asBoolean(false);
-            List<String> subs = new ArrayList<>();
+            List<String> subQuestions = new ArrayList<>();
             JsonNode arr = root.path("sub_questions");
             if (arr.isArray()) {
                 for (JsonNode node : arr) {
                     String text = node == null ? "" : node.asText("").trim();
                     if (StrUtil.isNotBlank(text)) {
-                        subs.add(text);
+                        subQuestions.add(text);
                     }
                 }
             }
             if (StrUtil.isBlank(rewrite)) {
                 return null;
             }
-            if (!shouldSplit) {
-                subs = List.of(rewrite);
-            } else if (CollUtil.isEmpty(subs)) {
-                subs = List.of(rewrite);
+            if (!shouldSplit || CollUtil.isEmpty(subQuestions)) {
+                subQuestions = List.of(rewrite);
             }
-            return new RewriteResult(rewrite, subs);
-        } catch (Exception e) {
+            return new RewriteResult(rewrite, subQuestions);
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -157,14 +155,5 @@ public class MultiQuestionRewriteService implements QueryRewriteService {
             return "";
         }
         return text.trim();
-    }
-
-    private String stripCodeFence(String raw) {
-        String trimmed = raw.trim();
-        if (!trimmed.startsWith("```")) {
-            return trimmed;
-        }
-        String withoutStart = trimmed.replaceFirst("^```[a-zA-Z]*\\s*", "");
-        return withoutStart.replaceFirst("\\s*```$", "").trim();
     }
 }

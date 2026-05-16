@@ -10,6 +10,7 @@ import com.personalblog.ragbackend.rag.core.intent.NodeScore;
 import com.personalblog.ragbackend.rag.core.intent.NodeScoreFilters;
 import com.personalblog.ragbackend.rag.core.intent.SubQuestionIntent;
 import com.personalblog.ragbackend.rag.core.prompt.PromptTemplateLoader;
+import com.personalblog.ragbackend.rag.enums.IntentLevel;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -47,9 +48,6 @@ public class IntentGuidanceService {
         if (group == null || CollUtil.isEmpty(group.ranked())) {
             return GuidanceDecision.none();
         }
-        if (shouldSkipGuidance(question, group.ranked())) {
-            return GuidanceDecision.none();
-        }
         return GuidanceDecision.prompt(buildPrompt(group.topicName(), group.ranked()));
     }
 
@@ -75,7 +73,6 @@ public class IntentGuidanceService {
         List<NodeScore> ranked = systemBest.values().stream()
                 .sorted(Comparator.comparingDouble(NodeScore::score).reversed())
                 .toList();
-
         if (ranked.size() < 2) {
             return null;
         }
@@ -83,12 +80,14 @@ public class IntentGuidanceService {
         if (shouldSkipGuidance(question, ranked)) {
             return null;
         }
-
         if (!confirmAmbiguity(question, ranked)) {
             return null;
         }
+
         List<NodeScore> trimmedRanked = trimRankedOptions(ranked);
-        String topicName = trimmedRanked.get(0).node() == null ? "" : StrUtil.blankToDefault(trimmedRanked.get(0).node().getName(), trimmedRanked.get(0).node().getId());
+        String topicName = trimmedRanked.get(0).node() == null
+                ? ""
+                : StrUtil.blankToDefault(trimmedRanked.get(0).node().getName(), trimmedRanked.get(0).node().getId());
         return new AmbiguityGroup(topicName, trimmedRanked);
     }
 
@@ -114,14 +113,13 @@ public class IntentGuidanceService {
 
         if (StrUtil.isNotBlank(question)) {
             List<String> domainNames = ranked.stream()
-                    .map(ns -> resolveDomainName(ns.node()))
+                    .map(score -> resolveDomainName(score.node()))
                     .filter(StrUtil::isNotBlank)
                     .distinct()
                     .toList();
-
             String normalizedQuestion = normalizeName(question);
-            for (String name : domainNames) {
-                for (String alias : buildSystemAliases(name)) {
+            for (String domainName : domainNames) {
+                for (String alias : buildSystemAliases(domainName)) {
                     if (alias.length() >= 2 && normalizedQuestion.contains(alias)) {
                         return true;
                     }
@@ -156,7 +154,7 @@ public class IntentGuidanceService {
         }
         IntentNode current = node;
         while (current != null) {
-            if (current.getLevel() == com.personalblog.ragbackend.rag.enums.IntentLevel.DOMAIN) {
+            if (current.getLevel() == IntentLevel.DOMAIN) {
                 return StrUtil.blankToDefault(current.getName(), "");
             }
             current = fetchParent(current);
@@ -183,8 +181,8 @@ public class IntentGuidanceService {
         IntentNode current = node;
         IntentNode parent = fetchParent(current);
         for (; ; ) {
-            if (current.getLevel() == com.personalblog.ragbackend.rag.enums.IntentLevel.CATEGORY
-                    && (parent == null || parent.getLevel() == com.personalblog.ragbackend.rag.enums.IntentLevel.DOMAIN)) {
+            if (current.getLevel() == IntentLevel.CATEGORY
+                    && (parent == null || parent.getLevel() == IntentLevel.DOMAIN)) {
                 return current.getId();
             }
             if (parent == null) {
@@ -227,6 +225,9 @@ public class IntentGuidanceService {
     }
 
     private String resolveDisplayName(IntentNode node) {
+        if (node == null) {
+            return "";
+        }
         return StrUtil.blankToDefault(node.getFullPath(), StrUtil.blankToDefault(node.getName(), node.getId()));
     }
 

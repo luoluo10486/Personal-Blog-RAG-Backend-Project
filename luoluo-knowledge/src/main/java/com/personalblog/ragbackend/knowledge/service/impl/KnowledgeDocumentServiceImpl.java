@@ -29,6 +29,7 @@ import com.personalblog.ragbackend.knowledge.dto.document.DocumentChunkResponse;
 import com.personalblog.ragbackend.knowledge.dto.document.ParseResult;
 import com.personalblog.ragbackend.knowledge.domain.enums.SourceType;
 import com.personalblog.ragbackend.knowledge.domain.enums.ProcessMode;
+import com.personalblog.ragbackend.knowledge.domain.enums.DocumentStatus;
 import com.personalblog.ragbackend.knowledge.config.KnowledgeScheduleProperties;
 import com.personalblog.ragbackend.core.parser.DocumentParser;
 import com.personalblog.ragbackend.core.parser.DocumentParserSelector;
@@ -196,7 +197,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         entity.setFileType(storedFile.getDetectedType());
         entity.setFileSize(storedFile.getSize());
         entity.setProcessMode(processMode.getValue());
-        entity.setStatus("pending");
+        entity.setStatus(DocumentStatus.PENDING.getCode());
         entity.setSourceType(sourceType.getValue());
         entity.setSourceLocation(sourceType == SourceType.URL ? blankToNull(requestParam.getSourceLocation()) : null);
         entity.setScheduleEnabled(sourceType == SourceType.URL && Boolean.TRUE.equals(requestParam.getScheduleEnabled()) ? 1 : 0);
@@ -219,9 +220,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         int updated = knowledgeDocumentMapper.update(
                 null,
                 new LambdaUpdateWrapper<KnowledgeDocumentEntity>()
-                        .set(KnowledgeDocumentEntity::getStatus, "running")
+                        .set(KnowledgeDocumentEntity::getStatus, DocumentStatus.RUNNING.getCode())
                         .eq(KnowledgeDocumentEntity::getId, document.getId())
-                        .ne(KnowledgeDocumentEntity::getStatus, "running")
+                        .ne(KnowledgeDocumentEntity::getStatus, DocumentStatus.RUNNING.getCode())
         );
         if (updated <= 0) {
             throw new IllegalArgumentException("document is already running");
@@ -288,12 +289,12 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             persistDuration = System.currentTimeMillis() - persistStart;
 
             long totalDuration = System.currentTimeMillis() - totalStartTime;
-            updateChunkLog(chunkLog.getId(), "success", savedCount, extractDuration, chunkDuration, embedDuration, persistDuration, totalDuration, null);
+            updateChunkLog(chunkLog.getId(), DocumentStatus.SUCCESS.getCode(), savedCount, extractDuration, chunkDuration, embedDuration, persistDuration, totalDuration, null);
         } catch (Exception exception) {
             log.error("document chunk task failed, docId={}", docId, exception);
             markChunkFailed(document.getId());
             long totalDuration = System.currentTimeMillis() - totalStartTime;
-            updateChunkLog(chunkLog.getId(), "failed", 0, extractDuration, chunkDuration, embedDuration, persistDuration, totalDuration, exception.getMessage());
+            updateChunkLog(chunkLog.getId(), DocumentStatus.FAILED.getCode(), 0, extractDuration, chunkDuration, embedDuration, persistDuration, totalDuration, exception.getMessage());
         }
     }
 
@@ -417,7 +418,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     private KnowledgeDocumentChunkLogEntity insertChunkLog(KnowledgeDocumentEntity document) {
         KnowledgeDocumentChunkLogEntity entity = new KnowledgeDocumentChunkLogEntity();
         entity.setDocId(document.getId());
-        entity.setStatus("running");
+        entity.setStatus(DocumentStatus.RUNNING.getCode());
         entity.setProcessMode(document.getProcessMode());
         entity.setChunkStrategy(document.getChunkStrategy());
         entity.setPipelineId(document.getPipelineId());
@@ -456,7 +457,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Transactional(rollbackFor = Exception.class)
     public void delete(String docId) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
-        if ("running".equalsIgnoreCase(document.getStatus())) {
+        if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
         deleteDocumentArtifacts(document);
@@ -476,7 +477,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Transactional(rollbackFor = Exception.class)
     public void update(String docId, KnowledgeDocumentUpdateRequest requestParam) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
-        if ("running".equalsIgnoreCase(document.getStatus())) {
+        if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
         if (requestParam == null || !StringUtils.hasText(requestParam.getDocName())) {
@@ -566,7 +567,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     @Transactional(rollbackFor = Exception.class)
     public void enable(String docId, boolean enabled) {
         KnowledgeDocumentEntity document = requireDocument(parseId(docId));
-        if ("running".equalsIgnoreCase(document.getStatus())) {
+        if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(document.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
         KnowledgeBaseEntity knowledgeBase = requireKnowledgeBase(document.getKbId());
@@ -761,7 +762,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         transactionOperations.executeWithoutResult(status -> {
             KnowledgeDocumentEntity update = new KnowledgeDocumentEntity();
             update.setId(docId);
-            update.setStatus("failed");
+            update.setStatus(DocumentStatus.FAILED.getCode());
             update.setUpdatedBy(parseUserId(UserContext.getUserId()));
             knowledgeDocumentMapper.updateById(update);
         });
@@ -879,7 +880,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
             }
 
             document.setChunkCount(safeChunks.size());
-            document.setStatus("success");
+            document.setStatus(DocumentStatus.SUCCESS.getCode());
             document.setUpdatedBy(parseUserId(UserContext.getUserId()));
             knowledgeDocumentMapper.updateById(document);
         });

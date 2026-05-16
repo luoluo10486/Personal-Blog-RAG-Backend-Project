@@ -21,6 +21,7 @@ import com.personalblog.ragbackend.knowledge.mapper.KnowledgeBaseMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeChunkMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeDocumentMapper;
 import com.personalblog.ragbackend.knowledge.mapper.KnowledgeVectorRefMapper;
+import com.personalblog.ragbackend.knowledge.domain.enums.DocumentStatus;
 import com.personalblog.ragbackend.knowledge.service.KnowledgeChunkService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.knowledge.service.vector.VectorStoreService;
@@ -398,7 +399,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         if (entity == null) {
             throw new IllegalArgumentException("document not found");
         }
-        if ("running".equalsIgnoreCase(entity.getStatus())) {
+        if (DocumentStatus.RUNNING.getCode().equalsIgnoreCase(entity.getStatus())) {
             throw new IllegalArgumentException("document is already running");
         }
         if (requireEnabled && entity.getEnabled() != null && entity.getEnabled() != 1) {
