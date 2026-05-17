@@ -30,7 +30,7 @@ public class MultiChannelRetrievalEngine {
 
     public MultiChannelRetrievalEngine(List<SearchChannel> searchChannels,
                                        List<SearchResultPostProcessor> postProcessors,
-                                       @Qualifier("ragRetrievalThreadPoolExecutor") Executor ragRetrievalExecutor) {
+                                       @Qualifier("ragRetrievalExecutor") Executor ragRetrievalExecutor) {
         this.searchChannels = searchChannels == null ? List.of() : List.copyOf(searchChannels);
         this.postProcessors = postProcessors == null ? List.of() : List.copyOf(postProcessors);
         this.ragRetrievalExecutor = ragRetrievalExecutor;

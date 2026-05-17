@@ -3,7 +3,7 @@ package com.personalblog.ragbackend.rag.core.retrieve;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
 import com.personalblog.ragbackend.infra.embedding.EmbeddingService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,7 +11,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
 public class PgRetrieverService implements RetrieverService {
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingService embeddingService;

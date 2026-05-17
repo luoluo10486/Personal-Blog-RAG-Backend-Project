@@ -23,7 +23,7 @@ public class IntentResolver {
     private final Executor intentClassifyExecutor;
 
     public IntentResolver(@Qualifier("defaultIntentClassifier") IntentClassifier intentClassifier,
-                          @Qualifier("intentClassifyThreadPoolExecutor") Executor intentClassifyExecutor) {
+                          @Qualifier("intentClassifyExecutor") Executor intentClassifyExecutor) {
         this.intentClassifier = intentClassifier;
         this.intentClassifyExecutor = intentClassifyExecutor;
     }

@@ -1,13 +1,11 @@
 package com.personalblog.ragbackend.knowledge.service.vector;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnBean(JdbcTemplate.class)
-@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
 public class PgVectorStoreAdmin implements VectorStoreAdmin {
     private final JdbcTemplate jdbcTemplate;
     private static final String SCHEMA = "public";

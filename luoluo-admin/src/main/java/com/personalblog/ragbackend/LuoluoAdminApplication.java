@@ -9,18 +9,21 @@ import org.springframework.boot.context.metrics.buffering.BufferingApplicationSt
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.Environment;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Enumeration;
 
 /**
  * 后台管理端启动入口。
  */
 @SpringBootApplication(scanBasePackages = "com.personalblog.ragbackend")
+@EnableScheduling
 @ConfigurationPropertiesScan(basePackages = {
         "com.personalblog.ragbackend.knowledge.config",
         "com.personalblog.ragbackend.rag.config",
@@ -29,10 +32,13 @@ import java.util.Enumeration;
 @MapperScan({
         "com.personalblog.ragbackend.member.mapper",
         "com.personalblog.ragbackend.common.auth.mapper",
-        "com.personalblog.ragbackend.knowledge.mapper"
+        "com.personalblog.ragbackend.knowledge.mapper",
+        "com.personalblog.ragbackend.ingestion.dao.mapper",
+        "com.personalblog.ragbackend.rag.dao.mapper"
 })
 public class LuoluoAdminApplication {
     private static final Logger log = LoggerFactory.getLogger(LuoluoAdminApplication.class);
+    private static final String DEFAULT_SERVER_PORT = "9090";
 
     /**
      * 启动 Spring Boot 应用。
@@ -43,6 +49,7 @@ public class LuoluoAdminApplication {
         long startTime = System.currentTimeMillis();
         SpringApplication application = new SpringApplication(LuoluoAdminApplication.class);
         application.setApplicationStartup(new BufferingApplicationStartup(2048));
+        application.setDefaultProperties(Collections.singletonMap("server.port", DEFAULT_SERVER_PORT));
 
         ConfigurableApplicationContext context = application.run(args);
         Environment env = context.getEnvironment();
@@ -51,7 +58,7 @@ public class LuoluoAdminApplication {
 
     private static void logStartupSummary(Environment env, long startTime) throws SocketException {
         String ip = getLocalIp();
-        String port = env.getProperty("server.port", "8080");
+        String port = env.getProperty("server.port", DEFAULT_SERVER_PORT);
         String path = env.getProperty("server.servlet.context-path", "");
         String appName = env.getProperty("spring.application.name", "luoluo-admin");
         String profile = env.getProperty("spring.profiles.active", "default");

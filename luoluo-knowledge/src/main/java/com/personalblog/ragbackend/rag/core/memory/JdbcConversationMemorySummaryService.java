@@ -52,7 +52,7 @@ public class JdbcConversationMemorySummaryService implements ConversationMemoryS
                                                 LLMService llmService,
                                                 PromptTemplateLoader promptTemplateLoader,
                                                 RedissonClient redissonClient,
-                                                @Qualifier("memorySummaryThreadPoolExecutor") Executor memorySummaryExecutor) {
+                                                @Qualifier("memorySummaryExecutor") Executor memorySummaryExecutor) {
         this.conversationGroupService = conversationGroupService;
         this.conversationMessageService = conversationMessageService;
         this.memoryProperties = memoryProperties;

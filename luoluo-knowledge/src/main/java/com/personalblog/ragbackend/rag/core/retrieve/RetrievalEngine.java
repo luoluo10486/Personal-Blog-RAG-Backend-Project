@@ -49,8 +49,8 @@ public class RetrievalEngine {
                            McpParameterExtractor mcpParameterExtractor,
                            McpToolRegistry mcpToolRegistry,
                            MultiChannelRetrievalEngine multiChannelRetrievalEngine,
-                           @Qualifier("ragContextThreadPoolExecutor") Executor ragContextExecutor,
-                           @Qualifier("mcpBatchThreadPoolExecutor") Executor mcpBatchExecutor) {
+                           @Qualifier("ragContextExecutor") Executor ragContextExecutor,
+                           @Qualifier("mcpBatchExecutor") Executor mcpBatchExecutor) {
         this.searchProperties = searchProperties;
         this.contextFormatter = contextFormatter;
         this.promptTemplateLoader = promptTemplateLoader;

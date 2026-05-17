@@ -33,7 +33,7 @@ public class VectorGlobalSearchChannel implements SearchChannel {
                                      SearchChannelProperties properties,
                                      KnowledgeBaseMapper knowledgeBaseMapper,
                                      KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
-                                     @Qualifier("ragContextThreadPoolExecutor") Executor executor) {
+                                     @Qualifier("ragContextExecutor") Executor executor) {
         this.properties = properties;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;

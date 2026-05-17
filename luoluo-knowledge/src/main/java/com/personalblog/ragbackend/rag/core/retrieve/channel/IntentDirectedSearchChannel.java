@@ -23,7 +23,7 @@ public class IntentDirectedSearchChannel implements SearchChannel {
 
     public IntentDirectedSearchChannel(RetrieverService retrieverService,
                                        SearchChannelProperties properties,
-                                       @Qualifier("ragContextThreadPoolExecutor") Executor executor) {
+                                       @Qualifier("ragContextExecutor") Executor executor) {
         this.properties = properties;
         this.parallelRetriever = new IntentParallelRetriever(retrieverService, executor);
     }

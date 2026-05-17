@@ -19,7 +19,7 @@ public class DefaultConversationMemoryService implements ConversationMemoryServi
 
     public DefaultConversationMemoryService(ConversationMemoryStore memoryStore,
                                             ConversationMemorySummaryService summaryService,
-                                            @Qualifier("memoryLoadThreadPoolExecutor") Executor memoryLoadExecutor) {
+                                            @Qualifier("memoryLoadExecutor") Executor memoryLoadExecutor) {
         this.memoryStore = memoryStore;
         this.summaryService = summaryService;
         this.memoryLoadExecutor = memoryLoadExecutor;

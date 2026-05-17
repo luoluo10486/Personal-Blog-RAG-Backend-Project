@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.core.chunk.VectorChunk;
 import com.personalblog.ragbackend.knowledge.service.vector.model.KnowledgeVectorDocument;
 import com.personalblog.ragbackend.knowledge.service.vector.model.VectorSearchHit;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -19,8 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@ConditionalOnBean(JdbcTemplate.class)
-@ConditionalOnExpression("'${rag.vector.type:pg}'.toLowerCase() == 'pgvector' or '${rag.vector.type:pg}'.toLowerCase() == 'pg'")
+@ConditionalOnProperty(name = "rag.vector.type", havingValue = "pg")
 public class PgVectorStoreService implements VectorStoreService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
