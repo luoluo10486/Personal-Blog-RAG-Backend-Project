@@ -22,7 +22,7 @@ public class KnowledgeDocumentScheduleDO {
     private String cronExpr;
     @TableField("enabled")
     private Integer enabled;
-    @TableField("next_run_at")
+    @TableField("next_run_time")
     private LocalDateTime nextRunTime;
     @TableField("lock_owner")
     private String lockOwner;
