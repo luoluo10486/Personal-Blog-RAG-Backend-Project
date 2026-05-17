@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.mcp.tools;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.personalblog.ragbackend.infra.convention.RetrievedChunk;
-import com.personalblog.ragbackend.knowledge.controller.vo.KnowledgeDocumentChunkLogVO;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeAskResponse;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeCitation;
 import com.personalblog.ragbackend.knowledge.dto.KnowledgeHealthResponse;
@@ -13,10 +12,10 @@ import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
 import com.personalblog.ragbackend.mcp.catalog.McpCapabilityCatalog;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
-import com.personalblog.ragbackend.rag.core.retrieve.KnowledgeRetriever;
+import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
+import com.personalblog.ragbackend.rag.core.retrieve.RetrieverService;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,20 +27,20 @@ public class RagMcpTools {
     private final ObjectMapper objectMapper;
     private final RAGDefaultProperties ragDefaultProperties;
     private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
-    private final KnowledgeRetriever knowledgeRetriever;
+    private final RetrieverService retrieverService;
     private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
     private final McpCapabilityCatalog mcpCapabilityCatalog;
 
     public RagMcpTools(ObjectMapper objectMapper,
                        RAGDefaultProperties ragDefaultProperties,
                        KnowledgeDocumentChunkService knowledgeDocumentChunkService,
-                       KnowledgeRetriever knowledgeRetriever,
+                       RetrieverService retrieverService,
                        KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
                        McpCapabilityCatalog mcpCapabilityCatalog) {
         this.objectMapper = objectMapper;
         this.ragDefaultProperties = ragDefaultProperties;
         this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
-        this.knowledgeRetriever = knowledgeRetriever;
+        this.retrieverService = retrieverService;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
         this.mcpCapabilityCatalog = mcpCapabilityCatalog;
     }
@@ -64,10 +63,16 @@ public class RagMcpTools {
     }
 
     public String searchKnowledgeBase(String query, Integer topK, String baseCode) {
-        requireText(query, "检索问题");
+        requireText(query, "搜索问题");
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
-        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        List<RetrievedChunk> chunks = retrieverService.retrieve(
+                RetrieveRequest.builder()
+                        .query(query)
+                        .topK(normalizeTopK(topK))
+                        .collectionName(vectorSpace.collectionName())
+                        .build()
+        );
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("baseCode", normalizedBaseCode);
@@ -82,12 +87,18 @@ public class RagMcpTools {
         requireText(query, "用户问题");
         String normalizedBaseCode = normalizeBaseCode(baseCode);
         KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
-        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        List<RetrievedChunk> chunks = retrieverService.retrieve(
+                RetrieveRequest.builder()
+                        .query(query)
+                        .topK(normalizeTopK(topK))
+                        .collectionName(vectorSpace.collectionName())
+                        .build()
+        );
         List<KnowledgeCitation> citations = chunks.stream()
                 .map(this::toCitation)
                 .toList();
         KnowledgeAskResponse response = new KnowledgeAskResponse(
-                buildAnswer(query, chunks),
+                buildAnswer(chunks),
                 normalizedBaseCode,
                 citations,
                 new KnowledgeTrace(
@@ -108,14 +119,21 @@ public class RagMcpTools {
     }
 
     public String chunkPlainText(String content) {
-        requireText(content, "需要切块的原始文本内容");
+        requireText(content, "原始文本内容");
         return toJson(knowledgeDocumentChunkService.chunkText(content));
     }
 
     public String previewKnowledgeCitations(String query, Integer topK, String baseCode) {
-        requireText(query, "检索问题");
+        requireText(query, "搜索问题");
         String normalizedBaseCode = normalizeBaseCode(baseCode);
-        List<RetrievedChunk> chunks = knowledgeRetriever.retrieve(normalizedBaseCode, query, normalizeTopK(topK));
+        KnowledgeVectorSpace vectorSpace = knowledgeVectorSpaceResolver.resolve(normalizedBaseCode);
+        List<RetrievedChunk> chunks = retrieverService.retrieve(
+                RetrieveRequest.builder()
+                        .query(query)
+                        .topK(normalizeTopK(topK))
+                        .collectionName(vectorSpace.collectionName())
+                        .build()
+        );
         List<KnowledgeCitation> citations = chunks.stream()
                 .map(this::toCitation)
                 .toList();
@@ -154,7 +172,7 @@ public class RagMcpTools {
         );
     }
 
-    private String buildAnswer(String query, List<RetrievedChunk> chunks) {
+    private String buildAnswer(List<RetrievedChunk> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return "未检索到相关知识片段";
         }

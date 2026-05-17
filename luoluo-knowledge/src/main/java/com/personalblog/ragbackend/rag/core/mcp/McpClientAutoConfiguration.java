@@ -14,9 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,16 +45,11 @@ public class McpClientAutoConfiguration {
         String serverUrl = server.getUrl();
         log.info("Connecting MCP Server: name={}, url={}", serverName, serverUrl);
         try {
-            if (!isReachable(serverUrl)) {
-                log.warn("Skip MCP Server [{}] because endpoint is not reachable: {}", serverName, serverUrl);
-                return;
-            }
-
             String mcpUrl = serverUrl.endsWith("/mcp") ? serverUrl : serverUrl + "/mcp";
             HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport.builder(mcpUrl).build();
 
             McpSyncClient client = McpClient.sync(transport)
-                    .clientInfo(new Implementation("luoluo-knowledge", "0.0.1"))
+                    .clientInfo(new Implementation("ragent-bootstrap", "1.0.0"))
                     .build();
             client.initialize();
             clients.add(client);
@@ -76,26 +68,6 @@ public class McpClientAutoConfiguration {
             }
         } catch (Exception exception) {
             log.error("Connect MCP Server [{}] failed, reason={}", serverName, exception.getMessage());
-        }
-    }
-
-    private boolean isReachable(String serverUrl) {
-        try {
-            URI uri = URI.create(serverUrl);
-            String host = uri.getHost();
-            int port = uri.getPort();
-            if (host == null || host.isBlank()) {
-                return false;
-            }
-            if (port < 0) {
-                port = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
-            }
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(host, port), 1500);
-                return true;
-            }
-        } catch (Exception exception) {
-            return false;
         }
     }
 
