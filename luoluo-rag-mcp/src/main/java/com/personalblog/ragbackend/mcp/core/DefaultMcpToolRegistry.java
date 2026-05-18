@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
+@Component("mcpServerToolRegistry")
 public class DefaultMcpToolRegistry implements McpToolRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultMcpToolRegistry.class);
