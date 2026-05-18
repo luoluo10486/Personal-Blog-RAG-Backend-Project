@@ -3,7 +3,6 @@ package com.personalblog.ragbackend.knowledge.dao.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -28,13 +27,6 @@ public class KnowledgeDocumentScheduleDO {
     private String lockOwner;
     @TableField("lock_until")
     private LocalDateTime lockUntil;
-    @TableField("created_by")
-    private Long createdBy;
-    @TableField("updated_by")
-    private Long updatedBy;
-    @TableLogic
-    @TableField("deleted")
-    private Integer deleted;
     @TableField("create_time")
     private LocalDateTime createdAt;
     @TableField("update_time")
