@@ -37,7 +37,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.personalblog.ragbackend.mcp.LuoluoRagMcpApplication</mainClass>
+                    <mainClass>com.personalblog.ragbackend.mcp.McpServerApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

@@ -1,12 +1,9 @@
 package com.personalblog.ragbackend.mcp;
 
-import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
 import com.personalblog.ragbackend.knowledge.config.RustfsS3Config;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
-import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Import;
 
@@ -20,20 +17,23 @@ import org.springframework.context.annotation.Import;
                 "com.personalblog.ragbackend.mcp"
         },
         exclude = {
-                DataSourceTransactionManagerAutoConfiguration.class,
-                MybatisPlusAutoConfiguration.class,
-                RedisAutoConfiguration.class,
-                RedisRepositoriesAutoConfiguration.class
+                org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration.class,
+                org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration.class
         }
 )
 @ConfigurationPropertiesScan(basePackages = {
         "com.personalblog.ragbackend.knowledge.config",
         "com.personalblog.ragbackend.rag.config"
 })
+@MapperScan({
+        "com.personalblog.ragbackend.knowledge.mapper",
+        "com.personalblog.ragbackend.ingestion.dao.mapper",
+        "com.personalblog.ragbackend.rag.dao.mapper"
+})
 @Import(RustfsS3Config.class)
-public class LuoluoRagMcpApplication {
+public class McpServerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(LuoluoRagMcpApplication.class, args);
+        SpringApplication.run(McpServerApplication.class, args);
     }
 }

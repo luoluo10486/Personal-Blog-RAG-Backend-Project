@@ -10,7 +10,6 @@ import com.personalblog.ragbackend.knowledge.dto.KnowledgeTrace;
 import com.personalblog.ragbackend.knowledge.service.document.KnowledgeDocumentChunkService;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpace;
 import com.personalblog.ragbackend.knowledge.service.vector.KnowledgeVectorSpaceResolver;
-import com.personalblog.ragbackend.mcp.catalog.McpCapabilityCatalog;
 import com.personalblog.ragbackend.rag.config.RAGDefaultProperties;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieveRequest;
 import com.personalblog.ragbackend.rag.core.retrieve.RetrieverService;
@@ -29,20 +28,17 @@ public class RagMcpTools {
     private final KnowledgeDocumentChunkService knowledgeDocumentChunkService;
     private final RetrieverService retrieverService;
     private final KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver;
-    private final McpCapabilityCatalog mcpCapabilityCatalog;
 
     public RagMcpTools(ObjectMapper objectMapper,
                        RAGDefaultProperties ragDefaultProperties,
                        KnowledgeDocumentChunkService knowledgeDocumentChunkService,
                        RetrieverService retrieverService,
-                       KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver,
-                       McpCapabilityCatalog mcpCapabilityCatalog) {
+                       KnowledgeVectorSpaceResolver knowledgeVectorSpaceResolver) {
         this.objectMapper = objectMapper;
         this.ragDefaultProperties = ragDefaultProperties;
         this.knowledgeDocumentChunkService = knowledgeDocumentChunkService;
         this.retrieverService = retrieverService;
         this.knowledgeVectorSpaceResolver = knowledgeVectorSpaceResolver;
-        this.mcpCapabilityCatalog = mcpCapabilityCatalog;
     }
 
     public String getRagStatus() {
@@ -141,7 +137,17 @@ public class RagMcpTools {
     }
 
     public String describeMcpCapabilities() {
-        return toJson(mcpCapabilityCatalog.snapshot());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("server", Map.of("name", "ragent-mcp-server", "version", "0.0.1"));
+        payload.put("tools", List.of(
+                Map.of("name", "getRagStatus", "description", "查看当前 RAG 服务状态、默认知识库和向量空间配置"),
+                Map.of("name", "searchKnowledgeBase", "description", "在知识库中执行检索，返回命中的知识片段和向量空间信息"),
+                Map.of("name", "generateKnowledgeAnswer", "description", "基于检索到的知识片段生成答案，并返回引用信息"),
+                Map.of("name", "chunkPlainText", "description", "按知识库切块规则对纯文本进行切块，适合在入库前预览 chunk 效果"),
+                Map.of("name", "previewKnowledgeCitations", "description", "查看当前问题命中的候选知识片段，便于人工核对召回质量"),
+                Map.of("name", "describeMcpCapabilities", "description", "列出当前 MCP 服务提供的 tools 信息")
+        ));
+        return toJson(payload);
     }
 
     private String normalizeBaseCode(String baseCode) {
